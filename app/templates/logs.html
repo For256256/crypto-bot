@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}لاگ‌ها | کریپتو بات{% endblock %}
+
+{% block content %}
+<div class="flex flex-col md:flex-row-reverse justify-between items-start md:items-center gap-4 mb-8">
+  <div>
+    <h2 class="font-headline text-2xl font-bold text-on-surface">لاگ‌های سیستم</h2>
+    <p class="text-on-surface-variant text-sm mt-1">رویدادهای موتورهای معاملاتی (به‌روزرسانی خودکار هر ۵ ثانیه)</p>
+  </div>
+  <div class="flex gap-2">
+    <select id="f_account" class="field !w-auto" onchange="renderLogs()"><option value="">همه حساب‌ها</option></select>
+    <select id="f_level" class="field !w-auto" onchange="renderLogs()">
+      <option value="">همه سطح‌ها</option><option value="info">اطلاع</option>
+      <option value="warn">هشدار</option><option value="error">خطا</option>
+    </select>
+  </div>
+</div>
+
+<div class="glass-card rounded-2xl overflow-hidden">
+  <div class="px-5 py-3 border-b border-outline-variant/20 bg-surface-container-low flex items-center gap-2">
+    <span class="w-2 h-2 rounded-full bg-buy pulse-active"></span>
+    <span class="text-xs text-on-surface-variant">زنده</span>
+    <span class="mono-num text-[11px] text-on-surface-variant mr-auto" id="logCount"></span>
+  </div>
+  <div class="bg-primary-container p-4 h-[70vh] overflow-y-auto" id="logBox" dir="ltr">
+    <div class="text-center text-on-surface-variant text-sm py-10" dir="rtl">در حال بارگذاری…</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let accountsCache = [];
+let statusCache = {};
+
+async function loadData() {
+  const [accounts, status] = await Promise.all([callApi('/api/accounts'), callApi('/api/status')]);
+  const newAccounts = JSON.stringify(accounts.map(a => a.id)) !== JSON.stringify(accountsCache.map(a => a.id));
+  accountsCache = accounts;
+  statusCache = status.accounts || {};
+  if (newAccounts) {
+    const sel = document.getElementById('f_account');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">همه حساب‌ها</option>' +
+      accountsCache.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+    sel.value = cur;
+  }
+  renderLogs();
+}
+
+function renderLogs() {
+  const accFilter = document.getElementById('f_account').value;
+  const levelFilter = document.getElementById('f_level').value;
+  let lines = [];
+  for (const acc of accountsCache) {
+    if (accFilter && acc.id !== accFilter) continue;
+    const logs = (statusCache[acc.id] || {}).logs || [];
+    for (const l of logs) {
+      if (levelFilter && l.level !== levelFilter) continue;
+      lines.push({ ...l, account: acc.name });
+    }
+  }
+  lines.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+  const box = document.getElementById('logBox');
+  document.getElementById('logCount').textContent = lines.length + ' رویداد';
+  if (!lines.length) {
+    box.innerHTML = '<div class="text-center text-on-surface-variant text-sm py-10" dir="rtl">رویدادی یافت نشد — ربات را شروع کنید.</div>';
+    return;
+  }
+  const wasAtBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+  box.innerHTML = lines.map(l => {
+    const c = l.level === 'error' ? 'text-sell' : (l.level === 'warn' ? 'text-gold' : 'text-[#9aa4b2]');
+    const lvl = (l.level || 'info').toUpperCase().padEnd(5);
+    return `<div class="${c} mono-num text-[11px] py-0.5 leading-5"><span class="text-on-surface-variant">[${(l.time || '').slice(0, 19).replace('T', ' ')}]</span> <span class="text-info-blue">${lvl}</span> <span class="text-secondary-fixed-dim">[${l.account}]</span> ${l.message}</div>`;
+  }).join('');
+  if (wasAtBottom) box.scrollTop = box.scrollHeight;
+}
+
+loadData().catch(e => toast('خطا: ' + e.message, true));
+setInterval(loadData, 5000);
+</script>
+{% endblock %}

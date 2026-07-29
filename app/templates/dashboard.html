@@ -1,0 +1,714 @@
+{% extends "base.html" %}
+{% block title %}کریپتو بات - پیشخوان{% endblock %}
+
+{% block content %}
+<!-- هدر آمار حساب -->
+<div id="accountBar" class="mb-6"></div>
+
+<!-- تب‌های حساب‌ها -->
+<div id="accountTabs" class="flex flex-wrap gap-2 mb-6"></div>
+
+<!-- نوار ابزار نمادها -->
+<div id="symbolsToolbar" class="flex justify-between items-center mb-4"></div>
+
+<!-- شبکه کارت‌های نماد -->
+<div id="symbolsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+
+<!-- پوزیشن‌های باز -->
+<div id="positionsBox" class="mt-8"></div>
+
+<!-- مودال حساب -->
+<div class="modal-bg" id="accountModalBg">
+  <div class="modal-panel">
+    <h3 id="accountModalTitle" class="font-headline text-lg font-bold mb-4">حساب جدید</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div><label class="lbl">نام حساب</label><input id="f_name" class="field" placeholder="مثلاً: حساب اصلی Toobit"></div>
+      <div><label class="lbl">صرافی</label><select id="f_exchange" class="field"><option value="toobit">Toobit</option></select></div>
+      <div class="sm:col-span-2"><label class="lbl">API Key</label><input id="f_api_key" class="field mono-num" dir="ltr" placeholder="در حالت paper اختیاری است"></div>
+      <div class="sm:col-span-2"><label class="lbl">API Secret</label><input id="f_api_secret" class="field mono-num" dir="ltr" type="password" placeholder="در حالت paper اختیاری است"></div>
+      <div><label class="lbl">حالت معامله</label><select id="f_trading_mode" class="field"><option value="paper">کاغذی (paper)</option><option value="live">واقعی (LIVE)</option></select></div>
+      <div><label class="lbl">موجودی اولیه paper (USDT)</label><input id="f_paper_balance" class="field mono-num" dir="ltr" type="number" value="10000"></div>
+      <div><label class="lbl">ریسک هر معامله (٪)</label><input id="f_risk_percent" class="field mono-num" dir="ltr" type="number" step="0.1" value="1"></div>
+      <div><label class="lbl">اهرم پیش‌فرض</label><input id="f_default_leverage" class="field mono-num" dir="ltr" type="number" value="5"></div>
+      <div><label class="lbl">حداکثر پوزیشن باز هم‌زمان</label><input id="f_max_open_positions" class="field mono-num" dir="ltr" type="number" value="2"></div>
+      <div><label class="lbl">سقف ضرر روزانه (٪)</label><input id="f_max_daily_loss_percent" class="field mono-num" dir="ltr" type="number" step="0.5" value="5"></div>
+      <div><label class="lbl">بازه بررسی سیگنال (ثانیه)</label><input id="f_poll_interval_seconds" class="field mono-num" dir="ltr" type="number" value="60"></div>
+      <div class="flex items-center gap-2 pt-5"><input type="checkbox" id="f_recycle_on_new_signal" class="of-switch"><label for="f_recycle_on_new_signal" class="text-xs text-on-surface-variant">بستن سودده‌ترین پوزیشن هنگام پر بودن ظرفیت (recycle)</label></div>
+      <div class="flex items-center gap-2 pt-5"><input type="checkbox" id="f_accept_webhook" class="of-switch" checked><label for="f_accept_webhook" class="text-xs text-on-surface-variant">دریافت سیگنال از وبهوک TradingView</label></div>
+    </div>
+    <div class="flex justify-end gap-2 mt-5">
+      <button class="btn-ghost" onclick="closeModal('accountModalBg')">انصراف</button>
+      <button class="btn-primary-of" onclick="saveAccount()">ذخیره</button>
+    </div>
+  </div>
+</div>
+
+<!-- مودال اعمال دسته‌جمعی -->
+<div class="modal-bg" id="bulkModalBg">
+  <div class="modal-panel">
+    <h3 class="font-headline text-lg font-bold mb-1">اعمال دسته‌جمعی روی نمادها</h3>
+    <p class="text-[11px] text-on-surface-variant mb-4">فقط بخش‌های تیک‌خورده روی <b id="bulkCount">همه</b> نماد این بات اعمال می‌شود.</p>
+    <div class="space-y-4">
+      <div class="flex items-center gap-3">
+        <input type="checkbox" id="b_use_timeframe" class="of-switch" checked>
+        <label class="text-sm flex-1" for="b_use_timeframe">تایم‌فریم</label>
+        <select id="b_timeframe" class="field !w-32">
+          <option value="1m">1 دقیقه</option><option value="5m">5 دقیقه</option><option value="15m">15 دقیقه</option>
+          <option value="30m">30 دقیقه</option><option value="1h" selected>1 ساعت</option><option value="4h">4 ساعت</option>
+          <option value="1d">روزانه</option>
+        </select>
+      </div>
+      <div>
+        <div class="flex items-center gap-3 mb-2">
+          <input type="checkbox" id="b_use_strategy" class="of-switch" onchange="document.getElementById('bulkParamsBox').style.display=this.checked?'grid':'none'">
+          <label class="text-sm flex-1" for="b_use_strategy">استراتژی و پارامترها</label>
+          <select id="b_strategy" class="field !w-56" onchange="renderBulkStrategyParams()"></select>
+        </div>
+        <div id="bulkParamsBox" class="grid grid-cols-2 sm:grid-cols-3 gap-3" style="display:none"></div>
+      </div>
+      <div class="flex items-center gap-3">
+        <input type="checkbox" id="b_use_leverage" class="of-switch">
+        <label class="text-sm flex-1" for="b_use_leverage">اهرم (خالی = پیش‌فرض حساب)</label>
+        <input id="b_leverage" class="field mono-num !w-32" dir="ltr" type="number" placeholder="خودکار">
+      </div>
+      <div>
+        <div class="flex items-center gap-3 mb-2">
+          <input type="checkbox" id="b_use_qty" class="of-switch" onchange="document.getElementById('bulkQtyBox').style.display=this.checked?'grid':'none'">
+          <label class="text-sm flex-1" for="b_use_qty">محدودیت‌های حجم</label>
+        </div>
+        <div id="bulkQtyBox" class="grid grid-cols-3 gap-3" style="display:none">
+          <div><label class="lbl">حداقل حجم</label><input id="b_min_qty" class="field mono-num" dir="ltr" type="number" step="any" placeholder="از صرافی"></div>
+          <div><label class="lbl">گام حجم</label><input id="b_qty_step" class="field mono-num" dir="ltr" type="number" step="any" placeholder="از صرافی"></div>
+          <div><label class="lbl">حداکثر حجم</label><input id="b_max_qty" class="field mono-num" dir="ltr" type="number" step="any" placeholder="بدون سقف"></div>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <label class="text-sm flex-1">وضعیت نمادها</label>
+        <select id="b_enabled" class="field !w-40">
+          <option value="" selected>بدون تغییر</option>
+          <option value="true">فعال کردن همه</option>
+          <option value="false">غیرفعال کردن همه</option>
+        </select>
+      </div>
+    </div>
+    <div class="flex justify-end gap-2 mt-5">
+      <button class="btn-ghost" onclick="closeModal('bulkModalBg')">انصراف</button>
+      <button class="btn-primary-of" onclick="applyBulk()">اعمال روی همه نمادها</button>
+    </div>
+  </div>
+</div>
+
+<!-- مودال نماد -->
+<div class="modal-bg" id="symbolModalBg">
+  <div class="modal-panel">
+    <h3 id="symbolModalTitle" class="font-headline text-lg font-bold mb-4">افزودن نماد</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div class="sm:col-span-2">
+        <label class="lbl">نماد فیوچرز (از لیست Toobit)</label>
+        <input id="s_symbol_search" class="field mono-num mb-2" dir="ltr" placeholder="جستجو… (مثلاً BTC یا PEPE)" oninput="filterSymbolList()">
+        <select id="s_symbol" class="field mono-num" dir="ltr"></select>
+        <div id="s_symbol_status" class="text-[11px] text-on-surface-variant mt-1"></div>
+      </div>
+      <div><label class="lbl">تایم‌فریم</label><select id="s_timeframe" class="field">
+        <option value="1m">1 دقیقه</option><option value="5m">5 دقیقه</option><option value="15m">15 دقیقه</option>
+        <option value="30m">30 دقیقه</option><option value="1h" selected>1 ساعت</option><option value="4h">4 ساعت</option>
+        <option value="1d">روزانه</option>
+      </select></div>
+      <div><label class="lbl">استراتژی</label><select id="s_strategy" class="field" onchange="renderStrategyParams()"></select></div>
+      <div class="sm:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3" id="strategyParamsBox"></div>
+      <div><label class="lbl">اهرم (خالی = پیش‌فرض حساب)</label><input id="s_leverage" class="field mono-num" dir="ltr" type="number" placeholder="خودکار"></div>
+      <div><label class="lbl">حداکثر حجم (خالی = بدون سقف)</label><input id="s_max_qty" class="field mono-num" dir="ltr" type="number" step="any" placeholder="خودکار"></div>
+      <div><label class="lbl">حداقل حجم</label><input id="s_min_qty" class="field mono-num" dir="ltr" type="number" step="any" placeholder="از صرافی"></div>
+      <div><label class="lbl">گام حجم</label><input id="s_qty_step" class="field mono-num" dir="ltr" type="number" step="any" placeholder="از صرافی"></div>
+    </div>
+    <div class="flex justify-end gap-2 mt-5">
+      <button class="btn-ghost" onclick="closeModal('symbolModalBg')">انصراف</button>
+      <button class="btn-primary-of" id="symbolSaveBtn" onclick="saveSymbol()">افزودن</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let strategiesCache = [];
+let editingAccountId = null;
+let symbolAccountId = null;
+let editingSymbolName = null;
+let accountsCache = [];
+let statusCache = {};
+let symbolsListCache = [];
+let selectedAccountId = null;
+
+const EXTRA_LABELS = {
+  ema_fast: 'EMA سریع', ema_slow: 'EMA کند', rsi: 'RSI', supertrend: 'SuperTrend', atr: 'ATR',
+  macd: 'MACD', macd_signal: 'سیگنال MACD', macd_hist: 'هیستوگرام', trend_ema: 'EMA روند',
+  bb_upper: 'باند بالا', bb_mid: 'باند میانی', bb_lower: 'باند پایین',
+  ma_fast: 'ma_fast', ma_mid: 'ma_mid', ma_slow: 'ma_slow',
+  kijun_short: 'kijun_short', kijun_long: 'kijun_long', psar: 'psar',
+};
+
+// ---------- لیست نمادهای صرافی ----------
+async function loadSymbolsList(force) {
+  const statusEl = document.getElementById('s_symbol_status');
+  if (symbolsListCache.length && !force) return;
+  if (statusEl) statusEl.textContent = 'در حال دریافت لیست نمادها از Toobit…';
+  try {
+    const r = await callApi('/api/futures-symbols' + (force ? '?force=true' : ''));
+    symbolsListCache = r.symbols || [];
+    if (statusEl) statusEl.textContent = symbolsListCache.length
+      ? `${symbolsListCache.length} نماد قابل معامله` + (r.warning ? ' (از کش)' : '')
+      : 'لیستی دریافت نشد';
+  } catch (e) {
+    if (statusEl) statusEl.textContent = 'دریافت لیست ناموفق: ' + e.message;
+  }
+}
+
+function renderSymbolOptions(filter, selected) {
+  const sel = document.getElementById('s_symbol');
+  const f = (filter || '').trim().toUpperCase();
+  let items = symbolsListCache;
+  if (f) items = items.filter(s => s.symbol.includes(f) || s.base.includes(f));
+  const shown = items.slice(0, 400);
+  sel.innerHTML = shown.map(s =>
+    `<option value="${s.symbol}"${s.symbol === selected ? ' selected' : ''}>${s.symbol}</option>`).join('');
+  if (selected && !shown.some(s => s.symbol === selected)) {
+    sel.insertAdjacentHTML('afterbegin', `<option value="${selected}" selected>${selected} (خارج از لیست فعلی)</option>`);
+  }
+  if (!sel.options.length) {
+    sel.innerHTML = f
+      ? `<option value="${f}" selected>${f} (ورود دستی)</option>`
+      : '<option value="" disabled selected>نتیجه‌ای یافت نشد</option>';
+  }
+  const statusEl = document.getElementById('s_symbol_status');
+  if (statusEl && symbolsListCache.length) {
+    statusEl.textContent = f ? `${items.length} نماد مطابق «${f}»` : `${symbolsListCache.length} نماد قابل معامله`;
+  }
+}
+
+function filterSymbolList() {
+  renderSymbolOptions(document.getElementById('s_symbol_search').value, document.getElementById('s_symbol').value);
+}
+
+// ---------- استراتژی‌ها ----------
+async function loadStrategies() {
+  strategiesCache = await callApi('/api/strategies');
+  document.getElementById('s_strategy').innerHTML =
+    strategiesCache.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
+  renderStrategyParams();
+}
+
+function renderStrategyParams(currentParams) {
+  const key = document.getElementById('s_strategy').value;
+  const st = strategiesCache.find(s => s.key === key);
+  const box = document.getElementById('strategyParamsBox');
+  if (!st) { box.innerHTML = ''; return; }
+  const vals = currentParams || {};
+  box.innerHTML = st.params_schema.map(p => {
+    const v = (vals[p.key] !== undefined && vals[p.key] !== null) ? vals[p.key] : p.default;
+    return `<div><label class="lbl">${p.label}</label><input id="sp_${p.key}" class="field mono-num" dir="ltr" type="number" step="${p.step || (p.type === 'int' ? 1 : 'any')}" value="${v}"></div>`;
+  }).join('');
+}
+
+function collectStrategyParams() {
+  const key = document.getElementById('s_strategy').value;
+  const st = strategiesCache.find(s => s.key === key);
+  const params = {};
+  if (st) for (const p of st.params_schema) {
+    const el = document.getElementById('sp_' + p.key);
+    if (el && el.value !== '') params[p.key] = p.type === 'int' ? parseInt(el.value) : parseFloat(el.value);
+  }
+  return params;
+}
+
+// ---------- حساب‌ها ----------
+function openAccountModal(acc) {
+  editingAccountId = acc ? acc.id : null;
+  document.getElementById('accountModalTitle').textContent = acc ? ('ویرایش حساب: ' + acc.name) : 'حساب جدید';
+  const g = id => document.getElementById(id);
+  g('f_name').value = acc ? acc.name : '';
+  g('f_exchange').value = acc ? acc.exchange : 'toobit';
+  g('f_api_key').value = acc ? (acc.api_key || '') : '';
+  g('f_api_secret').value = acc ? (acc.api_secret || '') : '';
+  g('f_trading_mode').value = acc ? acc.trading_mode : 'paper';
+  g('f_paper_balance').value = acc ? (acc.paper_balance ?? 10000) : 10000;
+  g('f_risk_percent').value = acc ? acc.risk_percent : 1;
+  g('f_default_leverage').value = acc ? acc.default_leverage : 5;
+  g('f_max_open_positions').value = acc ? acc.max_open_positions : 2;
+  g('f_max_daily_loss_percent').value = acc ? acc.max_daily_loss_percent : 5;
+  g('f_poll_interval_seconds').value = acc ? acc.poll_interval_seconds : 60;
+  g('f_recycle_on_new_signal').checked = acc ? !!acc.recycle_on_new_signal : false;
+  g('f_accept_webhook').checked = acc ? !!acc.accept_webhook : true;
+  openModal('accountModalBg');
+}
+
+async function saveAccount() {
+  const g = id => document.getElementById(id);
+  const payload = {
+    name: g('f_name').value.trim(),
+    exchange: g('f_exchange').value,
+    trading_mode: g('f_trading_mode').value,
+    api_key: g('f_api_key').value.trim(),
+    api_secret: g('f_api_secret').value.trim(),
+    paper_balance: parseFloat(g('f_paper_balance').value) || 10000,
+    risk_percent: parseFloat(g('f_risk_percent').value) || 1,
+    default_leverage: parseInt(g('f_default_leverage').value) || 5,
+    max_open_positions: parseInt(g('f_max_open_positions').value) || 2,
+    max_daily_loss_percent: parseFloat(g('f_max_daily_loss_percent').value) || 5,
+    poll_interval_seconds: parseInt(g('f_poll_interval_seconds').value) || 60,
+    recycle_on_new_signal: g('f_recycle_on_new_signal').checked,
+    accept_webhook: g('f_accept_webhook').checked,
+    enabled: true,
+  };
+  if (!payload.name) { toast('نام حساب را وارد کنید', true); return; }
+  if (payload.trading_mode === 'live' && (!payload.api_key || !payload.api_secret)) {
+    toast('برای حالت واقعی (LIVE) کلید API و Secret الزامی است', true); return;
+  }
+  try {
+    if (editingAccountId) await callApi('/api/accounts/' + editingAccountId, 'PUT', payload);
+    else await callApi('/api/accounts', 'POST', payload);
+    closeModal('accountModalBg');
+    toast('حساب ذخیره شد');
+    refresh();
+  } catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+async function duplicateAccount(id, name) {
+  if (!askConfirm(`بات جدیدی با کپی کامل تنظیمات و نمادهای «${name}» ساخته شود؟`)) return;
+  try {
+    const a = await callApi(`/api/accounts/${id}/duplicate`, 'POST');
+    toast(`بات جدید «${a.name}» ساخته شد`);
+    selectedAccountId = a.id;
+    refresh();
+  } catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+async function deleteAccount(id, name) {
+  if (!askConfirm(`حساب «${name}» حذف شود؟`)) return;
+  try { await callApi('/api/accounts/' + id, 'DELETE'); toast('حساب حذف شد'); selectedAccountId = null; refresh(); }
+  catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+async function testConnection(id) {
+  toast('در حال تست اتصال به Toobit…');
+  try {
+    const r = await callApi('/api/accounts/' + id + '/test-connection', 'POST');
+    toast(r.message, !r.ok);
+  } catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+async function startAccount(id) {
+  try { await callApi('/api/accounts/' + id + '/start', 'POST'); toast('ربات شروع شد'); refresh(); }
+  catch (e) { toast('شروع ناموفق: ' + e.message, true); }
+}
+async function stopAccount(id) {
+  try { await callApi('/api/accounts/' + id + '/stop', 'POST'); toast('ربات متوقف شد'); refresh(); }
+  catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+async function switchMode(id, current) {
+  const target = current === 'paper' ? 'live' : 'paper';
+  const warn = target === 'live'
+    ? '⚠️ سوییچ به حالت واقعی (LIVE)! سفارش‌ها با پول واقعی ثبت می‌شوند. مطمئن هستید؟'
+    : 'سوییچ به حالت کاغذی (paper)؟ ربات این حساب متوقف می‌شود.';
+  if (!askConfirm(warn)) return;
+  try {
+    await callApi(`/api/accounts/${id}/trading-mode?mode=${target}`, 'POST');
+    toast('حالت معامله تغییر کرد — ربات را دوباره شروع کنید');
+    refresh();
+  } catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+async function closePosition(accId, posId, symbol) {
+  if (!askConfirm(`پوزیشن ${symbol} بسته شود؟`)) return;
+  try {
+    await callApi(`/api/accounts/${accId}/close-position`, 'POST', { position_id: posId, symbol });
+    toast('پوزیشن بسته شد'); refresh();
+  } catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+// ---------- نمادها ----------
+function openSymbolModal(accId, symName) {
+  symbolAccountId = accId;
+  editingSymbolName = symName || null;
+  const g = id => document.getElementById(id);
+  const acc = accountsCache.find(a => a.id === accId);
+  const sym = symName && acc ? (acc.symbols || []).find(s => s.symbol === symName) : null;
+
+  document.getElementById('symbolModalTitle').textContent = sym ? ('ویرایش نماد: ' + sym.symbol) : 'افزودن نماد';
+  document.getElementById('symbolSaveBtn').textContent = sym ? 'ذخیره تغییرات' : 'افزودن';
+  g('s_symbol_search').value = '';
+  g('s_symbol_search').disabled = !!sym;
+  g('s_symbol').disabled = !!sym;
+  g('s_timeframe').value = sym ? sym.timeframe : '1h';
+  g('s_strategy').value = sym ? sym.strategy : (strategiesCache[0] ? strategiesCache[0].key : '');
+  renderStrategyParams(sym ? sym.strategy_params : null);
+  g('s_leverage').value = (sym && sym.leverage != null) ? sym.leverage : '';
+  g('s_min_qty').value = (sym && sym.min_qty != null) ? sym.min_qty : '';
+  g('s_qty_step').value = (sym && sym.qty_step != null) ? sym.qty_step : '';
+  g('s_max_qty').value = (sym && sym.max_qty != null) ? sym.max_qty : '';
+  openModal('symbolModalBg');
+  renderSymbolOptions('', sym ? sym.symbol : null);
+  loadSymbolsList(false).then(() => renderSymbolOptions('', sym ? sym.symbol : (g('s_symbol').value || null)));
+}
+
+async function saveSymbol() {
+  const g = id => document.getElementById(id);
+  const editing = !!editingSymbolName;
+  const acc = accountsCache.find(a => a.id === symbolAccountId);
+  const prev = editing && acc ? (acc.symbols || []).find(s => s.symbol === editingSymbolName) : null;
+  const payload = {
+    symbol: editing ? editingSymbolName : g('s_symbol').value.trim(),
+    timeframe: g('s_timeframe').value,
+    enabled: prev ? !!prev.enabled : true,
+    strategy: g('s_strategy').value,
+    strategy_params: collectStrategyParams(),
+    leverage: g('s_leverage').value ? parseInt(g('s_leverage').value) : null,
+    min_qty: g('s_min_qty').value ? parseFloat(g('s_min_qty').value) : null,
+    qty_step: g('s_qty_step').value ? parseFloat(g('s_qty_step').value) : null,
+    max_qty: g('s_max_qty').value ? parseFloat(g('s_max_qty').value) : null,
+  };
+  if (!payload.symbol) { toast('نماد را وارد کنید', true); return; }
+  try {
+    if (editing) {
+      await callApi(`/api/accounts/${symbolAccountId}/symbols/${encodeURIComponent(editingSymbolName)}`, 'PUT', payload);
+      toast('نماد ویرایش شد');
+    } else {
+      await callApi(`/api/accounts/${symbolAccountId}/symbols`, 'POST', payload);
+      toast('نماد اضافه شد');
+    }
+    closeModal('symbolModalBg');
+    editingSymbolName = null;
+    refresh();
+  } catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+async function deleteSymbol(accId, symbol) {
+  if (!askConfirm(`نماد ${symbol} حذف شود؟`)) return;
+  try { await callApi(`/api/accounts/${accId}/symbols/${encodeURIComponent(symbol)}`, 'DELETE'); toast('نماد حذف شد'); refresh(); }
+  catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+async function toggleSymbol(accId, symbol, enabled) {
+  try { await callApi(`/api/accounts/${accId}/symbols/${encodeURIComponent(symbol)}/toggle?enabled=${enabled}`, 'POST'); refresh(); }
+  catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+// ---------- اسپارک‌لاین ----------
+function sparklineSvg(spark, signal, uid) {
+  const color = signal === 'buy' ? '#2ebd85' : (signal === 'sell' ? '#f6465d' : '#919094');
+  if (!spark || spark.length < 2) {
+    return `<div class="h-12 flex items-center justify-center text-[10px] text-on-surface-variant">در انتظار داده…</div>`;
+  }
+  const min = Math.min(...spark), max = Math.max(...spark);
+  const span = (max - min) || 1;
+  const pts = spark.map((v, i) => {
+    const x = (i / (spark.length - 1)) * 100;
+    const y = 26 - ((v - min) / span) * 22;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const line = pts.join(' ');
+  const last = pts[pts.length - 1].split(',');
+  const gid = 'sg' + uid;
+  return `<svg class="w-full h-12 overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 30">
+    <defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity="0.25"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <polygon points="0,30 ${line} 100,30" fill="url(#${gid})"/>
+    <polyline points="${line}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>
+    <circle class="pulse-active" cx="${last[0]}" cy="${last[1]}" r="2" fill="${color}"/>
+  </svg>`;
+}
+
+function signalBadge(sig) {
+  const s = sig ? sig.signal : null;
+  if (s === 'buy') return '<span class="px-2 py-0.5 rounded text-[10px] bg-buy/20 text-buy">خرید</span>';
+  if (s === 'sell') return '<span class="px-2 py-0.5 rounded text-[10px] bg-sell/20 text-sell">فروش</span>';
+  return '<span class="px-2 py-0.5 rounded text-[10px] bg-outline-variant/30 text-on-surface-variant">بدون سیگنال</span>';
+}
+
+// ---------- رندر ----------
+function renderSymbolCard(acc, sym, sig, uid) {
+  const stLabel = (strategiesCache.find(x => x.key === sym.strategy) || {}).label || sym.strategy;
+  const rows = [];
+  if (sig && sig.close !== undefined) rows.push(['قیمت', fmtNum(sig.close)]);
+  const extras = Object.entries((sig && sig.extra) || {}).slice(0, 6);
+  for (const [k, v] of extras) rows.push([EXTRA_LABELS[k] || k, fmtNum(v)]);
+  const rowsHtml = rows.map(([k, v]) => `
+    <div class="flex justify-between items-center border-b border-outline-variant/10 pb-1">
+      <span class="mono-num text-xs text-on-surface" dir="ltr">${v}</span>
+      <span class="text-[11px] text-on-surface-variant">${k}</span>
+    </div>`).join('');
+  const offClass = sym.enabled ? '' : 'opacity-50';
+  return `<div class="glass-card rounded-xl overflow-hidden flex flex-col ${offClass}">
+    <div class="p-3 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low">
+      <div class="flex items-center gap-2">
+        <span class="font-bold text-on-surface">${sym.symbol}</span>
+        <span class="text-xs text-on-surface-variant">${sym.timeframe}</span>
+      </div>
+      ${signalBadge(sig)}
+    </div>
+    <div class="p-4 flex-grow">
+      <p class="text-[10px] text-center text-primary/60 mb-3 leading-tight">${stLabel}</p>
+      <div class="space-y-1.5">${rowsHtml || '<div class="text-center text-[11px] text-on-surface-variant py-3">ربات را شروع کنید تا داده نمایش داده شود</div>'}</div>
+      <div class="mt-3">${sparklineSvg(sig ? sig.spark : null, sig ? sig.signal : null, uid)}</div>
+    </div>
+    <div class="p-3 bg-surface-container-low/50 flex gap-2">
+      <button class="flex-1 py-1.5 rounded-lg border border-outline-variant/50 text-[11px] hover:bg-surface-variant transition-colors flex items-center justify-center gap-1" onclick="openSymbolModal('${acc.id}','${sym.symbol}')">
+        <span class="material-symbols-outlined text-[14px]">edit</span> ویرایش
+      </button>
+      <button class="py-1.5 px-2 rounded-lg border border-outline-variant/50 text-[11px] hover:bg-surface-variant transition-colors" onclick="toggleSymbol('${acc.id}','${sym.symbol}',${!sym.enabled})" title="${sym.enabled ? 'غیرفعال کردن' : 'فعال کردن'}">
+        <span class="material-symbols-outlined text-[14px]">${sym.enabled ? 'toggle_on' : 'toggle_off'}</span>
+      </button>
+      <button class="py-1.5 px-2 rounded-lg border border-sell/30 text-sell text-[11px] hover:bg-sell/10 transition-colors" onclick="deleteSymbol('${acc.id}','${sym.symbol}')" title="حذف">
+        <span class="material-symbols-outlined text-[14px]">delete</span>
+      </button>
+    </div>
+  </div>`;
+}
+
+function selectAccount(id) {
+  selectedAccountId = id;
+  renderAll();
+}
+
+function renderTabs() {
+  const box = document.getElementById('accountTabs');
+  box.innerHTML = accountsCache.map(a => {
+    const st = statusCache[a.id];
+    const active = a.id === selectedAccountId;
+    const dot = st && st.running ? '<span class="w-1.5 h-1.5 rounded-full bg-buy pulse-active"></span>' : '';
+    return `<button onclick="selectAccount('${a.id}')" class="flex items-center gap-2 px-4 py-2 rounded-lg border text-sm transition-all ${active ? 'bg-secondary-container border-secondary-container text-on-secondary-container' : 'border-outline-variant/40 text-on-surface-variant hover:bg-surface-variant/40'}">
+      ${dot}${a.name}
+      <span class="text-[10px] px-1.5 py-0.5 rounded ${a.trading_mode === 'live' ? 'bg-sell/20 text-sell' : 'bg-info-blue/20 text-secondary-fixed-dim'}">${a.trading_mode === 'live' ? 'LIVE' : 'PAPER'}</span>
+    </button>`;
+  }).join('') + `<button onclick="openAccountModal()" class="flex items-center gap-1 px-4 py-2 rounded-lg border border-dashed border-outline-variant/50 text-sm text-on-surface-variant hover:bg-primary/5 transition-all">
+    <span class="material-symbols-outlined text-base">add</span> حساب جدید
+  </button>`;
+}
+
+function renderAccountBar() {
+  const box = document.getElementById('accountBar');
+  const acc = accountsCache.find(a => a.id === selectedAccountId);
+  if (!acc) {
+    box.innerHTML = `<div class="glass-card rounded-2xl p-8 text-center text-on-surface-variant">
+      هنوز حسابی تعریف نشده است.<br><br>
+      <button class="btn-primary-of" onclick="openAccountModal()">+ افزودن اولین حساب</button></div>`;
+    return;
+  }
+  const st = statusCache[acc.id] || {};
+  const info = st.account_info;
+  const running = !!st.running;
+  const posCount = (st.positions || []).length;
+  box.innerHTML = `<div class="glass-card rounded-2xl p-6 flex flex-col lg:flex-row-reverse justify-between items-start lg:items-center gap-6">
+    <div class="flex flex-wrap items-center gap-6 lg:gap-8">
+      <div class="text-right">
+        <p class="text-on-surface-variant text-xs mb-1">نام بات</p>
+        <h2 class="font-headline text-xl font-bold">${acc.name}</h2>
+      </div>
+      <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
+      <div class="text-right">
+        <p class="text-on-surface-variant text-xs mb-1">اکوییتی (USDT)</p>
+        <p class="mono-num text-primary text-xl" dir="ltr">${info ? fmt(info.equity) : '—'}</p>
+      </div>
+      <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
+      <div class="text-right">
+        <p class="text-on-surface-variant text-xs mb-1">مارجین آزاد / پوزیشن</p>
+        <p class="mono-num text-sm" dir="ltr">${info ? fmt(info.free_margin) : '—'} <span class="text-on-surface-variant">|</span> ${posCount}/${acc.max_open_positions}</p>
+      </div>
+      <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
+      <div class="text-right">
+        <p class="text-on-surface-variant text-xs mb-1">وضعیت</p>
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full ${running ? 'bg-buy pulse-active' : 'bg-outline'}"></span>
+          <span class="${running ? 'text-buy' : 'text-on-surface-variant'} font-bold text-sm">${running ? 'فعال' : 'متوقف'}</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded ${acc.trading_mode === 'live' ? 'bg-sell/20 text-sell' : 'bg-info-blue/20 text-secondary-fixed-dim'}">${acc.trading_mode === 'live' ? 'LIVE' : 'PAPER'}</span>
+        </div>
+      </div>
+      <div class="text-on-surface-variant text-[11px]">${st.status || ''}</div>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <button class="flex items-center gap-1 px-3 py-2 rounded-lg border border-outline-variant/50 hover:bg-surface-variant transition-colors text-sm" onclick="duplicateAccount('${acc.id}','${acc.name}')">
+        <span class="material-symbols-outlined text-sm">content_copy</span> کپی از بات
+      </button>
+      <button class="flex items-center gap-1 px-3 py-2 rounded-lg border border-outline-variant/50 hover:bg-surface-variant transition-colors text-sm" onclick='openAccountModal(${JSON.stringify(acc).replace(/'/g, "&#39;")})'>
+        <span class="material-symbols-outlined text-sm">edit</span> ویرایش
+      </button>
+      <button class="flex items-center gap-1 px-3 py-2 rounded-lg border border-outline-variant/50 hover:bg-surface-variant transition-colors text-sm" onclick="testConnection('${acc.id}')">
+        <span class="material-symbols-outlined text-sm">api</span> تست اتصال
+      </button>
+      ${running
+        ? `<button class="flex items-center gap-1 px-3 py-2 rounded-lg bg-sell/20 text-sell border border-sell/30 text-sm" onclick="stopAccount('${acc.id}')"><span class="material-symbols-outlined text-sm">stop</span> توقف</button>`
+        : `<button class="flex items-center gap-1 px-3 py-2 rounded-lg bg-buy/20 text-buy border border-buy/30 text-sm" onclick="startAccount('${acc.id}')"><span class="material-symbols-outlined text-sm">play_arrow</span> شروع</button>`}
+      <button class="flex items-center gap-1 px-3 py-2 rounded-lg border border-gold/40 text-gold hover:bg-gold/10 transition-colors text-sm" onclick="switchMode('${acc.id}','${acc.trading_mode}')">
+        <span class="material-symbols-outlined text-sm">swap_horiz</span> ${acc.trading_mode === 'paper' ? 'به LIVE' : 'به paper'}
+      </button>
+      <a href="/reports?acc=${acc.id}" class="flex items-center gap-1 px-3 py-2 rounded-lg border border-outline-variant/50 hover:bg-surface-variant transition-colors text-sm">
+        <span class="material-symbols-outlined text-sm">monitoring</span> گزارش
+      </a>
+      <button class="flex items-center gap-1 px-3 py-2 rounded-lg border border-sell/30 text-sell hover:bg-sell/10 transition-colors text-sm" onclick="deleteAccount('${acc.id}','${acc.name}')">
+        <span class="material-symbols-outlined text-sm">delete</span>
+      </button>
+    </div>
+  </div>
+  <div class="text-on-surface-variant text-[11px] mono-num mt-2 px-1">
+    ریسک: ${acc.risk_percent}٪ · اهرم: ${acc.default_leverage}x · سقف ضرر روزانه: ${acc.max_daily_loss_percent}٪ · وبهوک: ${acc.accept_webhook ? 'فعال' : 'غیرفعال'}
+  </div>`;
+}
+
+function renderSymbols() {
+  const grid = document.getElementById('symbolsGrid');
+  const acc = accountsCache.find(a => a.id === selectedAccountId);
+  if (!acc) { grid.innerHTML = ''; return; }
+  const st = statusCache[acc.id] || {};
+  const sigs = st.last_signals || {};
+  const cards = (acc.symbols || []).map((s, i) => renderSymbolCard(acc, s, sigs[s.symbol], i)).join('');
+  const addCard = `<div class="glass-card rounded-xl border-dashed !border-2 flex flex-col items-center justify-center p-8 hover:bg-primary/5 cursor-pointer group transition-all min-h-[280px]" onclick="openSymbolModal('${acc.id}')">
+    <div class="w-12 h-12 rounded-full bg-surface-variant flex items-center justify-center group-hover:scale-110 transition-transform mb-3">
+      <span class="material-symbols-outlined text-primary">add_circle</span>
+    </div>
+    <span class="text-on-surface-variant font-bold text-sm">افزودن جفت ارز</span>
+  </div>`;
+  grid.innerHTML = cards + addCard;
+}
+
+function renderPositions() {
+  const box = document.getElementById('positionsBox');
+  const acc = accountsCache.find(a => a.id === selectedAccountId);
+  if (!acc) { box.innerHTML = ''; return; }
+  const st = statusCache[acc.id] || {};
+  const positions = st.positions || [];
+  const logs = st.logs || [];
+  let html = '';
+  if (positions.length) {
+    const rows = positions.map(p => {
+      const cls = (p.profit || 0) >= 0 ? 'text-buy' : 'text-sell';
+      const side = p.side === 'long'
+        ? '<span class="bg-buy/10 text-buy px-2 py-0.5 rounded text-[11px] font-bold border border-buy/20">LONG</span>'
+        : '<span class="bg-sell/10 text-sell px-2 py-0.5 rounded text-[11px] font-bold border border-sell/20">SHORT</span>';
+      return `<tr class="hover:bg-surface-variant/20 transition-colors">
+        <td>${p.symbol}</td><td>${side}</td>
+        <td class="num">${fmtNum(p.qty)}</td><td class="num">${fmtNum(p.entry_price)}</td>
+        <td class="num">${fmtNum(p.mark_price)}</td>
+        <td class="num ${cls} font-bold">${fmt(p.profit)}</td>
+        <td><button class="btn-ghost !py-1 !px-3 text-[11px] !border-sell/40 !text-sell" onclick="closePosition('${acc.id}','${p.id}','${p.symbol}')">بستن</button></td>
+      </tr>`;
+    }).join('');
+    html += `<div class="glass-card rounded-2xl overflow-hidden mb-6">
+      <div class="px-5 py-4 border-b border-outline-variant/20 bg-surface-container-low">
+        <h3 class="font-headline font-bold flex items-center gap-2"><span class="material-symbols-outlined text-primary">candlestick_chart</span> پوزیشن‌های باز</h3>
+      </div>
+      <div class="overflow-x-auto"><table class="of-table">
+        <thead><tr><th>نماد</th><th>جهت</th><th>حجم</th><th>ورود</th><th>قیمت فعلی</th><th>سود/زیان</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+    </div>`;
+  }
+  if (logs.length) {
+    const logRows = logs.slice().reverse().slice(0, 8).map(l => {
+      const c = l.level === 'error' ? 'text-sell' : (l.level === 'warn' ? 'text-gold' : 'text-on-surface-variant');
+      return `<div class="${c} text-[11px] mono-num py-0.5">[${(l.time || '').slice(11, 19)}] ${l.message}</div>`;
+    }).join('');
+    html += `<div class="glass-card rounded-2xl p-5">
+      <h3 class="font-headline font-bold mb-3 flex items-center gap-2"><span class="material-symbols-outlined text-primary">receipt_long</span> آخرین رویدادها
+        <a href="/logs" class="text-[11px] text-primary/70 font-normal mr-auto">مشاهده همه</a></h3>
+      <div class="bg-primary-container rounded-lg p-3 max-h-44 overflow-y-auto">${logRows}</div>
+    </div>`;
+  }
+  box.innerHTML = html;
+}
+
+function renderToolbar() {
+  const box = document.getElementById('symbolsToolbar');
+  const acc = accountsCache.find(a => a.id === selectedAccountId);
+  if (!acc) { box.innerHTML = ''; return; }
+  const count = (acc.symbols || []).length;
+  box.innerHTML = `<h3 class="font-headline font-bold flex items-center gap-2">
+      <span class="material-symbols-outlined text-primary">currency_bitcoin</span> نمادها
+      <span class="text-xs text-on-surface-variant font-normal">(${count})</span></h3>
+    ${count ? `<button class="btn-ghost !py-2 flex items-center gap-1 text-xs" onclick="openBulkModal()">
+      <span class="material-symbols-outlined text-base">checklist</span> اعمال دسته‌جمعی
+    </button>` : ''}`;
+}
+
+function renderAll() {
+  renderTabs();
+  renderAccountBar();
+  renderToolbar();
+  renderSymbols();
+  renderPositions();
+}
+
+// ---------- اعمال دسته‌جمعی ----------
+function openBulkModal() {
+  const acc = accountsCache.find(a => a.id === selectedAccountId);
+  if (!acc) return;
+  document.getElementById('bulkCount').textContent = `هر ${(acc.symbols || []).length}`;
+  document.getElementById('b_strategy').innerHTML =
+    strategiesCache.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
+  renderBulkStrategyParams();
+  openModal('bulkModalBg');
+}
+
+function renderBulkStrategyParams() {
+  const key = document.getElementById('b_strategy').value;
+  const st = strategiesCache.find(s => s.key === key);
+  const box = document.getElementById('bulkParamsBox');
+  if (!st) { box.innerHTML = ''; return; }
+  box.innerHTML = st.params_schema.map(p =>
+    `<div><label class="lbl">${p.label}</label><input id="bp_${p.key}" class="field mono-num" dir="ltr" type="number" step="${p.step || (p.type === 'int' ? 1 : 'any')}" value="${p.default}"></div>`).join('');
+}
+
+async function applyBulk() {
+  const acc = accountsCache.find(a => a.id === selectedAccountId);
+  if (!acc) return;
+  const g = id => document.getElementById(id);
+  const payload = {};
+  if (g('b_use_timeframe').checked) payload.timeframe = g('b_timeframe').value;
+  if (g('b_use_strategy').checked) {
+    payload.strategy = g('b_strategy').value;
+    const st = strategiesCache.find(s => s.key === payload.strategy);
+    const params = {};
+    if (st) for (const p of st.params_schema) {
+      const el = document.getElementById('bp_' + p.key);
+      if (el && el.value !== '') params[p.key] = p.type === 'int' ? parseInt(el.value) : parseFloat(el.value);
+    }
+    payload.strategy_params = params;
+  }
+  if (g('b_use_leverage').checked) payload.leverage = g('b_leverage').value ? parseInt(g('b_leverage').value) : null;
+  if (g('b_use_qty').checked) {
+    payload.min_qty = g('b_min_qty').value ? parseFloat(g('b_min_qty').value) : null;
+    payload.qty_step = g('b_qty_step').value ? parseFloat(g('b_qty_step').value) : null;
+    payload.max_qty = g('b_max_qty').value ? parseFloat(g('b_max_qty').value) : null;
+  }
+  if (g('b_enabled').value !== '') payload.enabled = g('b_enabled').value === 'true';
+  if (!Object.keys(payload).length) { toast('حداقل یک بخش را تیک بزنید', true); return; }
+  const n = (acc.symbols || []).length;
+  if (!askConfirm(`تنظیمات انتخاب‌شده روی هر ${n} نماد این بات اعمال شود؟`)) return;
+  try {
+    const r = await callApi(`/api/accounts/${acc.id}/symbols/bulk`, 'POST', payload);
+    closeModal('bulkModalBg');
+    toast(`${r.updated} نماد به‌روزرسانی شد`);
+    refresh();
+  } catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+async function refresh() {
+  try {
+    const [accounts, status] = await Promise.all([callApi('/api/accounts'), callApi('/api/status')]);
+    accountsCache = accounts;
+    statusCache = status.accounts || {};
+    if (!selectedAccountId || !accountsCache.some(a => a.id === selectedAccountId)) {
+      selectedAccountId = accountsCache.length ? accountsCache[0].id : null;
+    }
+    renderAll();
+  } catch (e) {
+    document.getElementById('accountBar').innerHTML =
+      `<div class="glass-card rounded-2xl p-8 text-center text-sell">خطا در دریافت وضعیت: ${e.message}</div>`;
+  }
+}
+
+loadStrategies().then(refresh).catch(e => toast('خطا: ' + e.message, true));
+setInterval(refresh, 5000);
+</script>
+{% endblock %}

@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% block title %}تنظیمات API و حساب کاربری | کریپتو بات{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+  <h2 class="font-headline text-2xl font-bold text-on-surface">تنظیمات API و حساب کاربری</h2>
+  <p class="text-on-surface-variant text-sm mt-1">پیکربندی اتصال به صرافی Toobit، وبهوک TradingView و اعلان‌ها</p>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+  <!-- چپ: کلیدهای API + وبهوک -->
+  <div class="lg:col-span-8 flex flex-col gap-6">
+    <div class="glass-card rounded-2xl p-6">
+      <div class="flex justify-between items-center mb-5 flex-wrap gap-2">
+        <h3 class="font-headline text-lg font-bold flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary">key</span> مدیریت کلیدهای API
+        </h3>
+        <button class="btn-primary-of !py-2 flex items-center gap-1" onclick="openKeyModal()">
+          <span class="material-symbols-outlined text-base">add</span> حساب جدید
+        </button>
+      </div>
+      <p class="text-xs text-on-surface-variant mb-5 leading-6">
+        برای اتصال به صرافی، کلیدهای API خود را از پنل Toobit بسازید و با دقت وارد کنید.
+        کلیدها فقط روی همین سرور (<span class="mono-num" dir="ltr">config/accounts.json</span>) ذخیره می‌شوند.
+      </p>
+      <div class="space-y-4" id="accountsList"></div>
+    </div>
+
+    <!-- وبهوک -->
+    <div class="glass-card rounded-2xl p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="font-headline text-lg font-bold flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary">webhook</span> وبهوک TradingView
+        </h3>
+        <button class="btn-ghost !py-2 flex items-center gap-1 text-xs" onclick="rotateToken()">
+          <span class="material-symbols-outlined text-base">refresh</span> تولید توکن جدید
+        </button>
+      </div>
+      <div class="bg-primary-container rounded-xl p-4 space-y-3">
+        <div>
+          <div class="text-[11px] text-on-surface-variant mb-1">آدرس وبهوک (در آلرت TradingView قرار دهید)</div>
+          <div class="flex items-center gap-2">
+            <code class="mono-num text-buy text-xs flex-1 break-all" dir="ltr" id="wh_url">…</code>
+            <button class="btn-ghost !py-1 !px-2 text-xs" onclick="copyEl('wh_url')">کپی</button>
+          </div>
+        </div>
+        <div>
+          <div class="text-[11px] text-on-surface-variant mb-1">توکن امن</div>
+          <div class="flex items-center gap-2">
+            <code class="mono-num text-on-surface-variant text-xs flex-1 break-all" dir="ltr" id="wh_token">…</code>
+            <button class="btn-ghost !py-1 !px-2 text-xs" onclick="copyEl('wh_token')">کپی</button>
+          </div>
+        </div>
+        <div>
+          <div class="text-[11px] text-on-surface-variant mb-1">نمونه پیام آلرت (JSON)</div>
+          <pre class="mono-num text-[10px] text-on-surface-variant bg-surface-container rounded-lg p-3 overflow-x-auto" dir="ltr" id="wh_msg"></pre>
+        </div>
+      </div>
+      <div class="text-[11px] text-on-surface-variant mt-3">
+        فرمت نماد هرچه باشد (BTCUSDT، BTCUSDT.P، BTC/USDT) به‌صورت خودکار به پرپچوال Toobit تبدیل می‌شود.
+        هر حسابی که گزینه‌ی «دریافت وبهوک» آن فعال باشد، سیگنال را دریافت می‌کند.
+      </div>
+    </div>
+  </div>
+
+  <!-- راست: اعلان‌ها + امنیت -->
+  <div class="lg:col-span-4 flex flex-col gap-6">
+    <div class="glass-card rounded-2xl p-6">
+      <h3 class="font-headline font-bold mb-5 flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary">notifications</span> تنظیمات اعلان‌رسانی
+      </h3>
+      <div class="space-y-4" id="notifBox">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3"><span class="material-symbols-outlined text-on-surface-variant">send</span><div><div class="text-sm">تلگرام</div><div class="text-[10px] text-on-surface-variant">دریافت سیگنال و هشدارها</div></div></div>
+          <input type="checkbox" id="n_telegram" class="of-switch" onchange="saveNotif()">
+        </div>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3"><span class="material-symbols-outlined text-on-surface-variant">mail</span><div><div class="text-sm">ایمیل</div><div class="text-[10px] text-on-surface-variant">گزارش عملکرد هفتگی</div></div></div>
+          <input type="checkbox" id="n_email" class="of-switch" onchange="saveNotif()">
+        </div>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3"><span class="material-symbols-outlined text-on-surface-variant">sms</span><div><div class="text-sm">پیامک (SMS)</div><div class="text-[10px] text-on-surface-variant">اعلان بستن پوزیشن و سوددهی</div></div></div>
+          <input type="checkbox" id="n_sms" class="of-switch" onchange="saveNotif()">
+        </div>
+      </div>
+      <p class="text-[10px] text-on-surface-variant mt-4 border-t border-outline-variant/20 pt-3 leading-5">
+        وضعیت این سوئیچ‌ها ذخیره می‌شود؛ اتصال به سرویس‌های ارسال (ربات تلگرام/ایمیل) در نسخه‌های بعدی فعال می‌شود.
+      </p>
+    </div>
+
+    <div class="glass-card rounded-2xl p-6 border-gold/30">
+      <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
+        <span class="material-symbols-outlined text-gold">shield</span> امنیت حساب
+      </h3>
+      <div class="text-xs text-on-surface-variant leading-6 space-y-3">
+        <div class="flex gap-2"><span class="material-symbols-outlined text-buy text-base">check_circle</span>
+          دسترسی به داشبورد با رمز (HTTP Basic Auth) محافظت می‌شود. رمز را در فایل <span class="mono-num" dir="ltr">.env</span> تغییر دهید.</div>
+        <div class="flex gap-2"><span class="material-symbols-outlined text-buy text-base">check_circle</span>
+          کلیدهای API فقط روی سرور شما نگهداری می‌شوند و هیچ‌جا ارسال نمی‌شوند.</div>
+        <div class="flex gap-2"><span class="material-symbols-outlined text-gold text-base">warning</span>
+          توکن وبهوک را محرمانه نگه دارید؛ هر کس توکن را داشته باشد می‌تواند سیگنال ارسال کند.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- مودال ویرایش کلید -->
+<div class="modal-bg" id="keyModalBg">
+  <div class="modal-panel">
+    <h3 id="keyModalTitle" class="font-headline text-lg font-bold mb-4">ویرایش کلید API</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div><label class="lbl">نام نمایشی حساب</label><input id="k_name" class="field"></div>
+      <div><label class="lbl">صرافی</label><select id="k_exchange" class="field"><option value="toobit">Toobit</option></select></div>
+      <div class="sm:col-span-2"><label class="lbl">API Key</label><input id="k_api_key" class="field mono-num" dir="ltr"></div>
+      <div class="sm:col-span-2"><label class="lbl">Secret Key</label><input id="k_api_secret" class="field mono-num" dir="ltr" type="password"></div>
+      <div><label class="lbl">حالت معامله</label><select id="k_trading_mode" class="field"><option value="paper">کاغذی (paper)</option><option value="live">واقعی (LIVE)</option></select></div>
+      <div class="flex items-end"><button class="btn-ghost w-full !py-2 text-xs" onclick="testKey()">تست اتصال و ذخیره</button></div>
+    </div>
+    <div class="flex justify-end gap-2 mt-5">
+      <button class="btn-ghost" onclick="closeModal('keyModalBg')">انصراف</button>
+      <button class="btn-primary-of" onclick="saveKey()">ذخیره</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let accountsCache = [];
+let editingAccountId = null;
+
+async function loadAll() {
+  const [accounts, settings, wh] = await Promise.all([
+    callApi('/api/accounts'), callApi('/api/app-settings'), callApi('/api/webhook-info')]);
+  accountsCache = accounts;
+  renderAccounts();
+  const n = (settings.notifications || {});
+  document.getElementById('n_telegram').checked = !!n.telegram;
+  document.getElementById('n_email').checked = !!n.email;
+  document.getElementById('n_sms').checked = !!n.sms;
+  document.getElementById('wh_url').textContent = wh.url;
+  document.getElementById('wh_token').textContent = (wh.sample && wh.sample.token) || '—';
+  document.getElementById('wh_msg').textContent = JSON.stringify(wh.sample || {}, null, 2);
+}
+
+function renderAccounts() {
+  const box = document.getElementById('accountsList');
+  if (!accountsCache.length) {
+    box.innerHTML = '<div class="text-center text-on-surface-variant text-sm py-6">حسابی تعریف نشده است.</div>';
+    return;
+  }
+  box.innerHTML = accountsCache.map(a => {
+    const masked = a.api_key ? (a.api_key.slice(0, 4) + '••••••••' + a.api_key.slice(-4)) : 'بدون کلید (paper)';
+    return `<div class="glass-card rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap">
+      <div class="flex items-center gap-4">
+        <div class="w-11 h-11 rounded-lg bg-primary-container flex items-center justify-center text-primary border border-primary/20">
+          <span class="material-symbols-outlined">${a.exchange === 'toobit' ? 'currency_bitcoin' : 'store'}</span>
+        </div>
+        <div>
+          <h4 class="font-bold text-on-surface text-sm">${a.name}</h4>
+          <p class="mono-num text-[11px] text-on-surface-variant mt-0.5" dir="ltr">${masked}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="text-[10px] px-2 py-0.5 rounded ${a.trading_mode === 'live' ? 'bg-sell/20 text-sell' : 'bg-info-blue/20 text-secondary-fixed-dim'}">${a.trading_mode === 'live' ? 'LIVE' : 'PAPER'}</span>
+        <span class="text-[10px] text-on-surface-variant">${a.api_key ? 'متصل' : 'بدون API'}</span>
+        <button class="btn-ghost !py-1.5 !px-3 text-xs flex items-center gap-1" onclick="openKeyModal('${a.id}')">
+          <span class="material-symbols-outlined text-sm">edit</span> ویرایش کلید
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openKeyModal(accId) {
+  editingAccountId = accId || null;
+  const acc = accId ? accountsCache.find(a => a.id === accId) : null;
+  document.getElementById('keyModalTitle').textContent = acc ? ('ویرایش کلید: ' + acc.name) : 'حساب جدید';
+  const g = id => document.getElementById(id);
+  g('k_name').value = acc ? acc.name : '';
+  g('k_exchange').value = acc ? acc.exchange : 'toobit';
+  g('k_api_key').value = acc ? (acc.api_key || '') : '';
+  g('k_api_secret').value = acc ? (acc.api_secret || '') : '';
+  g('k_trading_mode').value = acc ? acc.trading_mode : 'paper';
+  openModal('keyModalBg');
+}
+
+async function saveKey(thenTest) {
+  const g = id => document.getElementById(id);
+  const base = editingAccountId ? accountsCache.find(a => a.id === editingAccountId) : null;
+  const payload = base ? { ...base } : {
+    name: 'حساب Toobit', exchange: 'toobit', trading_mode: 'paper', api_key: '', api_secret: '',
+    paper_balance: 10000, risk_percent: 1, default_leverage: 5, max_open_positions: 2,
+    max_daily_loss_percent: 5, poll_interval_seconds: 60, recycle_on_new_signal: false,
+    accept_webhook: true, enabled: true, symbols: [],
+  };
+  delete payload.id;
+  payload.name = g('k_name').value.trim() || 'حساب Toobit';
+  payload.exchange = g('k_exchange').value;
+  payload.api_key = g('k_api_key').value.trim();
+  payload.api_secret = g('k_api_secret').value.trim();
+  payload.trading_mode = g('k_trading_mode').value;
+  try {
+    let accId = editingAccountId;
+    if (accId) await callApi('/api/accounts/' + accId, 'PUT', payload);
+    else accId = (await callApi('/api/accounts', 'POST', payload)).id;
+    if (thenTest) {
+      const r = await callApi('/api/accounts/' + accId + '/test-connection', 'POST');
+      toast(r.message, !r.ok);
+    } else toast('ذخیره شد');
+    closeModal('keyModalBg');
+    loadAll();
+  } catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+function testKey() { saveKey(true); }
+
+async function saveNotif() {
+  const patch = { notifications: {
+    telegram: document.getElementById('n_telegram').checked,
+    email: document.getElementById('n_email').checked,
+    sms: document.getElementById('n_sms').checked,
+  }};
+  try { await callApi('/api/app-settings', 'PUT', patch); toast('تنظیمات اعلان ذخیره شد'); }
+  catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+async function rotateToken() {
+  if (!askConfirm('توکن جدید تولید شود؟ توکن قبلی بلافاصله باطل می‌شود و باید آلرت‌های TradingView را به‌روز کنید.')) return;
+  try {
+    const r = await callApi('/api/webhook-token/rotate', 'POST');
+    document.getElementById('wh_url').textContent = r.url;
+    document.getElementById('wh_token').textContent = r.token;
+    toast('توکن جدید تولید شد');
+  } catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+function copyEl(id) {
+  const txt = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(txt).then(() => toast('کپی شد'), () => toast('کپی ناموفق بود', true));
+}
+
+loadAll().catch(e => toast('خطا: ' + e.message, true));
+</script>
+{% endblock %}

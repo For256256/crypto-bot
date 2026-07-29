@@ -1,0 +1,58 @@
+﻿# کریپتو بات — Toobit Futures
+
+داشبورد + ربات معاملاتی فیوچرز صرافی Toobit با اتصال API:
+
+- **۴ استراتژی داخلی**: SuperTrend+EMA+RSI · MACD+EMA روند · برگشت بولینگر+RSI · روبان MA+Kijun+PSAR
+- **وبهوک TradingView** برای دریافت سیگنال خارجی (`/webhook/tradingview` با توکن امن)
+- **حالت paper** (شبیه‌سازی با قیمت واقعی) به‌صورت پیش‌فرض + سوییچ دستی به live
+- **مدیریت ریسک**: ٪ریسک هر معامله، SL/TP خودکار از ATR (1.5× / 3×)، سقف ضرر روزانه، recycle
+- **گزارش سود/زیان**: منحنی اکوییتی، PnL روزانه، تاریخچه معاملات
+- داشبورد روی پورت **8891**
+
+## اجرا روی سرور اوبونتو
+
+```bash
+sudo bash install-crypto-bot.sh
+```
+
+اسکریپت نصب‌کننده، venv می‌سازد، پکیج‌ها را نصب می‌کند، `.env` با رمز و توکن تصادفی تولید
+می‌کند و سرویس systemd با نام `crypto-bot` راه‌اندازی می‌شود.
+
+## اجرای دستی (توسعه)
+
+```bash
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env   # رمز و توکن را تنظیم کنید
+uvicorn app.main:app --host 0.0.0.0 --port 8891
+```
+
+## ساختار
+
+```
+app/
+  main.py                  API و داشبورد (FastAPI)
+  config.py                تنظیمات از .env
+  core/
+    engine.py              حلقه‌ی معاملاتی هر حساب + مدیریت ریسک + وبهوک
+    config_store.py        ذخیره‌ی حساب‌ها/نمادها (config/accounts.json)
+    history.py             تاریخچه‌ی معاملات و اکوییتی (config/history.json)
+    exchanges/
+      base.py              رابط مشترک درایور صرافی
+      toobit.py            درایور Toobit (امضا، کندل، سفارش، TP/SL)
+      paper.py             شبیه‌ساز با قیمت واقعی
+      factory.py           ساخت درایور per-account (paper/live)
+    strategies/
+      indicators.py        EMA/RSI/ATR/SuperTrend/MACD/Bollinger/Kijun/PSAR
+      registry.py          ۴ استراتژی + schema پارامترها برای داشبورد
+  templates/dashboard.html داشبورد (RTL، تیره، فارسی)
+```
+
+## وبهوک TradingView
+
+آدرس و نمونه پیام دقیق از دکمه‌ی «📡 وبهوک TradingView» در داشبورد یا endpoint
+`/api/webhook-info` در دسترس است. فرمت نماد هرچه باشد (BTCUSDT، BTCUSDT.P، …)
+به فرمت پرپچوال Toobit (`BTC-SWAP-USDT`) تبدیل می‌شود.
+
+> ⚠️ همه‌ی حساب‌ها پیش‌فرض در حالت **paper** ساخته می‌شوند. قبل از سوییچ به
+> **LIVE** حتماً با paper تست کنید.

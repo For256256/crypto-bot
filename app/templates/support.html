@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}پشتیبانی | کریپتو بات{% endblock %}
+
+{% block content %}
+<div class="mb-8 text-center lg:text-right">
+  <h2 class="font-headline text-2xl font-bold text-on-surface">پشتیبانی و تیکت‌ها</h2>
+  <p class="text-on-surface-variant text-sm mt-1">چگونه می‌توانیم امروز به شما کمک کنیم؟</p>
+</div>
+
+<div class="grid grid-cols-2 gap-4 max-w-xl mx-auto lg:max-w-none lg:mx-0 mb-8">
+  <button onclick="openModal('ticketModalBg')" class="glass-card rounded-2xl p-6 flex flex-col items-center gap-2 hover:!border-primary transition-all">
+    <span class="material-symbols-outlined text-3xl text-primary">add_circle</span>
+    <span class="text-sm font-bold">تیکت جدید</span>
+  </button>
+  <a href="#faq" class="glass-card rounded-2xl p-6 flex flex-col items-center gap-2 hover:!border-primary transition-all">
+    <span class="material-symbols-outlined text-3xl text-primary">help</span>
+    <span class="text-sm font-bold">سوالات متداول</span>
+  </a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+  <div class="lg:col-span-7">
+    <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
+      <span class="material-symbols-outlined text-primary">confirmation_number</span> تیکت‌های اخیر
+    </h3>
+    <div class="space-y-3" id="ticketList">
+      <div class="text-center text-on-surface-variant py-8 text-sm">در حال بارگذاری…</div>
+    </div>
+  </div>
+
+  <div class="lg:col-span-5" id="faq">
+    <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
+      <span class="material-symbols-outlined text-primary">quiz</span> سوالات متداول
+    </h3>
+    <div class="space-y-3" id="faqList">
+      <details class="glass-card rounded-xl p-4 group">
+        <summary class="cursor-pointer text-sm font-bold flex justify-between items-center list-none">
+          چگونه ربات را متوقف کنم؟
+          <span class="material-symbols-outlined text-on-surface-variant group-open:rotate-180 transition-transform">expand_more</span>
+        </summary>
+        <p class="text-xs text-on-surface-variant mt-3 leading-6">از دکمه‌ی «توقف همه» در نوار بالای صفحه یا دکمه‌ی «توقف» کنار هر حساب در پیشخوان. توقف ربات پوزیشن‌های باز را نمی‌بندد؛ برای بستن پوزیشن از جدول پوزیشن‌های باز استفاده کنید.</p>
+      </details>
+      <details class="glass-card rounded-xl p-4 group">
+        <summary class="cursor-pointer text-sm font-bold flex justify-between items-center list-none">
+          حداقل سرمایه چقدر است؟
+          <span class="material-symbols-outlined text-on-surface-variant group-open:rotate-180 transition-transform">expand_more</span>
+        </summary>
+        <p class="text-xs text-on-surface-variant mt-3 leading-6">بستگی به حداقل حجم نماد در Toobit دارد. با ریسک ۱٪ و حد ضرر ATR معمولاً از ~۵۰ USDT به بالا قابل استفاده است؛ اما اول حتماً در حالت paper تست کنید.</p>
+      </details>
+      <details class="glass-card rounded-xl p-4 group">
+        <summary class="cursor-pointer text-sm font-bold flex justify-between items-center list-none">
+          امنیت API Key چگونه تامین می‌شود؟
+          <span class="material-symbols-outlined text-on-surface-variant group-open:rotate-180 transition-transform">expand_more</span>
+        </summary>
+        <p class="text-xs text-on-surface-variant mt-3 leading-6">کلیدها فقط در فایل config/accounts.json روی سرور شما ذخیره می‌شوند. در Toobit برای کلید فقط مجوز معامله (Trade) بدهید و مجوز برداشت (Withdraw) را فعال نکنید. محدودسازی IP نیز توصیه می‌شود.</p>
+      </details>
+      <details class="glass-card rounded-xl p-4 group">
+        <summary class="cursor-pointer text-sm font-bold flex justify-between items-center list-none">
+          چطور سیگنال TradingView وصل کنم؟
+          <span class="material-symbols-outlined text-on-surface-variant group-open:rotate-180 transition-transform">expand_more</span>
+        </summary>
+        <p class="text-xs text-on-surface-variant mt-3 leading-6">از صفحه‌ی تنظیمات، آدرس وبهوک و نمونه‌ی پیام JSON را کپی کنید و در آلرت TradingView قرار دهید. برای هر حساب گزینه‌ی «دریافت وبهوک» را فعال کنید.</p>
+      </details>
+    </div>
+  </div>
+</div>
+
+<!-- مودال تیکت -->
+<div class="modal-bg" id="ticketModalBg">
+  <div class="modal-panel">
+    <h3 class="font-headline text-lg font-bold mb-4">ایجاد تیکت جدید</h3>
+    <div class="space-y-3">
+      <div><label class="lbl">موضوع</label><input id="t_subject" class="field" placeholder="مثلاً: خطا در اتصال API"></div>
+      <div><label class="lbl">واحد مربوطه</label><select id="t_unit" class="field">
+        <option>فنی</option><option>استراتژی</option><option>مالی</option><option selected>عمومی</option>
+      </select></div>
+      <div><label class="lbl">شرح مشکل</label><textarea id="t_body" class="field" rows="4" placeholder="جزئیات را بنویسید…"></textarea></div>
+    </div>
+    <div class="flex justify-end gap-2 mt-5">
+      <button class="btn-ghost" onclick="closeModal('ticketModalBg')">انصراف</button>
+      <button class="btn-primary-of" onclick="submitTicket()">ارسال تیکت</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const STATUS_STYLES = {
+  'در حال بررسی': 'bg-gold/15 text-gold border-gold/30',
+  'پاسخ داده شده': 'bg-buy/15 text-buy border-buy/30',
+  'بسته شده': 'bg-outline-variant/30 text-on-surface-variant border-outline-variant/40',
+};
+
+function faDate(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('fa-IR') + ' ' + d.toLocaleTimeString('fa-IR', {hour: '2-digit', minute: '2-digit'});
+  } catch (e) { return iso.slice(0, 16).replace('T', ' '); }
+}
+
+async function loadTickets() {
+  const tickets = await callApi('/api/tickets');
+  const box = document.getElementById('ticketList');
+  if (!tickets.length) {
+    box.innerHTML = '<div class="glass-card rounded-xl p-8 text-center text-on-surface-variant text-sm">تیکتی ثبت نشده است — اولین تیکت را بسازید.</div>';
+    return;
+  }
+  box.innerHTML = tickets.map(t => `
+    <div class="glass-card rounded-xl p-4">
+      <div class="flex justify-between items-center mb-2">
+        <span class="text-[10px] px-2 py-0.5 rounded-full border ${STATUS_STYLES[t.status_label] || STATUS_STYLES['در حال بررسی']}">${t.status_label}</span>
+        <span class="mono-num text-xs text-on-surface-variant" dir="ltr">#${t.id}</span>
+      </div>
+      <div class="text-sm font-bold mb-1">${t.subject}</div>
+      <div class="text-xs text-on-surface-variant leading-5">${t.body}</div>
+      <div class="flex justify-between items-center mt-3 text-[10px] text-on-surface-variant">
+        <span>${t.unit || ''}</span>
+        <span>${faDate(t.created)}</span>
+      </div>
+    </div>`).join('');
+}
+
+async function submitTicket() {
+  const subject = document.getElementById('t_subject').value.trim();
+  const body = document.getElementById('t_body').value.trim();
+  const unit = document.getElementById('t_unit').value;
+  if (!subject || !body) { toast('موضوع و شرح تیکت الزامی است', true); return; }
+  try {
+    await callApi('/api/tickets', 'POST', { subject, body, unit });
+    closeModal('ticketModalBg');
+    document.getElementById('t_subject').value = '';
+    document.getElementById('t_body').value = '';
+    toast('تیکت ثبت شد');
+    loadTickets();
+  } catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+loadTickets().catch(e => toast('خطا: ' + e.message, true));
+</script>
+{% endblock %}

@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+{% block title %}مدیریت استراتژی | کریپتو بات{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-end mb-8">
+  <div>
+    <h2 class="font-headline text-2xl font-bold text-on-surface">مدیریت استراتژی</h2>
+    <p class="text-on-surface-variant text-sm mt-1">پیکربندی و نظارت بر استراتژی‌های معاملاتی + شبیه‌سازی روی داده‌ی تاریخی</p>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+  <!-- چپ: لیست + بک‌تست -->
+  <div class="lg:col-span-8 flex flex-col gap-6">
+    <div class="glass-card rounded-2xl p-6">
+      <div class="flex justify-between items-center mb-6 flex-wrap gap-2">
+        <h3 class="font-headline text-lg font-bold flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary">analytics</span> استراتژی‌های فعال روی حساب‌ها
+        </h3>
+        <div class="flex gap-2" id="stratCounters"></div>
+      </div>
+      <div class="space-y-4" id="strategyList">
+        <div class="text-center text-on-surface-variant py-8 text-sm">در حال بارگذاری…</div>
+      </div>
+    </div>
+
+    <!-- بک‌تست -->
+    <div class="glass-card rounded-2xl p-6">
+      <div class="flex justify-between items-start mb-5 flex-wrap gap-3">
+        <div>
+          <h3 class="font-headline text-lg font-bold">شبیه‌ساز بازار (Backtest)</h3>
+          <p class="text-on-surface-variant text-xs mt-1">اجرای استراتژی روی کندل‌های تاریخی Toobit با همان منطق SL/TP ربات</p>
+        </div>
+        <button id="btRunBtn" class="btn-primary-of flex items-center gap-2" onclick="runBacktest()">
+          <span class="material-symbols-outlined text-base">fast_forward</span> اجرای شبیه‌سازی
+        </button>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <div class="col-span-2 md:col-span-1">
+          <label class="lbl">نماد</label>
+          <input id="bt_symbol" class="field mono-num" dir="ltr" placeholder="BTCUSDT" value="BTCUSDT">
+        </div>
+        <div>
+          <label class="lbl">تایم‌فریم</label>
+          <select id="bt_timeframe" class="field">
+            <option value="15m">15 دقیقه</option><option value="30m">30 دقیقه</option>
+            <option value="1h" selected>1 ساعت</option><option value="4h">4 ساعت</option><option value="1d">روزانه</option>
+          </select>
+        </div>
+        <div>
+          <label class="lbl">تعداد کندل</label>
+          <select id="bt_candles" class="field">
+            <option value="300">300</option><option value="500" selected>500</option><option value="1000">1000</option>
+          </select>
+        </div>
+        <div>
+          <label class="lbl">استراتژی</label>
+          <select id="bt_strategy" class="field"></select>
+        </div>
+      </div>
+      <div id="btResult">
+        <div class="text-center text-on-surface-variant text-sm py-10 border border-dashed border-outline-variant/30 rounded-xl">
+          نتیجه‌ی شبیه‌سازی اینجا نمایش داده می‌شود — استراتژی و نماد را انتخاب و اجرا کنید.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- راست: پیکربندی پارامترها -->
+  <div class="lg:col-span-4 flex flex-col gap-6">
+    <div class="glass-card rounded-2xl p-6 flex-1 flex flex-col">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+          <span class="material-symbols-outlined">settings_input_component</span>
+        </div>
+        <h3 class="font-headline text-lg font-bold">پیکربندی پارامترها</h3>
+      </div>
+      <div id="paramPanel" class="flex-1">
+        <div class="text-on-surface-variant text-sm py-8 text-center">
+          از لیست سمت چپ، «ویرایش پارامترها» یک نماد را انتخاب کنید.
+        </div>
+      </div>
+    </div>
+
+    <!-- راهنمای استراتژی‌ها -->
+    <div class="glass-card rounded-2xl p-6">
+      <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary">menu_book</span> راهنمای استراتژی‌ها
+      </h3>
+      <div class="space-y-3 text-xs text-on-surface-variant leading-6" id="strategyGuide"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const STRAT_ICONS = {
+  supertrend_ema_rsi: 'water_drop',
+  macd_trend: 'auto_graph',
+  bollinger_rsi: 'unfold_more',
+  ma_kijun_psar: 'rocket_launch',
+};
+const STRAT_GUIDE = {
+  supertrend_ema_rsi: 'روند با SuperTrend + فیلتر EMA کند و تایید RSI. خروج با تغییر جهت SuperTrend.',
+  macd_trend: 'کراس MACD فقط در جهت EMA روند (۲۰۰). مناسب بازارهای ترنددار.',
+  bollinger_rsi: 'برگشت از باندهای بولینگر با تایید RSI اشباع. مناسب بازار رنج.',
+  ma_kijun_psar: 'ترکیب ۳ میانگین متحرک + Kijun (ایچیموکو) + Parabolic SAR برای تایید نهایی.',
+};
+
+let strategiesCache = [];
+let accountsCache = [];
+let statusCache = {};
+let editing = null; // {accountId, symbol}
+
+async function loadData() {
+  const [strategies, accounts, status] = await Promise.all([
+    callApi('/api/strategies'), callApi('/api/accounts'), callApi('/api/status')]);
+  strategiesCache = strategies;
+  accountsCache = accounts;
+  statusCache = status.accounts || {};
+  document.getElementById('bt_strategy').innerHTML =
+    strategies.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
+  renderGuide();
+  renderList();
+}
+
+function renderGuide() {
+  document.getElementById('strategyGuide').innerHTML = strategiesCache.map(s =>
+    `<div class="border-r-2 border-primary/40 pr-3">
+       <div class="text-on-surface font-bold text-[13px] mb-0.5">${s.label}</div>
+       ${STRAT_GUIDE[s.key] || ''}
+     </div>`).join('');
+}
+
+function renderList() {
+  const list = document.getElementById('strategyList');
+  let items = [];
+  for (const acc of accountsCache) {
+    for (const sym of (acc.symbols || [])) items.push({ acc, sym });
+  }
+  const enabledCount = items.filter(x => x.sym.enabled).length;
+  document.getElementById('stratCounters').innerHTML = `
+    <div class="bg-surface-container-low px-3 py-1 rounded-full border border-outline-variant/30 text-xs text-on-surface-variant">فعال: ${enabledCount}</div>
+    <div class="bg-surface-container-low px-3 py-1 rounded-full border border-outline-variant/30 text-xs text-on-surface-variant">غیرفعال: ${items.length - enabledCount}</div>`;
+
+  if (!items.length) {
+    list.innerHTML = `<div class="text-center text-on-surface-variant py-8 text-sm">
+      هنوز نمادی با استراتژی تعریف نشده است — از <a href="/" class="text-primary">پیشخوان</a> نماد اضافه کنید.</div>`;
+    return;
+  }
+  list.innerHTML = items.map(({ acc, sym }) => {
+    const st = statusCache[acc.id] || {};
+    const sig = (st.last_signals || {})[sym.symbol];
+    const strat = strategiesCache.find(x => x.key === sym.strategy);
+    const icon = STRAT_ICONS[sym.strategy] || 'query_stats';
+    const isEditing = editing && editing.accountId === acc.id && editing.symbol === sym.symbol;
+    const signalTxt = sig && sig.signal !== 'none'
+      ? `<span class="${sig.signal === 'buy' ? 'text-buy' : 'text-sell'} mono-num text-sm">${sig.signal === 'buy' ? 'خرید ▲' : 'فروش ▼'}</span>`
+      : '<span class="text-on-surface-variant text-sm">بدون سیگنال</span>';
+    return `<div class="glass-card rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap ${sym.enabled ? '' : 'opacity-60'} ${isEditing ? '!border-primary' : ''}">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 rounded-lg bg-primary-container flex items-center justify-center text-primary border border-primary/20">
+          <span class="material-symbols-outlined text-2xl">${icon}</span>
+        </div>
+        <div>
+          <h4 class="font-bold text-on-surface">${strat ? strat.label : sym.strategy}</h4>
+          <p class="text-xs text-on-surface-variant mt-0.5">${sym.symbol} | تایم‌فریم: ${sym.timeframe} | حساب: ${acc.name}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-6">
+        <div class="text-center">
+          <p class="text-[10px] text-on-surface-variant mb-1">آخرین سیگنال</p>
+          ${signalTxt}
+        </div>
+        <div class="flex flex-col items-center gap-2">
+          <input type="checkbox" class="of-switch" ${sym.enabled ? 'checked' : ''} onchange="toggleSym('${acc.id}','${sym.symbol}',this.checked)">
+          <button class="text-xs flex items-center gap-1 ${isEditing ? 'text-primary font-bold' : 'text-on-surface-variant hover:text-primary'} transition-colors"
+                  onclick="openParamEditor('${acc.id}','${sym.symbol}')">
+            <span class="material-symbols-outlined text-sm">edit_note</span> ویرایش پارامترها
+          </button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function toggleSym(accId, symbol, enabled) {
+  try {
+    await callApi(`/api/accounts/${accId}/symbols/${encodeURIComponent(symbol)}/toggle?enabled=${enabled}`, 'POST');
+    loadData();
+  } catch (e) { toast('خطا: ' + e.message, true); loadData(); }
+}
+
+function openParamEditor(accId, symbol) {
+  const acc = accountsCache.find(a => a.id === accId);
+  const sym = acc && (acc.symbols || []).find(s => s.symbol === symbol);
+  if (!sym) return;
+  editing = { accountId: accId, symbol };
+  const strat = strategiesCache.find(x => x.key === sym.strategy);
+  const vals = sym.strategy_params || {};
+  const panel = document.getElementById('paramPanel');
+  const fields = (strat ? strat.params_schema : []).map(p => {
+    const v = (vals[p.key] !== undefined && vals[p.key] !== null) ? vals[p.key] : p.default;
+    return `<div>
+      <label class="lbl">${p.label}</label>
+      <input id="pp_${p.key}" class="field mono-num" dir="ltr" type="number" step="${p.step || (p.type === 'int' ? 1 : 'any')}" value="${v}">
+    </div>`;
+  }).join('');
+  panel.innerHTML = `
+    <div class="mb-4 pb-4 border-b border-outline-variant/20">
+      <div class="font-bold">${sym.symbol} <span class="text-xs text-on-surface-variant font-normal">(${sym.timeframe})</span></div>
+      <div class="text-xs text-on-surface-variant mt-1">${strat ? strat.label : sym.strategy} — حساب ${acc.name}</div>
+    </div>
+    <div class="space-y-4">${fields}</div>
+    <div class="mt-6 pt-4 border-t border-outline-variant/20">
+      <button class="w-full btn-primary-of" onclick="saveParams()">ذخیره و به‌روزرسانی بات</button>
+      <button class="w-full text-on-surface-variant py-2 mt-2 text-sm hover:text-sell transition-colors" onclick="resetParams()">بازگشت به پیش‌فرض</button>
+    </div>`;
+  renderList();
+}
+
+function resetParams() {
+  if (!editing) return;
+  const acc = accountsCache.find(a => a.id === editing.accountId);
+  const sym = acc && (acc.symbols || []).find(s => s.symbol === editing.symbol);
+  const strat = strategiesCache.find(x => x.key === sym.strategy);
+  for (const p of (strat ? strat.params_schema : [])) {
+    const el = document.getElementById('pp_' + p.key);
+    if (el) el.value = p.default;
+  }
+}
+
+async function saveParams() {
+  if (!editing) return;
+  const acc = accountsCache.find(a => a.id === editing.accountId);
+  const sym = acc && (acc.symbols || []).find(s => s.symbol === editing.symbol);
+  const strat = strategiesCache.find(x => x.key === sym.strategy);
+  const params = {};
+  for (const p of (strat ? strat.params_schema : [])) {
+    const el = document.getElementById('pp_' + p.key);
+    if (el && el.value !== '') params[p.key] = p.type === 'int' ? parseInt(el.value) : parseFloat(el.value);
+  }
+  const payload = { ...sym, strategy_params: params };
+  delete payload.id;
+  try {
+    await callApi(`/api/accounts/${editing.accountId}/symbols/${encodeURIComponent(editing.symbol)}`, 'PUT', payload);
+    toast('پارامترها ذخیره شد');
+    loadData();
+  } catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+// ---------- بک‌تست ----------
+function btStatsHtml(s) {
+  const pnlCls = (s.total_pnl || 0) >= 0 ? 'text-buy' : 'text-sell';
+  const pf = s.profit_factor === null || s.profit_factor === undefined ? '∞' : fmt(s.profit_factor);
+  return `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+    <div class="bg-surface-container-low rounded-lg p-3 text-center"><div class="text-[10px] text-on-surface-variant mb-1">بازده کل</div><div class="mono-num text-lg font-bold ${pnlCls}" dir="ltr">${s.return_pct >= 0 ? '+' : ''}${fmt(s.return_pct)}٪</div></div>
+    <div class="bg-surface-container-low rounded-lg p-3 text-center"><div class="text-[10px] text-on-surface-variant mb-1">نرخ برد</div><div class="mono-num text-lg font-bold text-primary" dir="ltr">${fmt(s.win_rate, 1)}٪</div></div>
+    <div class="bg-surface-container-low rounded-lg p-3 text-center"><div class="text-[10px] text-on-surface-variant mb-1">معاملات (W/L)</div><div class="mono-num text-lg font-bold" dir="ltr">${s.trades} <span class="text-xs text-on-surface-variant">(${s.wins}/${s.losses})</span></div></div>
+    <div class="bg-surface-container-low rounded-lg p-3 text-center"><div class="text-[10px] text-on-surface-variant mb-1">PF / ماکس DD</div><div class="mono-num text-lg font-bold" dir="ltr">${pf} <span class="text-xs text-sell">/ ${fmt(s.max_drawdown_pct, 1)}٪</span></div></div>
+  </div>`;
+}
+
+function btChartSvg(curve) {
+  if (!curve || curve.length < 2) return '';
+  const W = 800, H = 180, pad = 8;
+  const vals = curve.map(p => p.equity);
+  let min = Math.min(...vals), max = Math.max(...vals);
+  if (max === min) { max += 1; min -= 1; }
+  const X = i => pad + (i / (curve.length - 1)) * (W - 2 * pad);
+  const Y = v => pad + (1 - (v - min) / (max - min)) * (H - 2 * pad);
+  const line = curve.map((p, i) => `${X(i).toFixed(1)},${Y(p.equity).toFixed(1)}`).join(' ');
+  const up = vals[vals.length - 1] >= vals[0];
+  const color = up ? '#2ebd85' : '#f6465d';
+  return `<svg class="w-full" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:180px">
+    <defs><linearGradient id="btGrad" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity="0.25"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <polygon points="${pad},${H - pad} ${line} ${W - pad},${H - pad}" fill="url(#btGrad)"/>
+    <polyline points="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+async function runBacktest() {
+  const btn = document.getElementById('btRunBtn');
+  const box = document.getElementById('btResult');
+  const payload = {
+    symbol: document.getElementById('bt_symbol').value.trim() || 'BTCUSDT',
+    timeframe: document.getElementById('bt_timeframe').value,
+    candles: parseInt(document.getElementById('bt_candles').value),
+    strategy: document.getElementById('bt_strategy').value,
+    strategy_params: {},
+  };
+  btn.disabled = true;
+  box.innerHTML = '<div class="text-center text-on-surface-variant text-sm py-10">در حال دریافت کندل‌ها و اجرای شبیه‌سازی…</div>';
+  try {
+    const r = await callApi('/api/backtest', 'POST', payload);
+    box.innerHTML = btStatsHtml(r.summary) +
+      `<div class="bg-primary-container rounded-xl p-3">${btChartSvg(r.equity_curve)}</div>
+       <div class="text-[10px] text-on-surface-variant mt-2">منحنی اکوییتی (شروع: ${fmt(r.summary.start_equity)} USDT، ریسک ۱٪ هر معامله، SL/TP از ATR)</div>`;
+  } catch (e) {
+    box.innerHTML = `<div class="text-center text-sell text-sm py-10 border border-sell/30 rounded-xl">خطا: ${e.message}</div>`;
+  } finally { btn.disabled = false; }
+}
+
+loadData().catch(e => toast('خطا: ' + e.message, true));
+setInterval(loadData, 15000);
+</script>
+{% endblock %}

@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+{% block title %}گزارشات و تاریخچه معاملات | کریپتو بات{% endblock %}
+
+{% block content %}
+<!-- هدر + فیلترها -->
+<div class="flex flex-col md:flex-row-reverse justify-between items-start md:items-center gap-6 mb-8">
+  <div>
+    <h2 class="font-headline text-2xl font-bold text-on-surface">گزارشات و تاریخچه معاملات</h2>
+    <p class="text-on-surface-variant text-sm mt-1">مرور دقیق عملکرد معاملات و تحلیل سود و زیان</p>
+  </div>
+  <div class="flex flex-wrap gap-3 bg-surface-container-low p-2 rounded-xl border border-outline-variant/20">
+    <select id="f_account" class="field !w-auto min-w-[150px]" onchange="loadReport()"></select>
+    <select id="f_days" class="field !w-auto" onchange="loadReport()">
+      <option value="7">۷ روز</option><option value="30" selected>۳۰ روز</option>
+      <option value="90">۹۰ روز</option><option value="0">همه</option>
+    </select>
+    <select id="f_mode" class="field !w-auto" onchange="loadReport()">
+      <option value="">همه حالت‌ها</option><option value="paper">Paper</option><option value="live">Live</option>
+    </select>
+  </div>
+</div>
+
+<div id="reportRoot"><div class="text-center text-on-surface-variant py-16 text-sm">در حال بارگذاری…</div></div>
+
+<button onclick="window.print()" title="چاپ گزارش"
+  class="fixed bottom-20 md:bottom-8 left-6 w-14 h-14 bg-primary text-on-primary rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50">
+  <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">print</span>
+</button>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CLOSED_BY_LABELS = { SL: 'حد ضرر', TP: 'حد سود', manual: 'دستی', exchange: 'صرافی', reversal: 'تغییر جهت' };
+let reportData = null;
+let tradePage = 1;
+const PAGE_SIZE = 10;
+let tradeFilter = '';
+
+async function init() {
+  const accounts = await callApi('/api/accounts');
+  const sel = document.getElementById('f_account');
+  if (!accounts.length) {
+    document.getElementById('reportRoot').innerHTML =
+      '<div class="glass-card rounded-2xl p-10 text-center text-on-surface-variant">ابتدا از پیشخوان یک حساب بسازید.</div>';
+    return;
+  }
+  sel.innerHTML = accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+  const urlAcc = new URLSearchParams(location.search).get('acc');
+  if (urlAcc && accounts.some(a => a.id === urlAcc)) sel.value = urlAcc;
+  loadReport();
+}
+
+async function loadReport() {
+  const accId = document.getElementById('f_account').value;
+  if (!accId) return;
+  const days = document.getElementById('f_days').value;
+  const mode = document.getElementById('f_mode').value;
+  const root = document.getElementById('reportRoot');
+  root.innerHTML = '<div class="text-center text-on-surface-variant py-16 text-sm">در حال دریافت گزارش…</div>';
+  try {
+    let url = `/api/accounts/${accId}/report?days=${days}`;
+    if (mode) url += `&mode=${mode}`;
+    reportData = await callApi(url);
+    const eq = reportData.equity_curve || [];
+    if (eq.length > 600) {
+      const step = Math.ceil(eq.length / 600);
+      const sampled = eq.filter((_, i) => i % step === 0);
+      if (sampled[sampled.length - 1] !== eq[eq.length - 1]) sampled.push(eq[eq.length - 1]);
+      reportData.equity_curve = sampled;
+    }
+    tradePage = 1;
+    renderReport();
+  } catch (e) {
+    root.innerHTML = `<div class="glass-card rounded-2xl p-10 text-center text-sell">خطا در دریافت گزارش: ${e.message}</div>`;
+  }
+}
+
+function svgEquityChart(points) {
+  const W = 1000, H = 300, padL = 62, padR = 14, padT = 14, padB = 30;
+  if (!points || points.length < 2) {
+    return '<div class="text-center text-on-surface-variant text-sm py-16">هنوز داده‌ی اکوییتی ثبت نشده — پس از فعال شدن ربات هر ۵ دقیقه یک نقطه ذخیره می‌شود.</div>';
+  }
+  const vals = points.map(p => Number(p.equity));
+  let vMin = Math.min(...vals), vMax = Math.max(...vals);
+  if (vMax === vMin) { vMax += 1; vMin -= 1; }
+  const span = vMax - vMin, pad = span * 0.08;
+  vMin -= pad; vMax += pad;
+  const X = i => padL + (i / (points.length - 1)) * (W - padL - padR);
+  const Y = v => padT + (1 - (v - vMin) / (vMax - vMin)) * (H - padT - padB);
+  let grid = '', labels = '';
+  for (let g = 0; g <= 4; g++) {
+    const v = vMin + (g / 4) * (vMax - vMin);
+    const y = Y(v);
+    grid += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#2F333E" stroke-width="1" stroke-dasharray="3,4"/>`;
+    labels += `<text x="${padL - 6}" y="${y + 3}" text-anchor="end" font-size="9" fill="#919094" font-family="JetBrains Mono">${niceNum(v)}</text>`;
+  }
+  for (let g = 0; g <= 4; g++) {
+    const i = Math.round((g / 4) * (points.length - 1));
+    const t = String(points[i].time || '').slice(5, 16).replace('T', ' ');
+    labels += `<text x="${X(i)}" y="${H - 8}" text-anchor="middle" font-size="9" fill="#919094" font-family="JetBrains Mono">${t}</text>`;
+  }
+  const line = points.map((p, i) => `${X(i).toFixed(1)},${Y(Number(p.equity)).toFixed(1)}`).join(' ');
+  const first = Number(points[0].equity), last = Number(points[points.length - 1].equity);
+  const up = last >= first;
+  const color = up ? '#2ebd85' : '#f6465d';
+  return `<svg class="w-full" viewBox="0 0 ${W} ${H}" id="eqSvg" onmousemove="eqHover(event)" onmouseleave="eqLeave()">
+    <defs><linearGradient id="eqGrad" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity="0.25"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </linearGradient></defs>
+    ${grid}
+    <polygon points="${padL},${H - padB} ${line} ${W - padR},${H - padB}" fill="url(#eqGrad)"/>
+    <polyline points="${line}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" style="filter:drop-shadow(0 0 6px ${color}55)"/>
+    <line id="eqCursor" x1="0" y1="${padT}" x2="0" y2="${H - padB}" stroke="#919094" stroke-width="1" opacity="0"/>
+    <circle id="eqDot" r="4" fill="${color}" stroke="#0A0A0B" stroke-width="2" opacity="0"/>
+    ${labels}
+  </svg>
+  <div class="mono-num text-[11px] text-secondary-fixed-dim mt-2 min-h-[16px]" dir="ltr" id="eqTip"></div>`;
+}
+
+function eqHover(ev) {
+  const svg = document.getElementById('eqSvg');
+  if (!svg || !reportData) return;
+  const pts = reportData.equity_curve || [];
+  if (pts.length < 2) return;
+  const rect = svg.getBoundingClientRect();
+  const W = 1000, padL = 62, padR = 14;
+  const x = (ev.clientX - rect.left) / rect.width * W;
+  let i = Math.round((x - padL) / (W - padL - padR) * (pts.length - 1));
+  i = Math.max(0, Math.min(pts.length - 1, i));
+  const p = pts[i];
+  const vals = pts.map(q => Number(q.equity));
+  let vMin = Math.min(...vals), vMax = Math.max(...vals);
+  if (vMax === vMin) { vMax += 1; vMin -= 1; }
+  const span = vMax - vMin, pad = span * 0.08;
+  vMin -= pad; vMax += pad;
+  const H = 300, padT = 14, padB = 30;
+  const px = padL + (i / (pts.length - 1)) * (W - padL - padR);
+  const py = padT + (1 - (Number(p.equity) - vMin) / (vMax - vMin)) * (H - padT - padB);
+  const cur = document.getElementById('eqCursor'), dot = document.getElementById('eqDot');
+  if (cur) { cur.setAttribute('x1', px); cur.setAttribute('x2', px); cur.setAttribute('opacity', '0.5'); }
+  if (dot) { dot.setAttribute('cx', px); dot.setAttribute('cy', py); dot.setAttribute('opacity', '1'); }
+  const tip = document.getElementById('eqTip');
+  if (tip) tip.textContent = `${String(p.time || '').slice(0, 16).replace('T', ' ')} — Equity: ${niceNum(Number(p.equity))} USDT (Balance: ${niceNum(Number(p.balance))})`;
+}
+function eqLeave() {
+  const cur = document.getElementById('eqCursor'), dot = document.getElementById('eqDot');
+  if (cur) cur.setAttribute('opacity', '0');
+  if (dot) dot.setAttribute('opacity', '0');
+  const tip = document.getElementById('eqTip');
+  if (tip) tip.textContent = '';
+}
+
+function svgDailyPnl(daily) {
+  const W = 1000, H = 180, padL = 62, padR = 14, padT = 12, padB = 26;
+  if (!daily || !daily.length) {
+    return '<div class="text-center text-on-surface-variant text-sm py-10">در این بازه معامله‌ی بسته‌شده‌ای ثبت نشده است.</div>';
+  }
+  const vals = daily.map(d => Number(d.pnl));
+  let vMax = Math.max(0, ...vals), vMin = Math.min(0, ...vals);
+  if (vMax === vMin) { vMax = 1; vMin = -1; }
+  const span = vMax - vMin;
+  vMax += span * 0.1; vMin -= span * 0.1;
+  const Y = v => padT + (1 - (v - vMin) / (vMax - vMin)) * (H - padT - padB);
+  const zeroY = Y(0);
+  const n = daily.length;
+  const bw = Math.min(36, Math.max(3, (W - padL - padR) / n * 0.65));
+  let bars = '', labels = '';
+  daily.forEach((d, i) => {
+    const cx = padL + ((i + 0.5) / n) * (W - padL - padR);
+    const v = Number(d.pnl);
+    const y1 = Math.min(zeroY, Y(v)), h = Math.max(1.5, Math.abs(Y(v) - zeroY));
+    const c = v >= 0 ? '#2ebd85' : '#f6465d';
+    bars += `<rect x="${(cx - bw / 2).toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${c}" opacity="0.85">
+      <title>${d.date} | PnL: ${niceNum(v)} USDT | ${d.trades} معامله</title></rect>`;
+    if (n <= 16 || i % Math.ceil(n / 12) === 0) {
+      labels += `<text x="${cx}" y="${H - 8}" text-anchor="middle" font-size="9" fill="#919094" font-family="JetBrains Mono">${String(d.date).slice(5)}</text>`;
+    }
+  });
+  return `<svg class="w-full" viewBox="0 0 ${W} ${H}">
+    <line x1="${padL}" y1="${zeroY}" x2="${W - padR}" y2="${zeroY}" stroke="#919094" stroke-width="1" opacity="0.5"/>
+    ${bars}${labels}
+  </svg>`;
+}
+
+function filteredTrades() {
+  const trades = reportData.trades || [];
+  if (!tradeFilter) return trades;
+  return trades.filter(t => (t.symbol || '').toUpperCase().includes(tradeFilter));
+}
+
+function renderTradesTable() {
+  const trades = filteredTrades();
+  const total = trades.length;
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  tradePage = Math.min(Math.max(1, tradePage), pages);
+  const slice = trades.slice((tradePage - 1) * PAGE_SIZE, tradePage * PAGE_SIZE);
+  const rows = slice.map(t => {
+    const r = Number(t.realized || 0);
+    const cls = r >= 0 ? 'text-buy' : 'text-sell';
+    const side = t.side === 'long'
+      ? '<span class="bg-buy/10 text-buy px-2 py-0.5 rounded text-[11px] font-bold border border-buy/20">LONG</span>'
+      : '<span class="bg-sell/10 text-sell px-2 py-0.5 rounded text-[11px] font-bold border border-sell/20">SHORT</span>';
+    const by = CLOSED_BY_LABELS[t.closed_by] || t.closed_by || '—';
+    const est = t.estimated ? ' <span class="text-gold">≈</span>' : '';
+    return `<tr class="hover:bg-surface-variant/20 transition-colors">
+      <td class="num !text-right text-on-surface-variant text-[11px]" dir="ltr">${String(t.close_time || '').slice(0, 16).replace('T', ' ')}</td>
+      <td class="font-bold">${t.symbol || ''}</td><td>${side}</td>
+      <td class="num">${fmtNum(t.qty)}</td>
+      <td class="num">${fmtNum(t.entry_price)}</td><td class="num">${fmtNum(t.close_price)}</td>
+      <td class="text-[11px]">${by}</td>
+      <td class="num ${cls} font-bold">${niceNum(r)}${est}</td>
+    </tr>`;
+  }).join('');
+  const start = total ? (tradePage - 1) * PAGE_SIZE + 1 : 0;
+  const end = Math.min(total, tradePage * PAGE_SIZE);
+  let pageBtns = '';
+  const win = [];
+  for (let p = 1; p <= pages; p++) {
+    if (p === 1 || p === pages || Math.abs(p - tradePage) <= 2) win.push(p);
+  }
+  let prev = 0;
+  for (const p of win) {
+    if (p - prev > 1) pageBtns += '<span class="w-8 h-8 flex items-center justify-center text-on-surface-variant">…</span>';
+    pageBtns += `<button onclick="gotoPage(${p})" class="w-8 h-8 rounded border text-xs font-bold transition-all ${p === tradePage ? 'border-primary/30 bg-primary text-on-primary' : 'border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant'}">${p}</button>`;
+    prev = p;
+  }
+  return `<div class="overflow-x-auto"><table class="of-table">
+      <thead><tr><th>زمان</th><th>نماد</th><th>نوع</th><th>حجم</th><th>قیمت ورود</th><th>قیمت خروج</th><th>نحوه بستن</th><th>سود/ضرر (USDT)</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="8" class="text-center text-on-surface-variant py-8">معامله‌ای یافت نشد</td></tr>'}</tbody>
+    </table></div>
+    <div class="px-5 py-4 flex flex-row-reverse justify-between items-center bg-surface-container-low border-t border-outline-variant/20">
+      <span class="text-xs text-on-surface-variant">نمایش ${start} تا ${end} از ${total} معامله</span>
+      <div class="flex gap-1">
+        <button onclick="gotoPage(${tradePage - 1})" class="w-8 h-8 flex items-center justify-center rounded border border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant"><span class="material-symbols-outlined text-base">chevron_right</span></button>
+        ${pageBtns}
+        <button onclick="gotoPage(${tradePage + 1})" class="w-8 h-8 flex items-center justify-center rounded border border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant"><span class="material-symbols-outlined text-base">chevron_left</span></button>
+      </div>
+    </div>`;
+}
+
+function gotoPage(p) {
+  tradePage = p;
+  document.getElementById('tradesWrap').innerHTML = renderTradesTable();
+}
+
+function onTradeSearch(v) {
+  tradeFilter = v.trim().toUpperCase();
+  tradePage = 1;
+  document.getElementById('tradesWrap').innerHTML = renderTradesTable();
+}
+
+function renderReport() {
+  const s = reportData.summary || {};
+  const pnlCls = (s.total_pnl || 0) >= 0 ? 'text-buy' : 'text-sell';
+  const pf = s.profit_factor === null || s.profit_factor === undefined ? '∞' : fmt(s.profit_factor);
+  const root = document.getElementById('reportRoot');
+  root.innerHTML = `
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="glass-card p-5 rounded-2xl flex flex-col items-center text-center">
+      <span class="text-on-surface-variant text-xs mb-2">کل سود / ضرر</span>
+      <span class="mono-num text-2xl font-bold ${pnlCls}" dir="ltr">${s.total_pnl >= 0 ? '+' : ''}${niceNum(s.total_pnl)}</span>
+      <span class="text-[11px] text-on-surface-variant mt-1">USDT</span>
+    </div>
+    <div class="glass-card p-5 rounded-2xl flex flex-col items-center text-center">
+      <span class="text-on-surface-variant text-xs mb-2">نرخ برد (Win Rate)</span>
+      <span class="mono-num text-2xl font-bold text-primary" dir="ltr">${fmt(s.win_rate, 1)}٪</span>
+      <div class="w-full bg-surface-container-highest h-1.5 rounded-full mt-3 overflow-hidden">
+        <div class="bg-primary h-full" style="width:${Math.min(100, s.win_rate || 0)}%"></div>
+      </div>
+    </div>
+    <div class="glass-card p-5 rounded-2xl flex flex-col items-center text-center">
+      <span class="text-on-surface-variant text-xs mb-2">تعداد معاملات</span>
+      <span class="mono-num text-2xl font-bold" dir="ltr">${s.trades || 0}</span>
+      <span class="text-[11px] text-on-surface-variant mt-1">${s.wins || 0} برد / ${s.losses || 0} باخت</span>
+    </div>
+    <div class="glass-card p-5 rounded-2xl flex flex-col items-center text-center">
+      <span class="text-on-surface-variant text-xs mb-2">PF / ماکس دراوداون</span>
+      <span class="mono-num text-2xl font-bold text-secondary-fixed-dim" dir="ltr">${s.trades ? pf : '—'}</span>
+      <span class="text-[11px] text-sell mt-1" dir="ltr">${fmt(s.max_drawdown_pct, 2)}٪ DD</span>
+    </div>
+  </div>
+
+  <div class="glass-card p-5 rounded-2xl mb-6">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="font-headline font-bold flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary">timeline</span> نمودار رشد سرمایه (Equity Curve)
+      </h3>
+      <span class="mono-num text-xs text-on-surface-variant" dir="ltr">USDT</span>
+    </div>
+    ${svgEquityChart(reportData.equity_curve)}
+  </div>
+
+  <div class="glass-card p-5 rounded-2xl mb-6">
+    <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
+      <span class="material-symbols-outlined text-primary">bar_chart</span> سود/زیان روزانه
+    </h3>
+    ${svgDailyPnl(reportData.daily)}
+  </div>
+
+  <div class="glass-card rounded-2xl overflow-hidden">
+    <div class="px-5 py-4 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-low flex-wrap gap-3">
+      <h3 class="font-headline font-bold">تاریخچه معاملات</h3>
+      <input class="field !w-56" placeholder="جستجوی نماد (BTC…)" dir="ltr" oninput="onTradeSearch(this.value)">
+    </div>
+    <div id="tradesWrap">${renderTradesTable()}</div>
+  </div>
+  ${s.has_estimated ? '<div class="text-[11px] text-gold mt-3">≈ مقادیر علامت‌دار تقریبی‌اند: پوزیشن در سمت صرافی (live) بسته شده و آخرین سود شناخته‌شده ثبت شده است.</div>' : ''}`;
+}
+
+init().catch(e => toast('خطا: ' + e.message, true));
+</script>
+{% endblock %}
