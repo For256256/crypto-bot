@@ -336,10 +336,8 @@ class AccountRunner:
             self.log(f"{symbol}: فاصله‌ی SL صفر است؛ ورود لغو شد.", "warn")
             return None
 
-        risk_amount = equity * float(self.cfg.get("risk_percent", 1.0)) / 100
-        qty = risk_amount / sl_dist
-
-        # محدودیت‌های حجم: تنظیمات کاربر، وگرنه exchangeInfo صرافی
+        # محدودیت‌های حجم: تنظیمات کاربر، وگرنه exchangeInfo صرافی — زودتر گرفته
+        # می‌شود چون contract_multiplier خود فرمول ریسک را هم تصحیح می‌کند.
         try:
             info = await self.driver.get_symbol_info(symbol)
         except ExchangeError:
@@ -347,11 +345,20 @@ class AccountRunner:
         min_qty = sym_cfg.get("min_qty") if sym_cfg.get("min_qty") is not None else info.get("min_qty", 0)
         qty_step = sym_cfg.get("qty_step") if sym_cfg.get("qty_step") is not None else info.get("qty_step", 0)
         max_qty = sym_cfg.get("max_qty")
-        # برخی نمادها (مثل SPX500-SWAP-USDT، DASH-SWAP-USDT) contractMultiplier
-        # غیر از ۱ دارند — یعنی ارزش دلاری هر واحد حجم برابر price×این‌ضریب است،
-        # نه خود price. نادیده گرفتن آن باعث می‌شود سقف مارجین اشتباه (خیلی کوچک)
-        # محاسبه شود و حجم به زیر حداقل مجاز صرافی سقوط کند.
+        # برخی نمادها (مثل SPX500-SWAP-USDT، DASH-SWAP-USDT، حتی BTC-SWAP-USDT)
+        # contractMultiplier غیر از ۱ دارند (اینجا ۰.۰۰۱) — یعنی ارزش دلاری هر
+        # واحد «quantity» برابر price×این‌ضریب است، نه خود price (با حجم معاملات
+        # واقعی ۲۴ ساعته‌ی توبیت هم تأیید شد: qv/v ≈ price×contractMultiplier).
         contract_multiplier = float(info.get("contract_multiplier", 1.0) or 1.0)
+
+        # ریسک دلاری واقعیِ نگه‌داشتن qty واحد در برابر حرکت sl_dist برابر است با
+        # qty × sl_dist × contract_multiplier — نه qty × sl_dist. نادیده گرفتن
+        # ضریب قرارداد در این فرمول (که قبل از این فیکس وجود داشت) باعث می‌شد
+        # ریسک واقعی این نمادها هزار برابر کمتر از ٪ریسک تنظیم‌شده باشد و در
+        # نتیجه حجم/ارزش دلاری سفارش آن‌قدر ناچیز شود که صرافی آن را با خطای
+        # «quantity too small» رد کند، حتی وقتی qty عددی به‌ظاهر بزرگ بود.
+        risk_amount = equity * float(self.cfg.get("risk_percent", 1.0)) / 100
+        qty = risk_amount / (sl_dist * contract_multiplier)
 
         # سقف حجم بر اساس مارجین آزاد واقعی (نه کل اکوییتی) — با ۵٪ حاشیه‌ی
         # اطمینان برای کارمزد/لغزش قیمت، تا با وجود پوزیشن‌های باز دیگر هم به
