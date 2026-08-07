@@ -290,13 +290,15 @@ class AccountRunner:
             self.log(f"{symbol}: SL/TP مشخص نیست و ATR هم در دسترس نیست؛ ورود لغو شد.", "warn")
             return
 
-        # محاسبه‌ی حجم بر اساس ریسک
-        qty = await self._calc_qty(sym_cfg, price, stop_loss)
+        # اهرم — قبل از محاسبه‌ی حجم لازم است تا سقف حجم بر اساس مارجین آزاد درست دربیاید
+        leverage = int(sym_cfg.get("leverage") or self.cfg.get("default_leverage", 5))
+
+        # محاسبه‌ی حجم بر اساس ریسک (و سقف آن بر اساس مارجین آزاد واقعی)
+        qty = await self._calc_qty(sym_cfg, price, stop_loss, leverage)
         if qty is None or qty <= 0:
             return
 
-        # اهرم (خطای آن غیرحیاتی است)
-        leverage = int(sym_cfg.get("leverage") or self.cfg.get("default_leverage", 5))
+        # تنظیم اهرم روی صرافی (خطای آن غیرحیاتی است)
         try:
             await self.driver.set_leverage(symbol, leverage)
         except Exception as e:
@@ -316,8 +318,10 @@ class AccountRunner:
             self.log(result.get("tp_sl_error", "ست کردن TP/SL ناموفق بود"), "error")
         self.positions = await self.driver.get_open_positions()
 
-    async def _calc_qty(self, sym_cfg: dict, price: float, stop_loss: float):
-        """حجم = (اکوییتی × ٪ریسک) ÷ فاصله‌ی SL — سپس روی گام حجم صرافی گرد می‌شود."""
+    async def _calc_qty(self, sym_cfg: dict, price: float, stop_loss: float, leverage: int = 1):
+        """حجم = (اکوییتی × ٪ریسک) ÷ فاصله‌ی SL — سپس روی گام حجم صرافی گرد می‌شود
+        و در نهایت به سقف مارجین آزاد واقعی (با احتساب اهرم) محدود می‌شود تا خطای
+        «Balance insufficient» رخ ندهد، مخصوصاً وقتی پوزیشن‌های دیگری هم باز هستند."""
         symbol = sym_cfg["symbol"]
         equity = float((self.account_info or {}).get("equity", 0) or 0)
         if equity <= 0:
@@ -330,6 +334,19 @@ class AccountRunner:
 
         risk_amount = equity * float(self.cfg.get("risk_percent", 1.0)) / 100
         qty = risk_amount / sl_dist
+
+        # سقف حجم بر اساس مارجین آزاد واقعی (نه کل اکوییتی) — با ۵٪ حاشیه‌ی
+        # اطمینان برای کارمزد/لغزش قیمت، تا با وجود پوزیشن‌های باز دیگر هم به
+        # خطای «Balance insufficient» صرافی نخوریم.
+        free_margin = float((self.account_info or {}).get("free_margin", equity) or 0)
+        if price > 0 and leverage > 0:
+            max_qty_by_margin = (free_margin * leverage * 0.95) / price
+            if max_qty_by_margin < qty:
+                qty = max_qty_by_margin
+                self.log(
+                    f"{symbol}: حجم به‌خاطر محدودیت مارجین آزاد ({free_margin:g} USDT) کاهش یافت.",
+                    "warn",
+                )
 
         # محدودیت‌های حجم: تنظیمات کاربر، وگرنه exchangeInfo صرافی
         try:
