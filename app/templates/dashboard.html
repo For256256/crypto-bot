@@ -498,8 +498,13 @@ function renderAccountBar() {
   }
   const st = statusCache[acc.id] || {};
   const info = st.account_info;
+  const stats = st.account_stats;
   const running = !!st.running;
   const posCount = (st.positions || []).length;
+  const dPnl = stats ? Number(stats.daily_pnl) : null;
+  const dPnlCls = dPnl === null ? '' : (dPnl >= 0 ? 'text-buy' : 'text-sell');
+  const oPct = stats ? Number(stats.overall_profit_pct) : null;
+  const oPctCls = oPct === null ? '' : (oPct >= 0 ? 'text-buy' : 'text-sell');
   box.innerHTML = `<div class="glass-card rounded-2xl p-6 flex flex-col lg:flex-row-reverse justify-between items-start lg:items-center gap-6">
     <div class="flex flex-wrap items-center gap-6 lg:gap-8">
       <div class="text-right">
@@ -508,12 +513,27 @@ function renderAccountBar() {
       </div>
       <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
       <div class="text-right">
+        <p class="text-on-surface-variant text-xs mb-1">مبلغ اولیه (USDT)</p>
+        <p class="mono-num text-sm" dir="ltr">${stats ? fmt(stats.initial_balance) : '—'}</p>
+      </div>
+      <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
+      <div class="text-right">
         <p class="text-on-surface-variant text-xs mb-1">اکوییتی (USDT)</p>
         <p class="mono-num text-primary text-xl" dir="ltr">${info ? fmt(info.equity) : '—'}</p>
       </div>
       <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
       <div class="text-right">
-        <p class="text-on-surface-variant text-xs mb-1">مارجین آزاد / پوزیشن</p>
+        <p class="text-on-surface-variant text-xs mb-1">سود/زیان روزانه</p>
+        <p class="mono-num text-sm ${dPnlCls}" dir="ltr">${dPnl === null ? '—' : (dPnl >= 0 ? '+' : '') + fmt(dPnl)}</p>
+      </div>
+      <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
+      <div class="text-right">
+        <p class="text-on-surface-variant text-xs mb-1">درصد سود کلی</p>
+        <p class="mono-num text-sm ${oPctCls}" dir="ltr">${oPct === null ? '—' : (oPct >= 0 ? '+' : '') + fmt(oPct) + '٪'}</p>
+      </div>
+      <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
+      <div class="text-right">
+        <p class="text-on-surface-variant text-xs mb-1">موجودی قابل برداشت / پوزیشن</p>
         <p class="mono-num text-sm" dir="ltr">${info ? fmt(info.free_margin) : '—'} <span class="text-on-surface-variant">|</span> ${posCount}/${acc.max_open_positions}</p>
       </div>
       <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
