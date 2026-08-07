@@ -45,6 +45,11 @@ if [ -d "$INSTALL_DIR/.git" ]; then
   git -C "$INSTALL_DIR" checkout "$REPO_BRANCH"
   git -C "$INSTALL_DIR" reset --hard "origin/${REPO_BRANCH}"
 else
+  if [ -d "$INSTALL_DIR" ] && [ -n "$(ls -A "$INSTALL_DIR" 2>/dev/null)" ]; then
+    BACKUP_DIR="${INSTALL_DIR}.bak.$(date +%Y%m%d%H%M%S)"
+    log "پوشه‌ی ${INSTALL_DIR} از قبل وجود دارد ولی یک نصب گیت معتبر نیست (احتمالاً از یک تلاش ناموفق قبلی) — به ${BACKUP_DIR} منتقل می‌شود…"
+    mv "$INSTALL_DIR" "$BACKUP_DIR"
+  fi
   log "دانلود کد از ${REPO_URL} (برنچ ${REPO_BRANCH}) در ${INSTALL_DIR}…"
   mkdir -p "$(dirname "$INSTALL_DIR")"
   git clone --branch "$REPO_BRANCH" --depth 1 "$REPO_URL" "$INSTALL_DIR"
