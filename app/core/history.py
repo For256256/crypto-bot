@@ -107,6 +107,65 @@ def record_equity(account_id: str, mode: str, equity: float, balance: float):
         _save(data)
 
 
+def reset_account(account_id: str) -> dict:
+    """تمام تاریخچه‌ی معاملات و نقاط اکوییتی یک حساب را پاک می‌کند تا از همین
+    لحظه گزارش‌ها مثل یک حساب خام از نو ثبت شوند. سایر حساب‌ها دست‌نخورده می‌مانند."""
+    with _lock:
+        data = _load()
+        trades_before = len(data["trades"])
+        equity_before = len(data["equity"])
+        data["trades"] = [t for t in data["trades"] if t.get("account_id") != account_id]
+        data["equity"] = [e for e in data["equity"] if e.get("account_id") != account_id]
+        _save(data)
+        return {
+            "trades_removed": trades_before - len(data["trades"]),
+            "equity_removed": equity_before - len(data["equity"]),
+        }
+
+
+def get_account_stats(account_id: str, mode: str, current_equity: float | None = None,
+                      current_balance: float | None = None) -> dict | None:
+    """خلاصه‌ی وضعیت مالی یک حساب برای نمایش در بالای داشبورد:
+    مبلغ اولیه، سود/زیان روزانه و درصد سود کلی — بر پایه‌ی منحنی اکوییتی
+    ثبت‌شده‌ی همان حالت (paper/live). با پاکسازی/ریست حساب، این منحنی خالی
+    می‌شود و مبلغ اولیه از همان لحظه (equity/balance فعلی) از نو محاسبه می‌شود.
+    اگر نه داده‌ی زنده‌ای در دسترس باشد و نه تاریخچه‌ای ثبت شده، None برمی‌گرداند."""
+    with _lock:
+        data = _load()
+    points = sorted(
+        [e for e in data["equity"] if e.get("account_id") == account_id and e.get("mode") == mode],
+        key=lambda e: e.get("time") or "",
+    )
+    if current_equity is None:
+        if not points:
+            return None
+        current_equity = float(points[-1].get("equity") or 0)
+        current_balance = float(points[-1].get("balance") or current_equity)
+    if current_balance is None:
+        current_balance = current_equity
+
+    initial_balance = float(points[0].get("balance") or current_balance) if points else current_balance
+
+    today = _now_iso()[:10]
+    today_points = [p for p in points if str(p.get("time") or "")[:10] == today]
+    daily_start_equity = float(today_points[0].get("equity") or current_equity) if today_points else current_equity
+    daily_pnl = current_equity - daily_start_equity
+    daily_pnl_pct = (daily_pnl / daily_start_equity * 100) if daily_start_equity else 0.0
+
+    overall_profit = current_equity - initial_balance
+    overall_profit_pct = (overall_profit / initial_balance * 100) if initial_balance else 0.0
+
+    return {
+        "initial_balance": initial_balance,
+        "current_equity": current_equity,
+        "current_balance": current_balance,
+        "daily_pnl": daily_pnl,
+        "daily_pnl_pct": daily_pnl_pct,
+        "overall_profit": overall_profit,
+        "overall_profit_pct": overall_profit_pct,
+    }
+
+
 def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict:
     """
     گزارش سود/زیان یک حساب:

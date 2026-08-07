@@ -439,6 +439,14 @@ async def account_report(account_id: str, days: int = 30, mode: str | None = Non
     return history.get_report(account_id, days=days, mode=mode)
 
 
+@app.post("/api/accounts/{account_id}/report/reset")
+async def reset_account_report(account_id: str, _: bool = Depends(require_auth)):
+    """پاکسازی و ریست کامل گزارش‌های یک حساب — از این لحظه مثل حساب خام ثبت می‌شود."""
+    if config_store.get_account(account_id) is None:
+        raise HTTPException(404, "حساب پیدا نشد")
+    return history.reset_account(account_id)
+
+
 # ---------- مدیریت نمادها در هر حساب ----------
 @app.post("/api/accounts/{account_id}/symbols/bulk")
 async def bulk_update_symbols(account_id: str, payload: dict, _: bool = Depends(require_auth)):

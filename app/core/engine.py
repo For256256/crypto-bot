@@ -418,10 +418,16 @@ class AccountRunner:
 
     # ---------- وضعیت برای داشبورد ----------
     def status_dict(self) -> dict:
+        equity = float(self.account_info.get("equity", 0) or 0) if self.account_info else None
+        balance = float(self.account_info.get("balance", 0) or 0) if self.account_info else None
+        account_stats = history.get_account_stats(
+            self.account_id, self.cfg.get("trading_mode", "paper"), equity, balance,
+        )
         return {
             "running": self.running,
             "status": self.status,
             "account_info": self.account_info,
+            "account_stats": account_stats,
             "positions": self.positions,
             "logs": list(self.logs),
             "last_signals": self.last_signals,
