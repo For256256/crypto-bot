@@ -307,7 +307,7 @@ class AccountRunner:
         try:
             result = await self.driver.place_order(side, symbol, qty, stop_loss=stop_loss, take_profit=take_profit)
         except ExchangeError as e:
-            self.log(f"{symbol}: سفارش {side} ناموفق: {e}", "error")
+            self.log(f"{symbol}: سفارش {side} ناموفق (حجم محاسبه‌شده: {qty!r}): {e}", "error")
             return
 
         self.log(
@@ -364,12 +364,15 @@ class AccountRunner:
                 )
 
         if qty_step and qty_step > 0:
-            qty = math.floor(qty / qty_step) * qty_step
+            # +epsilon قبل از floor تا خطای اعشاری شناور (مثلاً 0.0001 که در
+            # باینری دقیقاً قابل نمایش نیست) یک گام کامل را اشتباهی حذف نکند.
+            qty = math.floor(qty / qty_step + 1e-9) * qty_step
+            qty = round(qty, 10)
         if max_qty:
             qty = min(qty, float(max_qty))
         if min_qty and qty < float(min_qty):
             self.log(
-                f"{symbol}: حجم محاسبه‌شده ({qty:g}) کمتر از حداقل ({float(min_qty):g}) است؛ ورود لغو شد.",
+                f"{symbol}: حجم محاسبه‌شده ({qty!r}) کمتر از حداقل ({float(min_qty)!r}) است؛ ورود لغو شد.",
                 "warn",
             )
             return None
