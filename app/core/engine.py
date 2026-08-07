@@ -178,27 +178,31 @@ class AccountRunner:
 
     @staticmethod
     def _infer_closed_by(prev: dict, targets: dict | None) -> str:
-        """چون اندپوینت پوزیشن‌های توبیت مقدار SL/TP را برنمی‌گرداند، با مقایسه‌ی
-        آخرین قیمت شناخته‌شده (mark_price) با SL/TPِ ذخیره‌شده‌ی هنگام باز کردن
-        پوزیشن حدس می‌زنیم کدام حد خورده است. اگر هدفی ذخیره نشده باشد (مثلاً
-        ربات بین باز و بسته شدن پوزیشن ری‌استارت شده) یا قیمت به هیچ‌کدام
-        نزدیک نباشد (بستن دستی از اپ صرافی، لیکویید شدن و ...)، «exchange»
-        برمی‌گردد که در گزارش به‌صورت «صرافی» نمایش داده می‌شود."""
+        """چون اندپوینت پوزیشن‌های توبیت مقدار SL/TP را برنمی‌گرداند، با آخرین
+        قیمت شناخته‌شده (mark_price) و جهت پوزیشن حدس می‌زنیم کدام حد خورده
+        است — نه با «کدام نزدیک‌تره» (که با یک حاشیه‌ی ثابت روی نمادهای
+        کم‌قیمت مثل DASH که فاصله‌ی SLشان کوچک است، عملاً هر قیمتی را غلط SL
+        لیبل می‌زد)، بلکه با اینکه آیا قیمت واقعاً از آن سطح، در همان جهتِ
+        درست، رد شده یا نه. اگر هدفی ذخیره نشده باشد (مثلاً ربات بین باز و
+        بسته شدن پوزیشن ری‌استارت شده) یا قیمت از هیچ‌کدام رد نشده باشد
+        (بستن دستی از اپ صرافی، لیکویید شدن و ...)، «exchange» برمی‌گردد که
+        در گزارش به‌صورت «صرافی» نمایش داده می‌شود."""
         price = prev.get("mark_price")
-        if not targets or price is None:
+        side = prev.get("side")
+        if not targets or price is None or side not in ("long", "short"):
             return "exchange"
         sl, tp = targets.get("stop_loss"), targets.get("take_profit")
-        candidates = []
-        if sl:
-            candidates.append(("SL", abs(price - sl)))
-        if tp:
-            candidates.append(("TP", abs(price - tp)))
-        if not candidates:
-            return "exchange"
-        candidates.sort(key=lambda c: c[1])
-        label, diff = candidates[0]
-        tolerance = abs(price) * 0.01  # ۱٪ حاشیه برای لغزش قیمت لحظه‌ی برخورد
-        return label if diff <= tolerance else "exchange"
+        if side == "long":
+            if sl and price <= sl:
+                return "SL"
+            if tp and price >= tp:
+                return "TP"
+        else:
+            if sl and price >= sl:
+                return "SL"
+            if tp and price <= tp:
+                return "TP"
+        return "exchange"
 
     def record_live_close(self, position: dict, closed_by: str):
         """ثبت معامله‌ی live که خودِ ربات بسته است (سود/زیان آخرین مقدار شناخته‌شده)."""
