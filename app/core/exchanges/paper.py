@@ -4,6 +4,16 @@
 حافظه شبیه‌سازی و سود/زیانشان را با قیمت لحظه‌ای واقعی به‌روز می‌کند.
 حتی SL/TP هم شبیه‌سازی می‌شود: در هر بار خواندن پوزیشن‌ها، اگر قیمت از
 حد رد شده باشد پوزیشن به‌صورت خودکار بسته و نتیجه در موجودی اعمال می‌شود.
+
+برای اینکه حساب paper واقعاً شبیه حساب live باشد (و مقایسه‌شان منصفانه
+باشد)، این موارد هم دقیقاً مثل صرافی شبیه‌سازی می‌شوند:
+- کارمزد تیکر واقعی توبیت (٪۰.۰۶ هر سمت — چون سفارش‌ها همیشه مارکت هستند)
+  روی باز و بسته شدن هر پوزیشن کسر می‌شود.
+- contractMultiplier واقعی نماد (از همان exchangeInfo صرافی) در محاسبه‌ی
+  ارزش/مارجین لحاظ می‌شود، دقیقاً مثل درایور live.
+- مارجین پوزیشن‌های باز واقعاً از موجودی آزاد کم می‌شود (نه اینکه همیشه کل
+  اکوییتی «آزاد» نشان داده شود)، تا همان سقف‌های مدیریت ریسک/مارجین که روی
+  حساب live اعمال می‌شوند، عیناً روی paper هم اعمال شوند.
 """
 import itertools
 from datetime import datetime, timezone
@@ -14,6 +24,10 @@ from app.core.exchanges.base import ExchangeDriver, ExchangeError
 
 _id_counter = itertools.count(1)
 
+# کارمزد تیکر فیوچرز توبیت (VIP0) — همه‌ی سفارش‌های ربات priceType=MARKET
+# هستند، پس همیشه به‌عنوان تیکر پر می‌شوند، نه میکر.
+TAKER_FEE_RATE = 0.0006
+
 
 class PaperDriver(ExchangeDriver):
     def __init__(self, data_source: ExchangeDriver, starting_balance: float = 10000.0):
@@ -21,6 +35,7 @@ class PaperDriver(ExchangeDriver):
         self.balance = starting_balance
         self.positions: list[dict] = []
         self.closed_trades: list[dict] = []
+        self._leverage: dict[str, int] = {}
 
     def drain_closed_trades(self) -> list[dict]:
         """معاملات بسته‌شده‌ی جدید را برمی‌گرداند و بافر را خالی می‌کند (برای ثبت در تاریخچه)."""
@@ -49,7 +64,16 @@ class PaperDriver(ExchangeDriver):
         return await self._source.get_last_price(symbol)
 
     async def set_leverage(self, symbol: str, leverage: int):
-        return  # در شبیه‌سازی کاری لازم نیست؛ اهرم در سود/زیان paper نقشی در مارجین واقعی ندارد
+        # برخلاف قبل، این مقدار واقعاً ذخیره می‌شود تا محاسبه‌ی مارجین paper
+        # هم مثل live از اهرم واقعی تنظیم‌شده استفاده کند.
+        self._leverage[symbol] = int(leverage)
+
+    async def _contract_multiplier(self, symbol: str) -> float:
+        try:
+            info = await self._source.get_symbol_info(symbol)
+        except ExchangeError:
+            return 1.0
+        return float(info.get("contract_multiplier", 1.0) or 1.0)
 
     async def _refresh_positions(self):
         """سود/زیان پوزیشن‌های paper را با قیمت واقعی به‌روز و SL/TP را شبیه‌سازی می‌کند."""
@@ -78,8 +102,14 @@ class PaperDriver(ExchangeDriver):
 
             if hit:
                 label, hit_price = hit
-                realized = (hit_price - p["entry_price"]) * direction * p["qty"]
-                self.balance += realized
+                gross = (hit_price - p["entry_price"]) * direction * p["qty"]
+                exit_fee = hit_price * p["qty"] * p.get("contract_multiplier", 1.0) * TAKER_FEE_RATE
+                # کارمزد ورود همان لحظه‌ی باز شدن پوزیشن از موجودی کم شده؛ اینجا
+                # فقط سود/زیان خام منهای کارمزد خروج به موجودی اضافه می‌شود تا
+                # کارمزد ورود دوباره کم نشود. مقدار «realized» گزارش‌شده اما هر
+                # دو کارمزد را برای نمایش سود/زیان خالص واقعی هر معامله دارد.
+                realized = gross - p.get("entry_fee", 0.0) - exit_fee
+                self.balance += gross - exit_fee
                 self.closed_trades.append({**p, "close_price": hit_price, "realized": realized, "closed_by": label,
                                            "close_time": datetime.now(timezone.utc).isoformat(timespec="seconds")})
             else:
@@ -89,12 +119,14 @@ class PaperDriver(ExchangeDriver):
     async def get_account_info(self) -> dict:
         await self._refresh_positions()
         unrealized = sum(p.get("profit", 0.0) for p in self.positions)
+        margin = sum(p.get("margin", 0.0) for p in self.positions)
+        equity = self.balance + unrealized
         return {
             "balance": self.balance,
-            "equity": self.balance + unrealized,
+            "equity": equity,
             "currency": "USDT",
-            "margin": 0.0,
-            "free_margin": self.balance + unrealized,
+            "margin": margin,
+            "free_margin": max(0.0, equity - margin),
         }
 
     async def get_open_positions(self, symbol: str = None) -> list:
@@ -106,6 +138,11 @@ class PaperDriver(ExchangeDriver):
     async def place_order(self, side: str, symbol: str, qty: float,
                           stop_loss: float = None, take_profit: float = None) -> dict:
         price = await self._source.get_last_price(symbol)
+        contract_multiplier = await self._contract_multiplier(symbol)
+        leverage = self._leverage.get(symbol, 1) or 1
+        notional = qty * price * contract_multiplier
+        entry_fee = notional * TAKER_FEE_RATE
+        self.balance -= entry_fee
         position = {
             "id": f"paper-{next(_id_counter)}",
             "symbol": symbol,
@@ -113,9 +150,11 @@ class PaperDriver(ExchangeDriver):
             "qty": qty,
             "entry_price": price,
             "mark_price": price,
-            "leverage": 1.0,
+            "leverage": float(leverage),
             "profit": 0.0,
-            "margin": 0.0,
+            "margin": notional / leverage,
+            "contract_multiplier": contract_multiplier,
+            "entry_fee": entry_fee,
             "stop_loss": stop_loss,
             "take_profit": take_profit,
             "open_time": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -130,8 +169,13 @@ class PaperDriver(ExchangeDriver):
             raise ExchangeError("پوزیشن paper برای بستن پیدا نشد.")
         price = await self._source.get_last_price(target["symbol"])
         direction = 1 if target["side"] == "long" else -1
-        realized = (price - target["entry_price"]) * direction * target["qty"]
-        self.balance += realized
+        gross = (price - target["entry_price"]) * direction * target["qty"]
+        exit_fee = price * target["qty"] * target.get("contract_multiplier", 1.0) * TAKER_FEE_RATE
+        # کارمزد ورود همان لحظه‌ی باز شدن پوزیشن از موجودی کم شده؛ اینجا فقط
+        # سود/زیان خام منهای کارمزد خروج به موجودی اضافه می‌شود (توضیح کامل در
+        # _refresh_positions).
+        realized = gross - target.get("entry_fee", 0.0) - exit_fee
+        self.balance += gross - exit_fee
         self.positions = [p for p in self.positions if p["id"] != pos_id]
         self.closed_trades.append({**target, "close_price": price, "realized": realized, "closed_by": "manual",
                                    "close_time": datetime.now(timezone.utc).isoformat(timespec="seconds")})
