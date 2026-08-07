@@ -335,19 +335,6 @@ class AccountRunner:
         risk_amount = equity * float(self.cfg.get("risk_percent", 1.0)) / 100
         qty = risk_amount / sl_dist
 
-        # سقف حجم بر اساس مارجین آزاد واقعی (نه کل اکوییتی) — با ۵٪ حاشیه‌ی
-        # اطمینان برای کارمزد/لغزش قیمت، تا با وجود پوزیشن‌های باز دیگر هم به
-        # خطای «Balance insufficient» صرافی نخوریم.
-        free_margin = float((self.account_info or {}).get("free_margin", equity) or 0)
-        if price > 0 and leverage > 0:
-            max_qty_by_margin = (free_margin * leverage * 0.95) / price
-            if max_qty_by_margin < qty:
-                qty = max_qty_by_margin
-                self.log(
-                    f"{symbol}: حجم به‌خاطر محدودیت مارجین آزاد ({free_margin:g} USDT) کاهش یافت.",
-                    "warn",
-                )
-
         # محدودیت‌های حجم: تنظیمات کاربر، وگرنه exchangeInfo صرافی
         try:
             info = await self.driver.get_symbol_info(symbol)
@@ -356,6 +343,25 @@ class AccountRunner:
         min_qty = sym_cfg.get("min_qty") if sym_cfg.get("min_qty") is not None else info.get("min_qty", 0)
         qty_step = sym_cfg.get("qty_step") if sym_cfg.get("qty_step") is not None else info.get("qty_step", 0)
         max_qty = sym_cfg.get("max_qty")
+        # برخی نمادها (مثل SPX500-SWAP-USDT، DASH-SWAP-USDT) contractMultiplier
+        # غیر از ۱ دارند — یعنی ارزش دلاری هر واحد حجم برابر price×این‌ضریب است،
+        # نه خود price. نادیده گرفتن آن باعث می‌شود سقف مارجین اشتباه (خیلی کوچک)
+        # محاسبه شود و حجم به زیر حداقل مجاز صرافی سقوط کند.
+        contract_multiplier = float(info.get("contract_multiplier", 1.0) or 1.0)
+
+        # سقف حجم بر اساس مارجین آزاد واقعی (نه کل اکوییتی) — با ۵٪ حاشیه‌ی
+        # اطمینان برای کارمزد/لغزش قیمت، تا با وجود پوزیشن‌های باز دیگر هم به
+        # خطای «Balance insufficient» صرافی نخوریم.
+        free_margin = float((self.account_info or {}).get("free_margin", equity) or 0)
+        unit_value = price * contract_multiplier
+        if unit_value > 0 and leverage > 0:
+            max_qty_by_margin = (free_margin * leverage * 0.95) / unit_value
+            if max_qty_by_margin < qty:
+                qty = max_qty_by_margin
+                self.log(
+                    f"{symbol}: حجم به‌خاطر محدودیت مارجین آزاد ({free_margin:g} USDT) کاهش یافت.",
+                    "warn",
+                )
 
         if qty_step and qty_step > 0:
             qty = math.floor(qty / qty_step) * qty_step
