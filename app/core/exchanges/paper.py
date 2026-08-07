@@ -86,7 +86,7 @@ class PaperDriver(ExchangeDriver):
                 continue
             p["mark_price"] = price
             direction = 1 if p["side"] == "long" else -1
-            p["profit"] = (price - p["entry_price"]) * direction * p["qty"]
+            p["profit"] = (price - p["entry_price"]) * direction * p["qty"] * p.get("contract_multiplier", 1.0)
 
             hit = None
             if p.get("stop_loss") and (
@@ -102,8 +102,9 @@ class PaperDriver(ExchangeDriver):
 
             if hit:
                 label, hit_price = hit
-                gross = (hit_price - p["entry_price"]) * direction * p["qty"]
-                exit_fee = hit_price * p["qty"] * p.get("contract_multiplier", 1.0) * TAKER_FEE_RATE
+                cm = p.get("contract_multiplier", 1.0)
+                gross = (hit_price - p["entry_price"]) * direction * p["qty"] * cm
+                exit_fee = hit_price * p["qty"] * cm * TAKER_FEE_RATE
                 # کارمزد ورود همان لحظه‌ی باز شدن پوزیشن از موجودی کم شده؛ اینجا
                 # فقط سود/زیان خام منهای کارمزد خروج به موجودی اضافه می‌شود تا
                 # کارمزد ورود دوباره کم نشود. مقدار «realized» گزارش‌شده اما هر
@@ -169,8 +170,9 @@ class PaperDriver(ExchangeDriver):
             raise ExchangeError("پوزیشن paper برای بستن پیدا نشد.")
         price = await self._source.get_last_price(target["symbol"])
         direction = 1 if target["side"] == "long" else -1
-        gross = (price - target["entry_price"]) * direction * target["qty"]
-        exit_fee = price * target["qty"] * target.get("contract_multiplier", 1.0) * TAKER_FEE_RATE
+        cm = target.get("contract_multiplier", 1.0)
+        gross = (price - target["entry_price"]) * direction * target["qty"] * cm
+        exit_fee = price * target["qty"] * cm * TAKER_FEE_RATE
         # کارمزد ورود همان لحظه‌ی باز شدن پوزیشن از موجودی کم شده؛ اینجا فقط
         # سود/زیان خام منهای کارمزد خروج به موجودی اضافه می‌شود (توضیح کامل در
         # _refresh_positions).
