@@ -50,6 +50,14 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def _num(v, default: float = 0.0) -> float:
+    """تبدیل امن به float — رکورد خراب/غیرعددی گزارش را کرش نمی‌کند."""
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+
 def record_trade(account_id: str, mode: str, trade: dict):
     """ثبت یک معامله‌ی بسته‌شده (paper یا live)."""
     with _lock:
@@ -133,21 +141,25 @@ def get_account_stats(account_id: str, mode: str, current_equity: float | None =
         data = _load()
     points = sorted(
         [e for e in data["equity"] if e.get("account_id") == account_id and e.get("mode") == mode],
-        key=lambda e: e.get("time") or "",
+        key=lambda e: str(e.get("time") or ""),
     )
     if current_equity is None:
         if not points:
             return None
-        current_equity = float(points[-1].get("equity") or 0)
-        current_balance = float(points[-1].get("balance") or current_equity)
+        current_equity = _num(points[-1].get("equity"))
+        current_balance = _num(points[-1].get("balance"), current_equity)
+    else:
+        current_equity = _num(current_equity)
     if current_balance is None:
         current_balance = current_equity
+    else:
+        current_balance = _num(current_balance)
 
-    initial_balance = float(points[0].get("balance") or current_balance) if points else current_balance
+    initial_balance = _num(points[0].get("balance"), current_balance) if points else current_balance
 
     today = _now_iso()[:10]
     today_points = [p for p in points if str(p.get("time") or "")[:10] == today]
-    daily_start_equity = float(today_points[0].get("equity") or current_equity) if today_points else current_equity
+    daily_start_equity = _num(today_points[0].get("equity"), current_equity) if today_points else current_equity
     daily_pnl = current_equity - daily_start_equity
     daily_pnl_pct = (daily_pnl / daily_start_equity * 100) if daily_start_equity else 0.0
 
@@ -188,14 +200,14 @@ def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict
 
     trades = [t for t in data["trades"]
               if t.get("account_id") == account_id and _mode_ok(t.get("mode")) and _in_range(t.get("close_time"))]
-    trades.sort(key=lambda t: t.get("close_time") or "")
+    trades.sort(key=lambda t: str(t.get("close_time") or ""))
 
     equity_points = [e for e in data["equity"]
                      if e.get("account_id") == account_id and _mode_ok(e.get("mode")) and _in_range(e.get("time"))]
-    equity_points.sort(key=lambda e: e.get("time") or "")
+    equity_points.sort(key=lambda e: str(e.get("time") or ""))
 
     # ---------- آمار کلی ----------
-    pnls = [float(t.get("realized") or 0) for t in trades]
+    pnls = [_num(t.get("realized")) for t in trades]
     wins = [p for p in pnls if p > 0]
     losses = [p for p in pnls if p < 0]
     gross_profit = sum(wins)
@@ -208,7 +220,7 @@ def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict
     max_dd_pct = 0.0
     peak = None
     for e in equity_points:
-        eq = float(e.get("equity") or 0)
+        eq = _num(e.get("equity"))
         if peak is None or eq > peak:
             peak = eq
         if peak and peak > 0:
@@ -223,7 +235,7 @@ def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict
         if not day:
             continue
         d = daily_map.setdefault(day, {"date": day, "pnl": 0.0, "trades": 0, "wins": 0})
-        r = float(t.get("realized") or 0)
+        r = _num(t.get("realized"))
         d["pnl"] += r
         d["trades"] += 1
         if r > 0:
