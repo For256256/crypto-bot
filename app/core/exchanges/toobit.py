@@ -15,6 +15,7 @@ import hashlib
 import hmac
 import time
 import urllib.parse
+import uuid
 
 import httpx
 import pandas as pd
@@ -364,6 +365,7 @@ class ToobitDriver(ExchangeDriver):
             "type": "LIMIT",
             "priceType": "MARKET",   # اجرای مارکت (مطابق مدل سفارش Toobit: type=LIMIT + priceType=MARKET)
             "quantity": self._fmt_num(qty),
+            "newClientOrderId": self._gen_client_order_id(),
         }
         order = await self._request("POST", "/api/v1/futures/order", params, signed=True)
 
@@ -403,6 +405,7 @@ class ToobitDriver(ExchangeDriver):
             "type": "LIMIT",
             "priceType": "MARKET",
             "quantity": self._fmt_num(qty),
+            "newClientOrderId": self._gen_client_order_id(),
         }
         order = await self._request("POST", "/api/v1/futures/order", params, signed=True)
         return {"orderId": str(order.get("orderId", order.get("id", ""))), "closed": True}
@@ -412,3 +415,8 @@ class ToobitDriver(ExchangeDriver):
         """عدد را بدون نماد علمی و بدون صفرهای اضافه به رشته تبدیل می‌کند."""
         s = f"{float(v):.10f}".rstrip("0").rstrip(".")
         return s if s else "0"
+
+    @staticmethod
+    def _gen_client_order_id() -> str:
+        """شناسه‌ی یکتای سفارش که Toobit اکنون برای ثبت سفارش الزامی کرده است."""
+        return f"cb{int(time.time() * 1000)}{uuid.uuid4().hex[:8]}"

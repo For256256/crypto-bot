@@ -107,6 +107,22 @@ def record_equity(account_id: str, mode: str, equity: float, balance: float):
         _save(data)
 
 
+def reset_account(account_id: str) -> dict:
+    """تمام تاریخچه‌ی معاملات و نقاط اکوییتی یک حساب را پاک می‌کند تا از همین
+    لحظه گزارش‌ها مثل یک حساب خام از نو ثبت شوند. سایر حساب‌ها دست‌نخورده می‌مانند."""
+    with _lock:
+        data = _load()
+        trades_before = len(data["trades"])
+        equity_before = len(data["equity"])
+        data["trades"] = [t for t in data["trades"] if t.get("account_id") != account_id]
+        data["equity"] = [e for e in data["equity"] if e.get("account_id") != account_id]
+        _save(data)
+        return {
+            "trades_removed": trades_before - len(data["trades"]),
+            "equity_removed": equity_before - len(data["equity"]),
+        }
+
+
 def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict:
     """
     گزارش سود/زیان یک حساب:
