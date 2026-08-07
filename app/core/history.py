@@ -69,14 +69,13 @@ def record_trade(account_id: str, mode: str, trade: dict):
             "estimated": bool(trade.get("estimated", False)),
         })
         # هرس رکوردهای قدیمی همین حساب
-        mine = [t for t in data["trades"] if t["account_id"] == account_id]
+        mine = [t for t in data["trades"] if t.get("account_id") == account_id]
         if len(mine) > MAX_TRADES_PER_ACCOUNT:
             extra = len(mine) - MAX_TRADES_PER_ACCOUNT
-            it = iter(range(extra))
             keep_ids = set()
             count = 0
             for t in data["trades"]:
-                if t["account_id"] == account_id and count < extra:
+                if t.get("account_id") == account_id and count < extra:
                     keep_ids.add(id(t))
                     count += 1
             data["trades"] = [t for t in data["trades"] if id(t) not in keep_ids]
@@ -94,13 +93,13 @@ def record_equity(account_id: str, mode: str, equity: float, balance: float):
             "equity": equity,
             "balance": balance,
         })
-        mine = [e for e in data["equity"] if e["account_id"] == account_id]
+        mine = [e for e in data["equity"] if e.get("account_id") == account_id]
         if len(mine) > MAX_EQUITY_POINTS_PER_ACCOUNT:
             extra = len(mine) - MAX_EQUITY_POINTS_PER_ACCOUNT
             keep_ids = set()
             count = 0
             for e in data["equity"]:
-                if e["account_id"] == account_id and count < extra:
+                if e.get("account_id") == account_id and count < extra:
                     keep_ids.add(id(e))
                     count += 1
             data["equity"] = [e for e in data["equity"] if id(e) not in keep_ids]
@@ -188,11 +187,11 @@ def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict
         return mode is None or m == mode
 
     trades = [t for t in data["trades"]
-              if t["account_id"] == account_id and _mode_ok(t.get("mode")) and _in_range(t.get("close_time"))]
+              if t.get("account_id") == account_id and _mode_ok(t.get("mode")) and _in_range(t.get("close_time"))]
     trades.sort(key=lambda t: t.get("close_time") or "")
 
     equity_points = [e for e in data["equity"]
-                     if e["account_id"] == account_id and _mode_ok(e.get("mode")) and _in_range(e.get("time"))]
+                     if e.get("account_id") == account_id and _mode_ok(e.get("mode")) and _in_range(e.get("time"))]
     equity_points.sort(key=lambda e: e.get("time") or "")
 
     # ---------- آمار کلی ----------
