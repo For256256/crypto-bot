@@ -338,6 +338,18 @@ class AccountRunner:
         if qty is None or qty <= 0:
             return
 
+        # گرد کردن SL/TP به گام قیمتی مجاز نماد (PRICE_FILTER.tickSize) — بدون
+        # این کار، صرافی می‌تواند مقدار غیرمجاز را رد کند (که به‌صورت خطای
+        # tp_sl_set=False لاگ می‌شود) یا خودش آن را گرد کند، به‌شکلی که لزوماً
+        # با قیمت ورودِ ثبت‌شده در لاگ ما یکی نباشد.
+        try:
+            price_step = float((await self.driver.get_symbol_info(symbol)).get("price_step", 0) or 0)
+        except ExchangeError:
+            price_step = 0
+        if price_step > 0:
+            stop_loss = round(round(stop_loss / price_step) * price_step, 10)
+            take_profit = round(round(take_profit / price_step) * price_step, 10)
+
         # تنظیم اهرم روی صرافی (خطای آن غیرحیاتی است)
         try:
             await self.driver.set_leverage(symbol, leverage)
