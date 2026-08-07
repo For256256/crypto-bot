@@ -54,6 +54,10 @@ class AccountRunner:
         self._daily = {"date": _today_utc(), "start_equity": None, "blocked": False}
         # شناسایی پوزیشن‌های live که خارج از ربات (دستی/SL صرافی) بسته شده‌اند
         self._known_live_positions: dict = {}
+        # حد ضرر/سود هر پوزیشن live باز — چون اندپوینت پوزیشن‌های توبیت این
+        # مقادیر را برنمی‌گرداند، خودمان لحظه‌ی باز کردن نگه می‌داریم تا وقتی
+        # پوزیشن در سمت صرافی بسته شد بتوانیم بفهمیم SL خورده یا TP.
+        self._live_position_targets: dict = {}
 
     # ---------- لاگ ----------
     def log(self, message: str, level: str = "info"):
@@ -155,19 +159,46 @@ class AccountRunner:
             current_ids = {p["id"]: p for p in self.positions}
             for pid, prev in list(self._known_live_positions.items()):
                 if pid not in current_ids:
+                    targets = self._live_position_targets.pop(pid, None)
+                    closed_by = self._infer_closed_by(prev, targets)
                     history.record_trade(self.account_id, mode, {
                         **prev,
                         "close_price": prev.get("mark_price"),
                         "realized": prev.get("profit"),
-                        "closed_by": "exchange",
+                        "closed_by": closed_by,
                         "estimated": True,
                         "close_time": _utc_now().isoformat(timespec="seconds"),
                     })
+                    label = {"SL": "حد ضرر", "TP": "حد سود"}.get(closed_by, closed_by)
                     self.log(
-                        f"پوزیشن {prev['symbol']} در سمت صرافی بسته شد "
+                        f"پوزیشن {prev['symbol']} در سمت صرافی بسته شد ({label}) "
                         f"(سود/زیان تقریبی: {prev.get('profit', 0):+.2f} USDT)"
                     )
             self._known_live_positions = current_ids
+
+    @staticmethod
+    def _infer_closed_by(prev: dict, targets: dict | None) -> str:
+        """چون اندپوینت پوزیشن‌های توبیت مقدار SL/TP را برنمی‌گرداند، با مقایسه‌ی
+        آخرین قیمت شناخته‌شده (mark_price) با SL/TPِ ذخیره‌شده‌ی هنگام باز کردن
+        پوزیشن حدس می‌زنیم کدام حد خورده است. اگر هدفی ذخیره نشده باشد (مثلاً
+        ربات بین باز و بسته شدن پوزیشن ری‌استارت شده) یا قیمت به هیچ‌کدام
+        نزدیک نباشد (بستن دستی از اپ صرافی، لیکویید شدن و ...)، «exchange»
+        برمی‌گردد که در گزارش به‌صورت «صرافی» نمایش داده می‌شود."""
+        price = prev.get("mark_price")
+        if not targets or price is None:
+            return "exchange"
+        sl, tp = targets.get("stop_loss"), targets.get("take_profit")
+        candidates = []
+        if sl:
+            candidates.append(("SL", abs(price - sl)))
+        if tp:
+            candidates.append(("TP", abs(price - tp)))
+        if not candidates:
+            return "exchange"
+        candidates.sort(key=lambda c: c[1])
+        label, diff = candidates[0]
+        tolerance = abs(price) * 0.01  # ۱٪ حاشیه برای لغزش قیمت لحظه‌ی برخورد
+        return label if diff <= tolerance else "exchange"
 
     def record_live_close(self, position: dict, closed_by: str):
         """ثبت معامله‌ی live که خودِ ربات بسته است (سود/زیان آخرین مقدار شناخته‌شده)."""
@@ -180,6 +211,7 @@ class AccountRunner:
             "close_time": _utc_now().isoformat(timespec="seconds"),
         })
         self._known_live_positions.pop(position.get("id"), None)
+        self._live_position_targets.pop(position.get("id"), None)
 
     # ---------- سقف ضرر روزانه ----------
     def _check_daily_loss(self):
@@ -321,6 +353,15 @@ class AccountRunner:
         if result.get("tp_sl_set") is False:
             self.log(result.get("tp_sl_error", "ست کردن TP/SL ناموفق بود"), "error")
         self.positions = await self.driver.get_open_positions()
+
+        if not isinstance(self.driver, PaperDriver):
+            # تازه‌ترین پوزیشن همین نماد را پیدا و SL/TP آن را برای تشخیص بعدیِ
+            # «SL خورد یا TP» (وقتی در سمت صرافی بسته شود) ذخیره می‌کنیم.
+            opened = next((p for p in self.positions if p["symbol"] == symbol), None)
+            if opened is not None:
+                self._live_position_targets[opened["id"]] = {
+                    "stop_loss": stop_loss, "take_profit": take_profit,
+                }
 
     async def _calc_qty(self, sym_cfg: dict, price: float, stop_loss: float, leverage: int = 1):
         """حجم = (اکوییتی × ٪ریسک) ÷ فاصله‌ی SL — سپس روی گام حجم صرافی گرد می‌شود
