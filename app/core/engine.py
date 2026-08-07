@@ -24,6 +24,10 @@ from app.core.strategies.registry import run_strategy, STRATEGIES
 EQUITY_SNAPSHOT_SECONDS = 300
 SL_ATR_MULT = 1.5
 TP_ATR_MULT = 3.0
+# سقف مارجین هر معامله از کل اکوییتی حساب — مستقل از فاصله‌ی SL. بدون این سقف،
+# وقتی حد ضرر (خودکار از ATR) خیلی به قیمت نزدیک باشد، فرمول ریسک‌محور می‌تواند
+# حجمی بسازد که تقریباً کل حساب را فقط برای یک پوزیشن به مارجین قفل کند.
+MAX_MARGIN_PER_TRADE_PCT = 25.0
 
 
 def _utc_now() -> datetime:
@@ -360,6 +364,17 @@ class AccountRunner:
                 qty = max_qty_by_margin
                 self.log(
                     f"{symbol}: حجم به‌خاطر محدودیت مارجین آزاد ({free_margin:g} USDT) کاهش یافت.",
+                    "warn",
+                )
+
+            # سقف مستقل از فاصله‌ی SL: هیچ معامله‌ای بیش از MAX_MARGIN_PER_TRADE_PCT
+            # از کل اکوییتی را به مارجین قفل نکند — حتی اگر حد ضرر (ATR-based) خیلی
+            # نزدیک به قیمت باشد و فرمول ریسک‌محور بخواهد حجم بسیار بزرگی بسازد.
+            max_qty_by_cap = (equity * MAX_MARGIN_PER_TRADE_PCT / 100 * leverage) / unit_value
+            if max_qty_by_cap < qty:
+                qty = max_qty_by_cap
+                self.log(
+                    f"{symbol}: حجم به‌خاطر سقف {MAX_MARGIN_PER_TRADE_PCT:g}٪ مارجین هر معامله کاهش یافت.",
                     "warn",
                 )
 
