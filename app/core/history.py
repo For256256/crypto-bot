@@ -214,7 +214,11 @@ def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict
     gross_loss = abs(sum(losses))
     total = sum(pnls)
     n = len(pnls)
-    profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (None if gross_profit == 0 else float("inf"))
+    # None هم برای «بدون معامله» و هم برای «فقط برد، بدون باخت» (profit factor
+    # بی‌نهایت) استفاده می‌شود — فرانت‌اند هر دو را جدا از تعداد معاملات (s.trades)
+    # درست نمایش می‌دهد. float('inf') اینجا استفاده نمی‌شود چون JSON استاندارد آن
+    # را قبول ندارد و پاسخ API را کرش می‌کند.
+    profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else None
 
     # ---------- ماکس دراوداون از روی منحنی اکوییتی ----------
     max_dd_pct = 0.0
