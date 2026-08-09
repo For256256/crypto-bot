@@ -208,17 +208,36 @@ def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict
 
     # ---------- آمار کلی ----------
     pnls = [_num(t.get("realized")) for t in trades]
+    fees = [_num(t.get("fee")) for t in trades]
     wins = [p for p in pnls if p > 0]
     losses = [p for p in pnls if p < 0]
     gross_profit = sum(wins)
     gross_loss = abs(sum(losses))
     total = sum(pnls)
+    total_fees = sum(fees)
     n = len(pnls)
     # None هم برای «بدون معامله» و هم برای «فقط برد، بدون باخت» (profit factor
     # بی‌نهایت) استفاده می‌شود — فرانت‌اند هر دو را جدا از تعداد معاملات (s.trades)
     # درست نمایش می‌دهد. float('inf') اینجا استفاده نمی‌شود چون JSON استاندارد آن
     # را قبول ندارد و پاسخ API را کرش می‌کند.
     profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else None
+    avg_win = (gross_profit / len(wins)) if wins else 0.0
+    avg_loss = (-gross_loss / len(losses)) if losses else 0.0
+
+    # ---------- ریز جزئیات به تفکیک نماد ----------
+    by_symbol_map: dict[str, dict] = {}
+    for t, r, f in zip(trades, pnls, fees):
+        sym = t.get("symbol") or "—"
+        s = by_symbol_map.setdefault(sym, {"symbol": sym, "trades": 0, "wins": 0, "losses": 0,
+                                           "pnl": 0.0, "fees": 0.0})
+        s["trades"] += 1
+        s["pnl"] += r
+        s["fees"] += f
+        if r > 0:
+            s["wins"] += 1
+        elif r < 0:
+            s["losses"] += 1
+    by_symbol = sorted(by_symbol_map.values(), key=lambda s: s["pnl"])
 
     # ---------- ماکس دراوداون از روی منحنی اکوییتی ----------
     max_dd_pct = 0.0
@@ -255,6 +274,9 @@ def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict
             "win_rate": (len(wins) / n * 100) if n else 0.0,
             "gross_profit": gross_profit,
             "gross_loss": gross_loss,
+            "total_fees": total_fees,
+            "avg_win": avg_win,
+            "avg_loss": avg_loss,
             "profit_factor": profit_factor,
             "best": max(pnls) if pnls else 0.0,
             "worst": min(pnls) if pnls else 0.0,
@@ -265,5 +287,6 @@ def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict
         "equity_curve": [{"time": e.get("time"), "equity": e.get("equity"), "balance": e.get("balance")}
                          for e in equity_points],
         "daily": daily,
+        "by_symbol": by_symbol,
         "trades": list(reversed(trades[-200:])),
     }
