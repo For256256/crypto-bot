@@ -21,12 +21,9 @@ from datetime import datetime, timezone
 import pandas as pd
 
 from app.core.exchanges.base import ExchangeDriver, ExchangeError
+from app.core.exchanges.toobit import TAKER_FEE_RATE
 
 _id_counter = itertools.count(1)
-
-# کارمزد تیکر فیوچرز توبیت (VIP0) — همه‌ی سفارش‌های ربات priceType=MARKET
-# هستند، پس همیشه به‌عنوان تیکر پر می‌شوند، نه میکر.
-TAKER_FEE_RATE = 0.0006
 
 
 class PaperDriver(ExchangeDriver):
@@ -109,9 +106,11 @@ class PaperDriver(ExchangeDriver):
                 # فقط سود/زیان خام منهای کارمزد خروج به موجودی اضافه می‌شود تا
                 # کارمزد ورود دوباره کم نشود. مقدار «realized» گزارش‌شده اما هر
                 # دو کارمزد را برای نمایش سود/زیان خالص واقعی هر معامله دارد.
-                realized = gross - p.get("entry_fee", 0.0) - exit_fee
+                fee = p.get("entry_fee", 0.0) + exit_fee
+                realized = gross - fee
                 self.balance += gross - exit_fee
-                self.closed_trades.append({**p, "close_price": hit_price, "realized": realized, "closed_by": label,
+                self.closed_trades.append({**p, "close_price": hit_price, "realized": realized, "fee": fee,
+                                           "closed_by": label,
                                            "close_time": datetime.now(timezone.utc).isoformat(timespec="seconds")})
             else:
                 still_open.append(p)
@@ -176,9 +175,11 @@ class PaperDriver(ExchangeDriver):
         # کارمزد ورود همان لحظه‌ی باز شدن پوزیشن از موجودی کم شده؛ اینجا فقط
         # سود/زیان خام منهای کارمزد خروج به موجودی اضافه می‌شود (توضیح کامل در
         # _refresh_positions).
-        realized = gross - target.get("entry_fee", 0.0) - exit_fee
+        fee = target.get("entry_fee", 0.0) + exit_fee
+        realized = gross - fee
         self.balance += gross - exit_fee
         self.positions = [p for p in self.positions if p["id"] != pos_id]
-        self.closed_trades.append({**target, "close_price": price, "realized": realized, "closed_by": "manual",
+        self.closed_trades.append({**target, "close_price": price, "realized": realized, "fee": fee,
+                                   "closed_by": "manual",
                                    "close_time": datetime.now(timezone.utc).isoformat(timespec="seconds")})
         return {"orderId": pos_id, "closed": True, "realized": realized}

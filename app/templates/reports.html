@@ -206,12 +206,14 @@ function renderTradesTable() {
       : '<span class="bg-sell/10 text-sell px-2 py-0.5 rounded text-[11px] font-bold border border-sell/20">SHORT</span>';
     const by = CLOSED_BY_LABELS[t.closed_by] || t.closed_by || '—';
     const est = t.estimated ? ' <span class="text-gold">≈</span>' : '';
+    const fee = t.fee != null ? fmtNum(t.fee) : '—';
     return `<tr class="hover:bg-surface-variant/20 transition-colors">
       <td class="num !text-right text-on-surface-variant text-[11px]" dir="ltr">${String(t.close_time || '').slice(0, 16).replace('T', ' ')}</td>
       <td class="font-bold">${t.symbol || ''}</td><td>${side}</td>
       <td class="num">${fmtNum(t.qty)}</td>
       <td class="num">${fmtNum(t.entry_price)}</td><td class="num">${fmtNum(t.close_price)}</td>
       <td class="text-[11px]">${by}</td>
+      <td class="num text-on-surface-variant text-[11px]">${fee}</td>
       <td class="num ${cls} font-bold">${niceNum(r)}${est}</td>
     </tr>`;
   }).join('');
@@ -229,8 +231,8 @@ function renderTradesTable() {
     prev = p;
   }
   return `<div class="overflow-x-auto"><table class="of-table">
-      <thead><tr><th>زمان</th><th>نماد</th><th>نوع</th><th>حجم</th><th>قیمت ورود</th><th>قیمت خروج</th><th>نحوه بستن</th><th>سود/ضرر (USDT)</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="8" class="text-center text-on-surface-variant py-8">معامله‌ای یافت نشد</td></tr>'}</tbody>
+      <thead><tr><th>زمان</th><th>نماد</th><th>نوع</th><th>حجم</th><th>قیمت ورود</th><th>قیمت خروج</th><th>نحوه بستن</th><th>کارمزد</th><th>سود/ضرر خالص (USDT)</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="9" class="text-center text-on-surface-variant py-8">معامله‌ای یافت نشد</td></tr>'}</tbody>
     </table></div>
     <div class="px-5 py-4 flex flex-row-reverse justify-between items-center bg-surface-container-low border-t border-outline-variant/20">
       <span class="text-xs text-on-surface-variant">نمایش ${start} تا ${end} از ${total} معامله</span>

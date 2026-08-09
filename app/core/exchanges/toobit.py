@@ -22,6 +22,10 @@ import pandas as pd
 
 from app.core.exchanges.base import ExchangeDriver, ExchangeError
 
+# کارمزد تیکر فیوچرز توبیت (VIP0، طبق toobit.com/support/fee-rate) — همه‌ی
+# سفارش‌های ربات priceType=MARKET هستند، پس همیشه به‌عنوان تیکر پر می‌شوند.
+TAKER_FEE_RATE = 0.0006
+
 # نگاشت تایم‌فریم داخلی پروژه به interval کندل Toobit
 INTERVAL_MAP = {
     "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m",
