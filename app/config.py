@@ -27,5 +27,8 @@ class Settings:
     # ---- آدرس پایه‌ی API صرافی Toobit ----
     TOOBIT_BASE_URL: str = os.getenv("TOOBIT_BASE_URL", "https://api.toobit.com")
 
+    # ---- آدرس پایه‌ی API صرافی تبدیل (Tabdeal) ----
+    TABDEAL_BASE_URL: str = os.getenv("TABDEAL_BASE_URL", "https://api1.tabdeal.org")
+
 
 settings = Settings()
