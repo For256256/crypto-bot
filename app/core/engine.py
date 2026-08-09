@@ -4,7 +4,8 @@
 مسئولیت‌ها:
 - خواندن کندل‌ها و اجرای استراتژی هر نماد در بازه‌ی poll_interval_seconds
 - باز/بستن پوزیشن (paper یا live) با مدیریت ریسک: حجم بر اساس ٪ریسک و فاصله‌ی SL
-- ساخت خودکار SL/TP از ATR اگر وبهوک مقدار ندهد (حد ضرر ۱.۵×ATR، حد سود ۳×ATR)
+- ساخت خودکار SL/TP از ATR اگر وبهوک مقدار ندهد (فاصله‌ی هر دو یکسان و برابر
+  sl_tp_atr_mult×ATR هر حساب — پیش‌فرض ۳×ATR — تا نسبت ریسک:پاداش ۱:۱ باشد)
 - سقف ضرر روزانه (UTC): با عبور از آن، ورودی جدید تا فردا ممنوع می‌شود
 - سیاست recycle: با پر بودن ظرفیت، سودده‌ترین پوزیشن بسته می‌شود تا جای سیگنال جدید باز شود
 - دریافت سیگنال وبهوک TradingView و توزیع آن بین حساب‌های فعال
@@ -22,8 +23,10 @@ from app.core.exchanges.paper import PaperDriver
 from app.core.strategies.registry import run_strategy, STRATEGIES
 
 EQUITY_SNAPSHOT_SECONDS = 300
-SL_ATR_MULT = 1.5
-TP_ATR_MULT = 3.0
+# فاصله‌ی پیش‌فرض SL/TP از قیمت ورود، به ضریب ATR — قابل تنظیم در هر حساب
+# (sl_tp_atr_mult). هر دو یک ضریب مشترک دارند تا نسبت ریسک:پاداش ۱:۱ بماند و
+# فاصله‌ی بیشتری تا حد ضرر باشد، برای کاهش برخورد زودهنگام به SL.
+DEFAULT_SL_TP_ATR_MULT = 3.0
 # سقف مارجین هر معامله از کل اکوییتی حساب — مستقل از فاصله‌ی SL. بدون این سقف،
 # وقتی حد ضرر (خودکار از ATR) خیلی به قیمت نزدیک باشد، فرمول ریسک‌محور می‌تواند
 # حجمی بسازد که تقریباً کل حساب را فقط برای یک پوزیشن به مارجین قفل کند.
@@ -332,12 +335,13 @@ class AccountRunner:
                 self.log(f"{symbol}: قیمت لحظه‌ای دریافت نشد: {e}", "error")
                 return
 
-        # SL/TP: از وبهوک، وگرنه ATR-based
+        # SL/TP: از وبهوک، وگرنه ATR-based با فاصله‌ی یکسان (نسبت ریسک:پاداش ۱:۱)
         if (not stop_loss or not take_profit) and atr:
+            atr_mult = float(self.cfg.get("sl_tp_atr_mult", DEFAULT_SL_TP_ATR_MULT) or DEFAULT_SL_TP_ATR_MULT)
             if not stop_loss:
-                stop_loss = price - SL_ATR_MULT * atr if side == "buy" else price + SL_ATR_MULT * atr
+                stop_loss = price - atr_mult * atr if side == "buy" else price + atr_mult * atr
             if not take_profit:
-                take_profit = price + TP_ATR_MULT * atr if side == "buy" else price - TP_ATR_MULT * atr
+                take_profit = price + atr_mult * atr if side == "buy" else price - atr_mult * atr
         if not stop_loss or not take_profit:
             self.log(f"{symbol}: SL/TP مشخص نیست و ATR هم در دسترس نیست؛ ورود لغو شد.", "warn")
             return

@@ -30,6 +30,7 @@
       <div><label class="lbl">موجودی اولیه paper (USDT)</label><input id="f_paper_balance" class="field mono-num" dir="ltr" type="number" value="10000"></div>
       <div><label class="lbl">ریسک هر معامله (٪)</label><input id="f_risk_percent" class="field mono-num" dir="ltr" type="number" step="0.1" value="1"></div>
       <div><label class="lbl">اهرم پیش‌فرض</label><input id="f_default_leverage" class="field mono-num" dir="ltr" type="number" value="5"></div>
+      <div><label class="lbl">ضریب ATR برای SL/TP (فاصله‌ی یکسان)</label><input id="f_sl_tp_atr_mult" class="field mono-num" dir="ltr" type="number" step="0.1" value="3"></div>
       <div><label class="lbl">حداکثر پوزیشن باز هم‌زمان</label><input id="f_max_open_positions" class="field mono-num" dir="ltr" type="number" value="2"></div>
       <div><label class="lbl">سقف ضرر روزانه (٪)</label><input id="f_max_daily_loss_percent" class="field mono-num" dir="ltr" type="number" step="0.5" value="5"></div>
       <div><label class="lbl">بازه بررسی سیگنال (ثانیه)</label><input id="f_poll_interval_seconds" class="field mono-num" dir="ltr" type="number" value="60"></div>
@@ -234,6 +235,7 @@ function openAccountModal(acc) {
   g('f_paper_balance').value = acc ? (acc.paper_balance ?? 10000) : 10000;
   g('f_risk_percent').value = acc ? acc.risk_percent : 1;
   g('f_default_leverage').value = acc ? acc.default_leverage : 5;
+  g('f_sl_tp_atr_mult').value = acc ? (acc.sl_tp_atr_mult ?? 3) : 3;
   g('f_max_open_positions').value = acc ? acc.max_open_positions : 2;
   g('f_max_daily_loss_percent').value = acc ? acc.max_daily_loss_percent : 5;
   g('f_poll_interval_seconds').value = acc ? acc.poll_interval_seconds : 60;
@@ -253,6 +255,7 @@ async function saveAccount() {
     paper_balance: parseFloat(g('f_paper_balance').value) || 10000,
     risk_percent: parseFloat(g('f_risk_percent').value) || 1,
     default_leverage: parseInt(g('f_default_leverage').value) || 5,
+    sl_tp_atr_mult: parseFloat(g('f_sl_tp_atr_mult').value) || 3,
     max_open_positions: parseInt(g('f_max_open_positions').value) || 2,
     max_daily_loss_percent: parseFloat(g('f_max_daily_loss_percent').value) || 5,
     poll_interval_seconds: parseInt(g('f_poll_interval_seconds').value) || 60,
@@ -572,7 +575,7 @@ function renderAccountBar() {
     </div>
   </div>
   <div class="text-on-surface-variant text-[11px] mono-num mt-2 px-1">
-    ریسک: ${acc.risk_percent}٪ · اهرم: ${acc.default_leverage}x · سقف ضرر روزانه: ${acc.max_daily_loss_percent}٪ · وبهوک: ${acc.accept_webhook ? 'فعال' : 'غیرفعال'}
+    ریسک: ${acc.risk_percent}٪ · اهرم: ${acc.default_leverage}x · ضریب SL/TP: ${acc.sl_tp_atr_mult ?? 3}×ATR · سقف ضرر روزانه: ${acc.max_daily_loss_percent}٪ · وبهوک: ${acc.accept_webhook ? 'فعال' : 'غیرفعال'}
   </div>`;
 }
 
