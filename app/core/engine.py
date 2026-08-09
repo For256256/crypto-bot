@@ -20,6 +20,7 @@ from app.core import config_store, history
 from app.core.exchanges.base import ExchangeError
 from app.core.exchanges.factory import build_driver
 from app.core.exchanges.paper import PaperDriver
+from app.core.exchanges.toobit import TAKER_FEE_RATE as TOOBIT_TAKER_FEE_RATE
 from app.core.strategies.registry import run_strategy, STRATEGIES
 
 EQUITY_SNAPSHOT_SECONDS = 300
@@ -154,7 +155,7 @@ class AccountRunner:
                 history.record_trade(self.account_id, mode, trade)
                 self.log(
                     f"معامله‌ی {trade['symbol']} بسته شد ({trade.get('closed_by')}) — "
-                    f"سود/زیان: {trade.get('realized', 0):+.2f} USDT",
+                    f"سود/زیان خالص از کارمزد: {trade.get('realized', 0):+.2f} USDT",
                     "info" if trade.get("realized", 0) >= 0 else "warn",
                 )
         else:
@@ -164,10 +165,15 @@ class AccountRunner:
                 if pid not in current_ids:
                     targets = self._live_position_targets.pop(pid, None)
                     closed_by = self._infer_closed_by(prev, targets)
+                    gross = prev.get("profit") or 0.0
+                    fee = await self._estimate_live_fee(prev["symbol"], prev.get("entry_price"),
+                                                        prev.get("mark_price"), prev.get("qty"))
+                    realized = gross - fee
                     history.record_trade(self.account_id, mode, {
                         **prev,
                         "close_price": prev.get("mark_price"),
-                        "realized": prev.get("profit"),
+                        "realized": realized,
+                        "fee": fee,
                         "closed_by": closed_by,
                         "estimated": True,
                         "close_time": _utc_now().isoformat(timespec="seconds"),
@@ -175,9 +181,25 @@ class AccountRunner:
                     label = {"SL": "حد ضرر", "TP": "حد سود"}.get(closed_by, closed_by)
                     self.log(
                         f"پوزیشن {prev['symbol']} در سمت صرافی بسته شد ({label}) "
-                        f"(سود/زیان تقریبی: {prev.get('profit', 0):+.2f} USDT)"
+                        f"(سود/زیان تقریبی خالص از کارمزد: {realized:+.2f} USDT — کارمزد برآوردی: {fee:.2f})"
                     )
             self._known_live_positions = current_ids
+
+    async def _estimate_live_fee(self, symbol: str, entry_price: float | None,
+                                 close_price: float | None, qty: float | None) -> float:
+        """کارمزد تیکر رفت‌وبرگشت (ورود+خروج) یک پوزیشن live را تخمین می‌زند —
+        چون توبیت کارمزد واقعی هر پوزیشن را در اندپوینت پوزیشن‌ها برنمی‌گرداند
+        و سود/زیانِ گزارش‌شده‌ی آن (unrealizedPnL) قبل از کسر کارمزد است. با
+        همین تخمین، معامله‌ای که به‌ظاهر سود کمی داشته ولی کارمزدش بیشتر از
+        آن سود است، در گزارش به‌درستی زیان‌ده نشان داده می‌شود."""
+        if not entry_price or not close_price or not qty:
+            return 0.0
+        try:
+            info = await self.driver.get_symbol_info(symbol)
+        except ExchangeError:
+            info = {}
+        cm = float(info.get("contract_multiplier", 1.0) or 1.0)
+        return (float(entry_price) + float(close_price)) * float(qty) * cm * TOOBIT_TAKER_FEE_RATE
 
     @staticmethod
     def _infer_closed_by(prev: dict, targets: dict | None) -> str:
@@ -207,12 +229,17 @@ class AccountRunner:
                 return "TP"
         return "exchange"
 
-    def record_live_close(self, position: dict, closed_by: str):
-        """ثبت معامله‌ی live که خودِ ربات بسته است (سود/زیان آخرین مقدار شناخته‌شده)."""
+    async def record_live_close(self, position: dict, closed_by: str):
+        """ثبت معامله‌ی live که خودِ ربات بسته است (سود/زیان آخرین مقدار شناخته‌شده،
+        منهای کارمزد برآوردی رفت‌وبرگشت)."""
+        gross = position.get("profit") or 0.0
+        fee = await self._estimate_live_fee(position["symbol"], position.get("entry_price"),
+                                            position.get("mark_price"), position.get("qty"))
         history.record_trade(self.account_id, self.cfg.get("trading_mode", "paper"), {
             **position,
             "close_price": position.get("mark_price"),
-            "realized": position.get("profit"),
+            "realized": gross - fee,
+            "fee": fee,
             "closed_by": closed_by,
             "estimated": True,
             "close_time": _utc_now().isoformat(timespec="seconds"),
@@ -298,7 +325,7 @@ class AccountRunner:
             try:
                 await self.driver.close_position(p)
                 if not isinstance(self.driver, PaperDriver):
-                    self.record_live_close(p, "reversal")
+                    await self.record_live_close(p, "reversal")
                 self.log(f"{symbol}: پوزیشن {p['side']} (در ضرر) به‌خاطر سیگنال معکوس بسته شد.")
             except ExchangeError as e:
                 self.log(f"{symbol}: بستن پوزیشن معکوس ناموفق: {e}", "error")
@@ -317,7 +344,7 @@ class AccountRunner:
                 try:
                     await self.driver.close_position(victim)
                     if not isinstance(self.driver, PaperDriver):
-                        self.record_live_close(victim, "reversal")
+                        await self.record_live_close(victim, "reversal")
                     self.log(f"recycle: پوزیشن سودده {victim['symbol']} بسته شد تا جا برای {symbol} باز شود.")
                     self.positions.remove(victim)
                 except ExchangeError as e:
@@ -490,7 +517,7 @@ class AccountRunner:
                 try:
                     await self.driver.close_position(p)
                     if not isinstance(self.driver, PaperDriver):
-                        self.record_live_close(p, "manual")
+                        await self.record_live_close(p, "manual")
                     self.log(f"{symbol}: پوزیشن با سیگنال close وبهوک بسته شد.")
                 except ExchangeError as e:
                     self.log(f"{symbol}: بستن با وبهوک ناموفق: {e}", "error")
@@ -532,7 +559,7 @@ class AccountRunner:
         except ExchangeError as e:
             return {"ok": False, "detail": str(e)}
         if not isinstance(self.driver, PaperDriver):
-            self.record_live_close(target, "manual")
+            await self.record_live_close(target, "manual")
         self.log(f"پوزیشن {target['symbol']} به‌صورت دستی بسته شد.")
         self.positions = await self.driver.get_open_positions()
         return {"ok": True, "closed": target["symbol"]}
