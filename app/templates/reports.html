@@ -269,6 +269,58 @@ function onTradeSearch(v) {
   document.getElementById('tradesWrap').innerHTML = renderTradesTable();
 }
 
+function renderAccountDetails() {
+  const s = reportData.summary || {};
+  const st = reportData.account_stats || {};
+  const ai = reportData.account_info || {};
+  const bySymbol = reportData.by_symbol || [];
+  const hasStats = reportData.account_stats != null;
+  const row = (label, value, cls) => `<div class="flex justify-between items-center py-2 border-b border-outline-variant/10 last:border-0">
+      <span class="text-on-surface-variant text-xs">${label}</span>
+      <span class="mono-num text-sm font-bold ${cls || ''}" dir="ltr">${value}</span>
+    </div>`;
+  const symbolRows = bySymbol.map(b => `<tr class="hover:bg-surface-variant/20 transition-colors">
+      <td class="font-bold">${b.symbol}</td>
+      <td class="num">${b.trades}</td>
+      <td class="num">${b.trades ? fmt(b.wins / b.trades * 100, 1) : '0.0'}٪</td>
+      <td class="num text-on-surface-variant text-[11px]">${niceNum(b.fees)}</td>
+      <td class="num ${b.pnl >= 0 ? 'text-buy' : 'text-sell'} font-bold">${b.pnl >= 0 ? '+' : ''}${niceNum(b.pnl)}</td>
+    </tr>`).join('');
+  return `<div class="glass-card p-5 rounded-2xl mb-6">
+    <h3 class="font-headline font-bold mb-3 flex items-center gap-2">
+      <span class="material-symbols-outlined text-primary">summarize</span> ریز جزئیات حساب
+    </h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8">
+      <div>
+        ${hasStats ? row('موجودی اولیه', niceNum(st.initial_balance) + ' USDT') : ''}
+        ${hasStats ? row('بالانس فعلی', niceNum(st.current_balance) + ' USDT') : ''}
+        ${hasStats ? row('اکوییتی فعلی', niceNum(st.current_equity) + ' USDT') : ''}
+        ${hasStats ? row('سود/زیان روزانه', (st.daily_pnl >= 0 ? '+' : '') + niceNum(st.daily_pnl) + ` (${fmt(st.daily_pnl_pct, 2)}٪)`, st.daily_pnl >= 0 ? 'text-buy' : 'text-sell') : ''}
+        ${hasStats ? row('درصد سود کلی', (st.overall_profit_pct >= 0 ? '+' : '') + fmt(st.overall_profit_pct, 2) + '٪', st.overall_profit_pct >= 0 ? 'text-buy' : 'text-sell') : ''}
+        ${!hasStats ? '<div class="text-[11px] text-on-surface-variant py-2">ربات این حساب فعلاً اجرا نمی‌شود؛ وضعیت لحظه‌ای در دسترس نیست.</div>' : ''}
+      </div>
+      <div>
+        ${row('مارجین درگیر', niceNum(ai.margin) + ' USDT')}
+        ${row('مارجین آزاد', niceNum(ai.free_margin) + ' USDT')}
+        ${row('پوزیشن‌های باز', s.open_positions || 0)}
+        ${row('سود/زیان باز (Unrealized)', (s.unrealized_pnl >= 0 ? '+' : '') + niceNum(s.unrealized_pnl), s.unrealized_pnl >= 0 ? 'text-buy' : 'text-sell')}
+        ${row('مجموع کارمزد (این بازه)', niceNum(s.total_fees) + ' USDT', 'text-gold')}
+      </div>
+      <div>
+        ${row('سود ناخالص (Gross Profit)', '+' + niceNum(s.gross_profit), 'text-buy')}
+        ${row('زیان ناخالص (Gross Loss)', '-' + niceNum(s.gross_loss), 'text-sell')}
+        ${row('میانگین برد', '+' + niceNum(s.avg_win), 'text-buy')}
+        ${row('میانگین باخت', niceNum(s.avg_loss), 'text-sell')}
+        ${row('بهترین / بدترین معامله', niceNum(s.best) + ' / ' + niceNum(s.worst))}
+      </div>
+    </div>
+    ${bySymbol.length ? `<div class="overflow-x-auto mt-4 pt-4 border-t border-outline-variant/10"><table class="of-table">
+      <thead><tr><th>نماد</th><th>معاملات</th><th>نرخ برد</th><th>کارمزد</th><th>سود/ضرر خالص</th></tr></thead>
+      <tbody>${symbolRows}</tbody>
+    </table></div>` : ''}
+  </div>`;
+}
+
 function renderReport() {
   const s = reportData.summary || {};
   const totalWithOpen = s.total_pnl_with_open != null ? s.total_pnl_with_open : s.total_pnl;
@@ -277,7 +329,7 @@ function renderReport() {
   const hasUnrealized = !!s.unrealized_pnl;
   const root = document.getElementById('reportRoot');
   root.innerHTML = `
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
     <div class="glass-card p-5 rounded-2xl flex flex-col items-center text-center">
       <span class="text-on-surface-variant text-xs mb-2">کل سود / ضرر</span>
       <span class="mono-num text-2xl font-bold ${pnlCls}" dir="ltr">${totalWithOpen >= 0 ? '+' : ''}${niceNum(totalWithOpen)}</span>
@@ -300,6 +352,11 @@ function renderReport() {
       <span class="mono-num text-2xl font-bold text-secondary-fixed-dim" dir="ltr">${s.trades ? pf : '—'}</span>
       <span class="text-[11px] text-sell mt-1" dir="ltr">${fmt(s.max_drawdown_pct, 2)}٪ DD</span>
     </div>
+    <div class="glass-card p-5 rounded-2xl flex flex-col items-center text-center">
+      <span class="text-on-surface-variant text-xs mb-2">مجموع کارمزد</span>
+      <span class="mono-num text-2xl font-bold text-gold" dir="ltr">${niceNum(s.total_fees)}</span>
+      <span class="text-[11px] text-on-surface-variant mt-1">USDT (این بازه)</span>
+    </div>
   </div>
 
   <div class="glass-card p-5 rounded-2xl mb-6">
@@ -318,6 +375,8 @@ function renderReport() {
     </h3>
     ${svgDailyPnl(reportData.daily)}
   </div>
+
+  ${renderAccountDetails()}
 
   <div class="glass-card rounded-2xl overflow-hidden">
     <div class="px-5 py-4 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-low flex-wrap gap-3">

@@ -457,12 +457,21 @@ async def account_report(account_id: str, days: int = 30, mode: str | None = Non
     runner = bot_manager.runners.get(account_id)
     unrealized = 0.0
     open_positions = 0
+    live_account_info = None
+    account_stats = None
     if runner is not None and (mode is None or mode == account.get("trading_mode", "paper")):
         unrealized = sum(float(p.get("profit", 0) or 0) for p in (runner.positions or []))
         open_positions = len(runner.positions or [])
+        live_account_info = runner.account_info
+        equity = float(live_account_info.get("equity", 0) or 0) if live_account_info else None
+        balance = float(live_account_info.get("balance", 0) or 0) if live_account_info else None
+        account_stats = history.get_account_stats(account_id, account.get("trading_mode", "paper"),
+                                                   equity, balance)
     report["summary"]["unrealized_pnl"] = unrealized
     report["summary"]["open_positions"] = open_positions
     report["summary"]["total_pnl_with_open"] = report["summary"]["total_pnl"] + unrealized
+    report["account_info"] = live_account_info
+    report["account_stats"] = account_stats
     return report
 
 
