@@ -71,6 +71,7 @@ def record_trade(account_id: str, mode: str, trade: dict):
             "entry_price": trade.get("entry_price"),
             "close_price": trade.get("close_price"),
             "realized": trade.get("realized"),
+            "fee": trade.get("fee"),
             "closed_by": trade.get("closed_by", "unknown"),
             "open_time": trade.get("open_time"),
             "close_time": trade.get("close_time") or _now_iso(),
