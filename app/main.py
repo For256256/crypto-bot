@@ -443,11 +443,27 @@ async def close_position(account_id: str, payload: dict, _: bool = Depends(requi
 @app.get("/api/accounts/{account_id}/report")
 async def account_report(account_id: str, days: int = 30, mode: str | None = None,
                          _: bool = Depends(require_auth)):
-    if config_store.get_account(account_id) is None:
+    account = config_store.get_account(account_id)
+    if account is None:
         raise HTTPException(404, "حساب پیدا نشد")
     if mode not in (None, "paper", "live"):
         raise HTTPException(400, "mode باید paper یا live باشد")
-    return history.get_report(account_id, days=days, mode=mode)
+    report = history.get_report(account_id, days=days, mode=mode)
+    # آمار «تعداد معاملات/نرخ برد/کل سود» فقط معاملات بسته‌شده را می‌شمارد؛
+    # وقتی هنوز هیچ معامله‌ای بسته نشده (فقط پوزیشن باز دارد) این اعداد صفرند
+    # ولی منحنی اکوییتی (که سود/زیان لحظه‌ای پوزیشن باز را هم دارد) در همان
+    # حال نوسان نشان می‌دهد — که گیج‌کننده به‌نظر می‌رسید. برای رفع این تناقض،
+    # سود/زیان باز (unrealized) پوزیشن‌های فعلی هم به گزارش اضافه می‌شود.
+    runner = bot_manager.runners.get(account_id)
+    unrealized = 0.0
+    open_positions = 0
+    if runner is not None and (mode is None or mode == account.get("trading_mode", "paper")):
+        unrealized = sum(float(p.get("profit", 0) or 0) for p in (runner.positions or []))
+        open_positions = len(runner.positions or [])
+    report["summary"]["unrealized_pnl"] = unrealized
+    report["summary"]["open_positions"] = open_positions
+    report["summary"]["total_pnl_with_open"] = report["summary"]["total_pnl"] + unrealized
+    return report
 
 
 @app.post("/api/accounts/{account_id}/report/reset")

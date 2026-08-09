@@ -271,15 +271,17 @@ function onTradeSearch(v) {
 
 function renderReport() {
   const s = reportData.summary || {};
-  const pnlCls = (s.total_pnl || 0) >= 0 ? 'text-buy' : 'text-sell';
+  const totalWithOpen = s.total_pnl_with_open != null ? s.total_pnl_with_open : s.total_pnl;
+  const pnlCls = (totalWithOpen || 0) >= 0 ? 'text-buy' : 'text-sell';
   const pf = s.profit_factor === null || s.profit_factor === undefined ? '∞' : fmt(s.profit_factor);
+  const hasUnrealized = !!s.unrealized_pnl;
   const root = document.getElementById('reportRoot');
   root.innerHTML = `
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
     <div class="glass-card p-5 rounded-2xl flex flex-col items-center text-center">
       <span class="text-on-surface-variant text-xs mb-2">کل سود / ضرر</span>
-      <span class="mono-num text-2xl font-bold ${pnlCls}" dir="ltr">${s.total_pnl >= 0 ? '+' : ''}${niceNum(s.total_pnl)}</span>
-      <span class="text-[11px] text-on-surface-variant mt-1">USDT</span>
+      <span class="mono-num text-2xl font-bold ${pnlCls}" dir="ltr">${totalWithOpen >= 0 ? '+' : ''}${niceNum(totalWithOpen)}</span>
+      <span class="text-[11px] text-on-surface-variant mt-1">USDT${hasUnrealized ? ` (شامل ${s.unrealized_pnl >= 0 ? '+' : ''}${niceNum(s.unrealized_pnl)} از ${s.open_positions} پوزیشن باز)` : ''}</span>
     </div>
     <div class="glass-card p-5 rounded-2xl flex flex-col items-center text-center">
       <span class="text-on-surface-variant text-xs mb-2">نرخ برد (Win Rate)</span>
