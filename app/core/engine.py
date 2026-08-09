@@ -21,6 +21,20 @@ from app.core.exchanges.base import ExchangeError
 from app.core.exchanges.factory import build_driver
 from app.core.exchanges.paper import PaperDriver
 from app.core.exchanges.toobit import TAKER_FEE_RATE as TOOBIT_TAKER_FEE_RATE
+from app.core.exchanges.toobit import normalize_symbol as _toobit_normalize_symbol
+from app.core.exchanges.tabdeal import normalize_symbol as _tabdeal_normalize_symbol
+
+# نگاشت صرافی → تابع نرمال‌سازی نماد آن (فرمت هر صرافی متفاوت است، مثلاً
+# BTC-SWAP-USDT در توبیت در برابر BTCUSDT در تبدیل)
+_NORMALIZE_SYMBOL = {
+    "toobit": _toobit_normalize_symbol,
+    "tabdeal": _tabdeal_normalize_symbol,
+}
+
+
+def normalize_symbol_for(exchange: str, raw: str) -> str:
+    fn = _NORMALIZE_SYMBOL.get(exchange, _toobit_normalize_symbol)
+    return fn(raw)
 from app.core.strategies.registry import run_strategy, STRATEGIES
 
 EQUITY_SNAPSHOT_SECONDS = 300
@@ -661,7 +675,7 @@ class BotManager:
         self.sync_from_config()
         return {"accounts": {aid: r.status_dict() for aid, r in self.runners.items()}}
 
-    async def handle_webhook_signal(self, symbol: str, signal: str, price: float | None,
+    async def handle_webhook_signal(self, symbol_raw: str, signal: str, price: float | None,
                                     stop_loss: float | None, take_profit: float | None,
                                     account_id: str | None = None) -> dict:
         results = []
@@ -672,6 +686,10 @@ class BotManager:
                 continue
             if not runner.cfg.get("accept_webhook", True):
                 continue
+            # هر صرافی فرمت نماد متفاوتی دارد (مثلاً BTC-SWAP-USDT در توبیت
+            # در برابر BTCUSDT در تبدیل)، پس نرمال‌سازی باید بر اساس صرافی
+            # همین حساب انجام شود، نه یک‌بار سراسری با فرض توبیت.
+            symbol = normalize_symbol_for(runner.cfg.get("exchange", "toobit"), symbol_raw)
             has_symbol = any(s["symbol"] == symbol and s.get("enabled", True)
                              for s in runner.cfg.get("symbols", []))
             if not has_symbol:
@@ -685,10 +703,10 @@ class BotManager:
         if not results:
             return {
                 "ok": False,
-                "detail": f"هیچ حساب فعالی با نماد {symbol} و وبهوک روشن پیدا نشد"
+                "detail": f"هیچ حساب فعالی با نماد {symbol_raw} و وبهوک روشن پیدا نشد"
                           + (f" (account_id={account_id})" if account_id else ""),
             }
-        return {"ok": True, "symbol": symbol, "signal": signal, "results": results}
+        return {"ok": True, "symbol": symbol_raw, "signal": signal, "results": results}
 
     async def close_position_manual(self, account_id: str, payload: dict) -> dict:
         runner = self.runners.get(account_id)

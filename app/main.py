@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from app.config import settings
-from app.core.engine import bot_manager
+from app.core.engine import bot_manager, normalize_symbol_for
 from app.core import config_store
 from app.core import history
 from app.core import tickets
@@ -183,40 +183,50 @@ async def get_strategies(_: bool = Depends(require_auth)):
     return list_strategies()
 
 
-# کش سراسری لیست نمادهای فیوچرز (یک ساعت)
-_symbols_cache: dict = {"time": 0.0, "data": []}
+# کش لیست نمادهای فیوچرز، به تفکیک صرافی (یک ساعت)
+_symbols_cache: dict = {}
 
 
 @app.get("/api/futures-symbols")
-async def futures_symbols(force: bool = False, _: bool = Depends(require_auth)):
-    """لیست همه‌ی نمادهای قابل معامله در فیوچرز Toobit — برای لیست کشویی داشبورد.
+async def futures_symbols(exchange: str = "toobit", force: bool = False, _: bool = Depends(require_auth)):
+    """لیست همه‌ی نمادهای قابل معامله در فیوچرز صرافی انتخاب‌شده — برای لیست کشویی داشبورد.
     endpoint عمومی صرافی است و نیازی به کلید API ندارد."""
     import time as _time
-    from app.core.exchanges.toobit import ToobitDriver
     from app.core.exchanges.base import ExchangeError
+    from app.core.exchanges.toobit import ToobitDriver
+    from app.core.exchanges.tabdeal import TabdealDriver
 
+    cache = _symbols_cache.setdefault(exchange, {"time": 0.0, "data": []})
     now = _time.time()
-    if not force and _symbols_cache["data"] and now - _symbols_cache["time"] < 3600:
-        return {"symbols": _symbols_cache["data"], "cached": True}
+    if not force and cache["data"] and now - cache["time"] < 3600:
+        return {"symbols": cache["data"], "cached": True}
 
-    driver = ToobitDriver(api_key="", api_secret="", base_url=settings.TOOBIT_BASE_URL)
+    if exchange == "tabdeal":
+        driver = TabdealDriver(api_key="", api_secret="", base_url=settings.TABDEAL_BASE_URL)
+        label = "تبدیل"
+    elif exchange == "toobit":
+        driver = ToobitDriver(api_key="", api_secret="", base_url=settings.TOOBIT_BASE_URL)
+        label = "Toobit"
+    else:
+        raise HTTPException(400, f"صرافی پشتیبانی‌نشده: {exchange}")
+
     try:
         symbols = await driver.list_symbols()
         await driver.close()
     except ExchangeError as e:
         await driver.close()
         # اگر صرافی در دسترس نبود، کش قبلی (حتی قدیمی) را برگردان تا داشبورد از کار نیفتد
-        if _symbols_cache["data"]:
-            return {"symbols": _symbols_cache["data"], "cached": True, "warning": str(e)}
-        raise HTTPException(502, f"دریافت لیست نمادها از Toobit ناموفق: {e}")
+        if cache["data"]:
+            return {"symbols": cache["data"], "cached": True, "warning": str(e)}
+        raise HTTPException(502, f"دریافت لیست نمادها از {label} ناموفق: {e}")
     except Exception as e:
         await driver.close()
-        if _symbols_cache["data"]:
-            return {"symbols": _symbols_cache["data"], "cached": True, "warning": str(e)}
+        if cache["data"]:
+            return {"symbols": cache["data"], "cached": True, "warning": str(e)}
         raise HTTPException(502, f"خطای غیرمنتظره در دریافت لیست نمادها: {e}")
 
-    _symbols_cache["data"] = symbols
-    _symbols_cache["time"] = now
+    cache["data"] = symbols
+    cache["time"] = now
     return {"symbols": symbols, "cached": False}
 
 
@@ -301,7 +311,7 @@ async def tradingview_webhook(request: Request):
             return None
 
     result = await bot_manager.handle_webhook_signal(
-        symbol=normalize_symbol(symbol_raw),
+        symbol_raw=symbol_raw,
         signal=signal,
         price=_to_float(payload.get("price")),
         stop_loss=_to_float(payload.get("sl")),
@@ -464,8 +474,11 @@ async def bulk_update_symbols(account_id: str, payload: dict, _: bool = Depends(
 
 @app.post("/api/accounts/{account_id}/symbols")
 async def add_symbol(account_id: str, payload: SymbolIn, _: bool = Depends(require_auth)):
+    account = config_store.get_account(account_id)
+    if account is None:
+        raise HTTPException(404, "حساب پیدا نشد")
     data = payload.dict()
-    data["symbol"] = normalize_symbol(data["symbol"])
+    data["symbol"] = normalize_symbol_for(account.get("exchange", "toobit"), data["symbol"])
     try:
         symbol_cfg = config_store.add_symbol(account_id, data)
     except KeyError as e:
@@ -476,8 +489,11 @@ async def add_symbol(account_id: str, payload: SymbolIn, _: bool = Depends(requi
 
 @app.put("/api/accounts/{account_id}/symbols/{symbol}")
 async def edit_symbol(account_id: str, symbol: str, payload: SymbolIn, _: bool = Depends(require_auth)):
+    account = config_store.get_account(account_id)
+    if account is None:
+        raise HTTPException(404, "حساب پیدا نشد")
     data = payload.dict()
-    data["symbol"] = normalize_symbol(data["symbol"])
+    data["symbol"] = normalize_symbol_for(account.get("exchange", "toobit"), data["symbol"])
     updated = config_store.update_symbol(account_id, symbol, data)
     if updated is None:
         raise HTTPException(404, "حساب یا نماد پیدا نشد")

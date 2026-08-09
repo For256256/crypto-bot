@@ -23,7 +23,14 @@
     <h3 id="accountModalTitle" class="font-headline text-lg font-bold mb-4">حساب جدید</h3>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div><label class="lbl">نام حساب</label><input id="f_name" class="field" placeholder="مثلاً: حساب اصلی Toobit"></div>
-      <div><label class="lbl">صرافی</label><select id="f_exchange" class="field"><option value="toobit">Toobit</option></select></div>
+      <div><label class="lbl">صرافی</label><select id="f_exchange" class="field" onchange="onExchangeChange()">
+        <option value="toobit">Toobit</option>
+        <option value="tabdeal">تبدیل (Tabdeal)</option>
+      </select></div>
+      <div class="sm:col-span-2 text-[11px] text-gold hidden" id="f_exchange_warning">
+        ⚠️ صرافی تبدیل داده‌ی کندل تاریخی ندارد؛ استراتژی‌های داخلی ربات روی این حساب کار نمی‌کنند —
+        فقط از طریق وبهوک TradingView (با قیمت/SL/TP صریح در پیام Alert) می‌توانید روی این حساب معامله کنید.
+      </div>
       <div class="sm:col-span-2"><label class="lbl">API Key</label><input id="f_api_key" class="field mono-num" dir="ltr" placeholder="در حالت paper اختیاری است"></div>
       <div class="sm:col-span-2"><label class="lbl">API Secret</label><input id="f_api_secret" class="field mono-num" dir="ltr" type="password" placeholder="در حالت paper اختیاری است"></div>
       <div><label class="lbl">حالت معامله</label><select id="f_trading_mode" class="field"><option value="paper">کاغذی (paper)</option><option value="live">واقعی (LIVE)</option></select></div>
@@ -139,6 +146,7 @@ let editingSymbolName = null;
 let accountsCache = [];
 let statusCache = {};
 let symbolsListCache = [];
+let symbolsListExchange = null;
 let selectedAccountId = null;
 
 const EXTRA_LABELS = {
@@ -150,13 +158,15 @@ const EXTRA_LABELS = {
 };
 
 // ---------- لیست نمادهای صرافی ----------
-async function loadSymbolsList(force) {
+async function loadSymbolsList(force, exchange) {
+  exchange = exchange || 'toobit';
   const statusEl = document.getElementById('s_symbol_status');
-  if (symbolsListCache.length && !force) return;
-  if (statusEl) statusEl.textContent = 'در حال دریافت لیست نمادها از Toobit…';
+  if (symbolsListCache.length && symbolsListExchange === exchange && !force) return;
+  if (statusEl) statusEl.textContent = `در حال دریافت لیست نمادها از ${exchange === 'tabdeal' ? 'تبدیل' : 'Toobit'}…`;
   try {
-    const r = await callApi('/api/futures-symbols' + (force ? '?force=true' : ''));
+    const r = await callApi(`/api/futures-symbols?exchange=${exchange}` + (force ? '&force=true' : ''));
     symbolsListCache = r.symbols || [];
+    symbolsListExchange = exchange;
     if (statusEl) statusEl.textContent = symbolsListCache.length
       ? `${symbolsListCache.length} نماد قابل معامله` + (r.warning ? ' (از کش)' : '')
       : 'لیستی دریافت نشد';
@@ -223,12 +233,18 @@ function collectStrategyParams() {
 }
 
 // ---------- حساب‌ها ----------
+function onExchangeChange() {
+  const warn = document.getElementById('f_exchange_warning');
+  warn.classList.toggle('hidden', document.getElementById('f_exchange').value !== 'tabdeal');
+}
+
 function openAccountModal(acc) {
   editingAccountId = acc ? acc.id : null;
   document.getElementById('accountModalTitle').textContent = acc ? ('ویرایش حساب: ' + acc.name) : 'حساب جدید';
   const g = id => document.getElementById(id);
   g('f_name').value = acc ? acc.name : '';
   g('f_exchange').value = acc ? acc.exchange : 'toobit';
+  onExchangeChange();
   g('f_api_key').value = acc ? (acc.api_key || '') : '';
   g('f_api_secret').value = acc ? (acc.api_secret || '') : '';
   g('f_trading_mode').value = acc ? acc.trading_mode : 'paper';
@@ -352,7 +368,8 @@ function openSymbolModal(accId, symName) {
   g('s_max_qty').value = (sym && sym.max_qty != null) ? sym.max_qty : '';
   openModal('symbolModalBg');
   renderSymbolOptions('', sym ? sym.symbol : null);
-  loadSymbolsList(false).then(() => renderSymbolOptions('', sym ? sym.symbol : (g('s_symbol').value || null)));
+  const exchange = acc ? (acc.exchange || 'toobit') : 'toobit';
+  loadSymbolsList(false, exchange).then(() => renderSymbolOptions('', sym ? sym.symbol : (g('s_symbol').value || null)));
 }
 
 async function saveSymbol() {

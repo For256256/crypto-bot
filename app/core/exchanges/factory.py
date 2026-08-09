@@ -4,6 +4,7 @@
 """
 from app.core.exchanges.base import ExchangeError
 from app.core.exchanges.toobit import ToobitDriver
+from app.core.exchanges.tabdeal import TabdealDriver
 from app.core.exchanges.paper import PaperDriver
 from app.config import settings
 
@@ -12,6 +13,13 @@ EXCHANGES = {
         api_key=cfg.get("api_key", ""),
         api_secret=cfg.get("api_secret", ""),
         base_url=settings.TOOBIT_BASE_URL,
+    ),
+    # ⚠️ تبدیل (Tabdeal) اندپوینت کندل تاریخی/ticker ندارد — استراتژی‌های
+    # داخلی روی این صرافی کار نمی‌کنند؛ فقط با وبهوک TradingView قابل استفاده است.
+    "tabdeal": lambda cfg: TabdealDriver(
+        api_key=cfg.get("api_key", ""),
+        api_secret=cfg.get("api_secret", ""),
+        base_url=settings.TABDEAL_BASE_URL,
     ),
 }
 
