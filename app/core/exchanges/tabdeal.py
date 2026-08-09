@@ -13,12 +13,14 @@
 
 ⚠️ محدودیت مهم و تأییدشده (از کل مستندات رسمی، هم بخش اسپات هم FAPI):
 این API هیچ اندپوینت کندل تاریخی (klines) یا قیمت لحظه‌ای (ticker) ندارد —
-تنها داده‌ی قیمتی موجود، اردربوک (bids/asks) است. در نتیجه:
-- get_candles همیشه ExchangeError می‌دهد؛ استراتژی‌های داخلی ربات (که به
-  تاریخچه‌ی کندل نیاز دارند) روی این صرافی کار نمی‌کنند — فقط از طریق
-  وبهوک TradingView (با price/SL/TP صریح) می‌توان روی حساب‌های تبدیل
-  معامله کرد.
-- get_last_price از میانگین بهترین bid/ask اردربوک محاسبه می‌شود.
+تنها داده‌ی قیمتی موجود، اردربوک (bids/asks) است.
+
+برای رفع این محدودیت، حساب‌های exchange="tabdeal" در عمل از کلاس
+TabdealViaToobitDataDriver (پایین همین فایل) استفاده می‌کنند: کندل و قیمت
+مرجع برای تصمیم‌گیری استراتژی از API عمومی توبیت (بدون نیاز به کلید) گرفته
+می‌شود، ولی حساب/پوزیشن/سفارش واقعی همیشه روی تبدیل انجام می‌شود. یعنی
+سیگنال از توبیت، اجرا روی تبدیل — استراتژی‌های داخلی هم روی حساب‌های تبدیل
+کار می‌کنند.
 """
 import asyncio
 import hashlib
@@ -350,3 +352,63 @@ class TabdealDriver(ExchangeDriver):
     @staticmethod
     def _gen_client_order_id() -> str:
         return f"cb{int(time.time() * 1000)}{uuid.uuid4().hex[:8]}"
+
+
+class TabdealViaToobitDataDriver(ExchangeDriver):
+    """درایوری که حساب‌های exchange="tabdeal" واقعاً از آن استفاده می‌کنند.
+
+    کندل و قیمت مرجع (برای تصمیم‌گیری استراتژی‌های داخلی) از API عمومیِ
+    توبیت گرفته می‌شود (چون تبدیل اندپوینت کندل/ticker ندارد)، ولی
+    حساب/پوزیشن/سفارش واقعی همیشه روی تبدیل انجام می‌شود. به این ترتیب
+    سیگنال از توبیت گرفته و پوزیشن روی تبدیل ارسال می‌شود."""
+
+    def __init__(self, tabdeal_driver: TabdealDriver, toobit_base_url: str = "https://api.toobit.com"):
+        from app.core.exchanges.toobit import ToobitDriver, normalize_symbol as _toobit_normalize_symbol
+        self._trade = tabdeal_driver
+        self._data = ToobitDriver(api_key="", api_secret="", base_url=toobit_base_url)
+        self._toobit_normalize = _toobit_normalize_symbol
+
+    def _toobit_symbol(self, symbol: str) -> str:
+        return self._toobit_normalize(symbol)
+
+    async def get_candles(self, symbol: str, timeframe: str, count: int = 500) -> pd.DataFrame:
+        return await self._data.get_candles(self._toobit_symbol(symbol), timeframe, count)
+
+    async def get_last_price(self, symbol: str) -> float:
+        try:
+            return await self._data.get_last_price(self._toobit_symbol(symbol))
+        except ExchangeError:
+            return await self._trade.get_last_price(symbol)
+
+    async def connect_public(self):
+        await self._data.connect_public()
+
+    async def connect(self):
+        await self._data.connect_public()
+        await self._trade.connect()
+
+    async def close(self):
+        await self._data.close()
+        await self._trade.close()
+
+    async def get_account_info(self) -> dict:
+        return await self._trade.get_account_info()
+
+    async def get_open_positions(self, symbol: str = None) -> list:
+        return await self._trade.get_open_positions(symbol)
+
+    async def get_symbol_info(self, symbol: str) -> dict:
+        return await self._trade.get_symbol_info(symbol)
+
+    async def set_leverage(self, symbol: str, leverage: int):
+        await self._trade.set_leverage(symbol, leverage)
+
+    async def place_order(self, side: str, symbol: str, qty: float,
+                          stop_loss: float = None, take_profit: float = None) -> dict:
+        return await self._trade.place_order(side, symbol, qty, stop_loss=stop_loss, take_profit=take_profit)
+
+    async def close_position(self, position: dict) -> dict:
+        return await self._trade.close_position(position)
+
+    async def list_symbols(self) -> list:
+        return await self._trade.list_symbols()
