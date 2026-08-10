@@ -21,6 +21,7 @@ from app.core import auth
 from app.core import tokens
 from app.core import presets
 from app.core import telegram
+from app.core import mailer
 from app.core.exchanges.toobit import normalize_symbol
 
 app = FastAPI(title="CryptoPulse — Toobit / Tabdeal Futures")
@@ -93,6 +94,7 @@ class LoginIn(BaseModel):
 class RegisterIn(BaseModel):
     username: str
     password: str
+    email: str
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -127,12 +129,41 @@ async def register_page(request: Request):
 @app.post("/register")
 async def register_submit(request: Request, payload: RegisterIn):
     try:
-        user = users.create_user(payload.username, payload.password, role="user")
+        user = users.create_user(payload.username, payload.password, email=payload.email, role="user")
     except ValueError as e:
         raise HTTPException(400, str(e))
     request.session["user_id"] = user["id"]
     asyncio.create_task(telegram.notify_admin(f"👤 کاربر جدید ثبت‌نام کرد: {user['username']}"))
     return {"ok": True}
+
+
+# ---------- پروفایل کاربری ----------
+class ChangePasswordIn(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class ProfileUpdateIn(BaseModel):
+    email: str
+
+
+@app.post("/api/profile/change-password")
+async def change_own_password(payload: ChangePasswordIn, user: dict = Depends(auth.require_user)):
+    if users.verify_login(user["username"], payload.current_password) is None:
+        raise HTTPException(400, "رمز عبور فعلی اشتباه است")
+    if not payload.new_password or len(payload.new_password) < 6:
+        raise HTTPException(400, "رمز عبور جدید باید حداقل ۶ کاراکتر باشد.")
+    users.set_password(user["id"], payload.new_password)
+    return {"ok": True}
+
+
+@app.put("/api/profile")
+async def update_own_profile(payload: ProfileUpdateIn, user: dict = Depends(auth.require_user)):
+    try:
+        updated = users.set_email(user["id"], payload.email)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return users.public_view(updated)
 
 
 # ---------- صفحات داشبورد ----------
@@ -271,6 +302,11 @@ async def my_token_status(user: dict = Depends(auth.require_user)):
         return {"is_admin": True, "active": True, "token": None}
     token = tokens.get_active_token(user["id"])
     return {"is_admin": False, "active": token is not None, "token": token}
+
+
+@app.get("/api/tokens/history")
+async def my_token_history(user: dict = Depends(auth.require_user)):
+    return tokens.list_tokens(user["id"])
 
 
 @app.get("/api/admin/tokens")
@@ -417,6 +453,36 @@ async def put_telegram_settings(payload: TelegramSettingsIn, _: dict = Depends(a
         "admin_chat_id": payload.admin_chat_id.strip(),
     }})
     return {"ok": True, "bot_username": me.get("username", "")}
+
+
+class EmailSettingsIn(BaseModel):
+    smtp_host: str
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    from_address: str = ""
+    from_name: str = "CryptoPulse"
+    use_tls: bool = True
+
+
+@app.get("/api/admin/email-settings")
+async def get_email_settings(_: dict = Depends(auth.require_admin)):
+    data = app_settings.get_settings().get("email") or {}
+    out = dict(data)
+    out["smtp_password_set"] = bool(out.pop("smtp_password", ""))
+    return out
+
+
+@app.put("/api/admin/email-settings")
+async def put_email_settings(payload: EmailSettingsIn, _: dict = Depends(auth.require_admin)):
+    cfg = payload.dict()
+    if not cfg["smtp_password"]:
+        # اگر رمز خالی فرستاده شده، رمز قبلی حفظ می‌شود (برای جلوگیری از پاک‌شدن با ذخیره‌ی مجدد)
+        cfg["smtp_password"] = (app_settings.get_settings().get("email") or {}).get("smtp_password", "")
+    if not await mailer.test_connection(cfg):
+        raise HTTPException(400, "اتصال به سرور SMTP ناموفق بود — تنظیمات را بررسی کنید.")
+    app_settings.update_settings({"email": cfg})
+    return {"ok": True}
 
 
 @app.get("/api/settings/telegram/link-code")

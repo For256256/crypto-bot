@@ -25,6 +25,15 @@ DEFAULTS = {
         "bot_username": "",
         "last_update_id": 0,
     },
+    "email": {
+        "smtp_host": "",
+        "smtp_port": 587,
+        "smtp_user": "",
+        "smtp_password": "",
+        "from_address": "",
+        "from_name": "CryptoPulse",
+        "use_tls": True,
+    },
 }
 
 

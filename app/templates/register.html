@@ -52,6 +52,11 @@ tailwind.config = { theme: { extend: { colors: {
           <input id="username" class="field" autocomplete="username" minlength="3" required>
         </div>
         <div>
+          <label class="block text-xs text-on-surface-variant mb-1.5">ایمیل</label>
+          <input id="email" type="email" class="field" dir="ltr" autocomplete="email" required>
+          <p class="text-[10px] text-on-surface-variant mt-1">سوابق خرید و پیام‌های مهم حساب به این ایمیل ارسال می‌شود.</p>
+        </div>
+        <div>
           <label class="block text-xs text-on-surface-variant mb-1.5">رمز عبور (حداقل ۶ کاراکتر)</label>
           <input id="password" type="password" class="field" autocomplete="new-password" minlength="6" required>
         </div>
@@ -83,7 +88,11 @@ document.getElementById('regForm').addEventListener('submit', async (e) => {
   try {
     const r = await fetch('/register', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: document.getElementById('username').value.trim(), password }),
+      body: JSON.stringify({
+        username: document.getElementById('username').value.trim(),
+        email: document.getElementById('email').value.trim(),
+        password,
+      }),
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.detail || 'ثبت‌نام ناموفق بود');
