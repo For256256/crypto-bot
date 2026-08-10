@@ -8,14 +8,17 @@
 <!-- تب‌های حساب‌ها -->
 <div id="accountTabs" class="flex flex-wrap gap-2 mb-6"></div>
 
+<!-- پوزیشن‌های باز -->
+<div id="positionsBox" class="mb-2"></div>
+
 <!-- نوار ابزار نمادها -->
 <div id="symbolsToolbar" class="flex justify-between items-center mb-4"></div>
 
 <!-- شبکه کارت‌های نماد -->
 <div id="symbolsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
 
-<!-- پوزیشن‌های باز -->
-<div id="positionsBox" class="mt-8"></div>
+<!-- آخرین رویدادها -->
+<div id="logsBox" class="mt-8"></div>
 
 <!-- مودال حساب -->
 <div class="modal-bg" id="accountModalBg">
@@ -37,8 +40,25 @@
       <div><label class="lbl">حالت معامله</label><select id="f_trading_mode" class="field"><option value="paper">کاغذی (paper)</option><option value="live">واقعی (LIVE)</option></select></div>
       <div><label class="lbl">موجودی اولیه paper (USDT)</label><input id="f_paper_balance" class="field mono-num" dir="ltr" type="number" value="10000"></div>
       <div><label class="lbl">ریسک هر معامله (٪)</label><input id="f_risk_percent" class="field mono-num" dir="ltr" type="number" step="0.1" value="1"></div>
-      <div><label class="lbl">اهرم پیش‌فرض</label><input id="f_default_leverage" class="field mono-num" dir="ltr" type="number" value="5"></div>
-      <div><label class="lbl">ضریب ATR برای SL/TP (فاصله‌ی یکسان)</label><input id="f_sl_tp_atr_mult" class="field mono-num" dir="ltr" type="number" step="0.1" value="3"></div>
+      <div>
+        <label class="lbl">اهرم پیش‌فرض</label>
+        <input id="f_default_leverage" class="field mono-num" dir="ltr" type="number" value="5">
+        <p class="text-[10px] text-on-surface-variant mt-1 leading-5">اهرمی که با آن حجم پوزیشن نسبت به مارجین بزرگ‌تر می‌شود؛ اهرم بالاتر یعنی با مارجین کمتری می‌توان حجم بیشتری باز کرد، ولی هم سود و هم ضرر به همان نسبت بزرگ‌تر می‌شود و ریسک لیکویید شدن هم بالا می‌رود.</p>
+      </div>
+      <div>
+        <label class="lbl">ضریب ATR برای SL/TP (فاصله‌ی یکسان)</label>
+        <input id="f_sl_tp_atr_mult" class="field mono-num" dir="ltr" type="number" step="0.1" value="3">
+      </div>
+      <div class="sm:col-span-2">
+        <label class="lbl flex justify-between items-center">
+          <span>حداکثر مارجین هر معامله از کل حساب</span>
+          <span id="f_margin_cap_val" class="mono-num text-primary font-bold">25٪</span>
+        </label>
+        <input id="f_max_margin_per_trade_pct" type="range" min="1" max="100" step="1" value="25" dir="rtl"
+          class="w-full accent-gold" style="accent-color:#f0b90b"
+          oninput="document.getElementById('f_margin_cap_val').textContent = this.value + '٪'">
+        <p class="text-[10px] text-on-surface-variant mt-1 leading-5">حداکثر سهمی از کل اکوییتی حساب که فقط یک پوزیشن اجازه دارد به‌عنوان مارجین قفل کند — مستقل از فاصله‌ی حد ضرر. عدد کوچک‌تر یعنی حجم هر معامله محدودتر و ریسک تمرکز کمتر روی یک پوزیشن؛ عدد بزرگ‌تر یعنی امکان حجم بزرگ‌تر ولی خطر قفل‌شدن بیشتر مارجین حساب روی یک معامله.</p>
+      </div>
       <div><label class="lbl">حداکثر پوزیشن باز هم‌زمان</label><input id="f_max_open_positions" class="field mono-num" dir="ltr" type="number" value="2"></div>
       <div><label class="lbl">سقف ضرر روزانه (٪)</label><input id="f_max_daily_loss_percent" class="field mono-num" dir="ltr" type="number" step="0.5" value="5"></div>
       <div><label class="lbl">بازه بررسی سیگنال (ثانیه)</label><input id="f_poll_interval_seconds" class="field mono-num" dir="ltr" type="number" value="60"></div>
@@ -253,6 +273,8 @@ function openAccountModal(acc) {
   g('f_risk_percent').value = acc ? acc.risk_percent : 1;
   g('f_default_leverage').value = acc ? acc.default_leverage : 5;
   g('f_sl_tp_atr_mult').value = acc ? (acc.sl_tp_atr_mult ?? 3) : 3;
+  g('f_max_margin_per_trade_pct').value = acc ? (acc.max_margin_per_trade_pct ?? 25) : 25;
+  g('f_margin_cap_val').textContent = g('f_max_margin_per_trade_pct').value + '٪';
   g('f_max_open_positions').value = acc ? acc.max_open_positions : 2;
   g('f_max_daily_loss_percent').value = acc ? acc.max_daily_loss_percent : 5;
   g('f_poll_interval_seconds').value = acc ? acc.poll_interval_seconds : 60;
@@ -273,6 +295,7 @@ async function saveAccount() {
     risk_percent: parseFloat(g('f_risk_percent').value) || 1,
     default_leverage: parseInt(g('f_default_leverage').value) || 5,
     sl_tp_atr_mult: parseFloat(g('f_sl_tp_atr_mult').value) || 3,
+    max_margin_per_trade_pct: parseFloat(g('f_max_margin_per_trade_pct').value) || 25,
     max_open_positions: parseInt(g('f_max_open_positions').value) || 2,
     max_daily_loss_percent: parseFloat(g('f_max_daily_loss_percent').value) || 5,
     poll_interval_seconds: parseInt(g('f_poll_interval_seconds').value) || 60,
@@ -619,44 +642,49 @@ function renderPositions() {
   if (!acc) { box.innerHTML = ''; return; }
   const st = statusCache[acc.id] || {};
   const positions = st.positions || [];
+  if (!positions.length) { box.innerHTML = ''; return; }
+  const rows = positions.map(p => {
+    const cls = (p.profit || 0) >= 0 ? 'text-buy' : 'text-sell';
+    const side = p.side === 'long'
+      ? '<span class="bg-buy/10 text-buy px-2 py-0.5 rounded text-[11px] font-bold border border-buy/20">LONG</span>'
+      : '<span class="bg-sell/10 text-sell px-2 py-0.5 rounded text-[11px] font-bold border border-sell/20">SHORT</span>';
+    return `<tr class="hover:bg-surface-variant/20 transition-colors">
+      <td>${p.symbol}</td><td>${side}</td>
+      <td class="num">${fmtNum(p.qty)}</td><td class="num">${fmtNum(p.entry_price)}</td>
+      <td class="num">${fmtNum(p.mark_price)}</td>
+      <td class="num text-sell">${p.stop_loss != null ? fmtNum(p.stop_loss) : '—'}</td>
+      <td class="num text-buy">${p.take_profit != null ? fmtNum(p.take_profit) : '—'}</td>
+      <td class="num ${cls} font-bold">${fmt(p.profit)}</td>
+      <td><button class="btn-ghost !py-1 !px-3 text-[11px] !border-sell/40 !text-sell" onclick="closePosition('${acc.id}','${p.id}','${p.symbol}')">بستن</button></td>
+    </tr>`;
+  }).join('');
+  box.innerHTML = `<div class="glass-card rounded-2xl overflow-hidden mb-6">
+    <div class="px-5 py-4 border-b border-outline-variant/20 bg-surface-container-low">
+      <h3 class="font-headline font-bold flex items-center gap-2"><span class="material-symbols-outlined text-primary">candlestick_chart</span> پوزیشن‌های باز</h3>
+    </div>
+    <div class="overflow-x-auto"><table class="of-table">
+      <thead><tr><th>نماد</th><th>جهت</th><th>حجم</th><th>ورود</th><th>قیمت فعلی</th><th>حد ضرر</th><th>حد سود</th><th>سود/زیان</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function renderLogs() {
+  const box = document.getElementById('logsBox');
+  const acc = accountsCache.find(a => a.id === selectedAccountId);
+  if (!acc) { box.innerHTML = ''; return; }
+  const st = statusCache[acc.id] || {};
   const logs = st.logs || [];
-  let html = '';
-  if (positions.length) {
-    const rows = positions.map(p => {
-      const cls = (p.profit || 0) >= 0 ? 'text-buy' : 'text-sell';
-      const side = p.side === 'long'
-        ? '<span class="bg-buy/10 text-buy px-2 py-0.5 rounded text-[11px] font-bold border border-buy/20">LONG</span>'
-        : '<span class="bg-sell/10 text-sell px-2 py-0.5 rounded text-[11px] font-bold border border-sell/20">SHORT</span>';
-      return `<tr class="hover:bg-surface-variant/20 transition-colors">
-        <td>${p.symbol}</td><td>${side}</td>
-        <td class="num">${fmtNum(p.qty)}</td><td class="num">${fmtNum(p.entry_price)}</td>
-        <td class="num">${fmtNum(p.mark_price)}</td>
-        <td class="num ${cls} font-bold">${fmt(p.profit)}</td>
-        <td><button class="btn-ghost !py-1 !px-3 text-[11px] !border-sell/40 !text-sell" onclick="closePosition('${acc.id}','${p.id}','${p.symbol}')">بستن</button></td>
-      </tr>`;
-    }).join('');
-    html += `<div class="glass-card rounded-2xl overflow-hidden mb-6">
-      <div class="px-5 py-4 border-b border-outline-variant/20 bg-surface-container-low">
-        <h3 class="font-headline font-bold flex items-center gap-2"><span class="material-symbols-outlined text-primary">candlestick_chart</span> پوزیشن‌های باز</h3>
-      </div>
-      <div class="overflow-x-auto"><table class="of-table">
-        <thead><tr><th>نماد</th><th>جهت</th><th>حجم</th><th>ورود</th><th>قیمت فعلی</th><th>سود/زیان</th><th></th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table></div>
-    </div>`;
-  }
-  if (logs.length) {
-    const logRows = logs.slice().reverse().slice(0, 8).map(l => {
-      const c = l.level === 'error' ? 'text-sell' : (l.level === 'warn' ? 'text-gold' : 'text-on-surface-variant');
-      return `<div class="${c} text-[11px] mono-num py-0.5">[${(l.time || '').slice(11, 19)}] ${l.message}</div>`;
-    }).join('');
-    html += `<div class="glass-card rounded-2xl p-5">
-      <h3 class="font-headline font-bold mb-3 flex items-center gap-2"><span class="material-symbols-outlined text-primary">receipt_long</span> آخرین رویدادها
-        <a href="/logs" class="text-[11px] text-primary/70 font-normal mr-auto">مشاهده همه</a></h3>
-      <div class="bg-primary-container rounded-lg p-3 max-h-44 overflow-y-auto">${logRows}</div>
-    </div>`;
-  }
-  box.innerHTML = html;
+  if (!logs.length) { box.innerHTML = ''; return; }
+  const logRows = logs.slice().reverse().slice(0, 8).map(l => {
+    const c = l.level === 'error' ? 'text-sell' : (l.level === 'warn' ? 'text-gold' : 'text-on-surface-variant');
+    return `<div class="${c} text-[11px] mono-num py-0.5">[${(l.time || '').slice(11, 19)}] ${l.message}</div>`;
+  }).join('');
+  box.innerHTML = `<div class="glass-card rounded-2xl p-5">
+    <h3 class="font-headline font-bold mb-3 flex items-center gap-2"><span class="material-symbols-outlined text-primary">receipt_long</span> آخرین رویدادها
+      <a href="/logs" class="text-[11px] text-primary/70 font-normal mr-auto">مشاهده همه</a></h3>
+    <div class="bg-primary-container rounded-lg p-3 max-h-44 overflow-y-auto">${logRows}</div>
+  </div>`;
 }
 
 function renderToolbar() {
@@ -675,9 +703,10 @@ function renderToolbar() {
 function renderAll() {
   renderTabs();
   renderAccountBar();
+  renderPositions();
   renderToolbar();
   renderSymbols();
-  renderPositions();
+  renderLogs();
 }
 
 // ---------- اعمال دسته‌جمعی ----------

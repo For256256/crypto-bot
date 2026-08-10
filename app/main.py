@@ -52,6 +52,7 @@ class AccountIn(BaseModel):
     risk_percent: float = 1.0
     default_leverage: int = 5
     sl_tp_atr_mult: float = 3.0
+    max_margin_per_trade_pct: float = 25.0
     max_open_positions: int = 2
     max_daily_loss_percent: float = 5.0
     poll_interval_seconds: int = 60

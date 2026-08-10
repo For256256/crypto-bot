@@ -45,7 +45,8 @@ DEFAULT_SL_TP_ATR_MULT = 3.0
 # سقف مارجین هر معامله از کل اکوییتی حساب — مستقل از فاصله‌ی SL. بدون این سقف،
 # وقتی حد ضرر (خودکار از ATR) خیلی به قیمت نزدیک باشد، فرمول ریسک‌محور می‌تواند
 # حجمی بسازد که تقریباً کل حساب را فقط برای یک پوزیشن به مارجین قفل کند.
-MAX_MARGIN_PER_TRADE_PCT = 25.0
+# قابل تنظیم در هر حساب (max_margin_per_trade_pct)؛ این فقط مقدار پیش‌فرض است.
+DEFAULT_MAX_MARGIN_PER_TRADE_PCT = 25.0
 
 
 def _utc_now() -> datetime:
@@ -323,24 +324,22 @@ class AccountRunner:
         for p in same_symbol:
             if p["side"] == wanted:
                 return  # هم‌جهت باز است؛ کاری نکن
-            # سیگنال معکوس: چون TP همیشه دورتر از SL است (فرصت بیشتری برای
-            # رسیدن لازم دارد)، بستن بی‌قیدوشرط پوزیشن مخالف با هر سیگنال
-            # معکوس باعث می‌شد بردها همیشه زودتر (با سود کوچک) قطع شوند ولی
-            # باخت‌ها معمولاً کامل به SL نزدیک‌تر می‌خوردند — یعنی بردها
-            # سیستماتیک کوچک‌تر از باخت‌ها ثبت می‌شدند. حالا فقط پوزیشنی که
-            # در ضرر (یا سربه‌سر) است با سیگنال معکوس بسته می‌شود؛ پوزیشن
-            # سودده نادیده گرفته می‌شود و به TP/SL خودش سپرده می‌شود.
-            if p.get("profit", 0) > 0:
+            # سیگنال معکوس: فقط پوزیشنی که در سود (یا سربه‌سر) است با سیگنال
+            # معکوس بسته می‌شود — یعنی سود را قفل می‌کنیم و پوزیشن معکوس (در
+            # جهت سیگنال جدید) باز می‌شود. پوزیشنی که در ضرر است نادیده گرفته
+            # می‌شود و به SL خودش سپرده می‌شود، تا با یک سیگنال معکوسِ زودهنگام
+            # (نویز) با ضرر بسته نشود و دوباره در جهت اشتباه باز نشود.
+            if p.get("profit", 0) <= 0:
                 self.log(
-                    f"{symbol}: سیگنال معکوس نادیده گرفته شد — پوزیشن {p['side']} در سود است "
-                    "و به TP/SL خودش سپرده می‌شود.",
+                    f"{symbol}: سیگنال معکوس نادیده گرفته شد — پوزیشن {p['side']} در ضرر است "
+                    "و به حد ضرر خودش سپرده می‌شود.",
                 )
                 return
             try:
                 await self.driver.close_position(p)
                 if not isinstance(self.driver, PaperDriver):
                     await self.record_live_close(p, "reversal")
-                self.log(f"{symbol}: پوزیشن {p['side']} (در ضرر) به‌خاطر سیگنال معکوس بسته شد.")
+                self.log(f"{symbol}: پوزیشن {p['side']} (سودده) به‌خاطر سیگنال معکوس بسته شد؛ پوزیشن معکوس باز می‌شود.")
             except ExchangeError as e:
                 self.log(f"{symbol}: بستن پوزیشن معکوس ناموفق: {e}", "error")
                 return
@@ -488,14 +487,17 @@ class AccountRunner:
                     "warn",
                 )
 
-            # سقف مستقل از فاصله‌ی SL: هیچ معامله‌ای بیش از MAX_MARGIN_PER_TRADE_PCT
-            # از کل اکوییتی را به مارجین قفل نکند — حتی اگر حد ضرر (ATR-based) خیلی
-            # نزدیک به قیمت باشد و فرمول ریسک‌محور بخواهد حجم بسیار بزرگی بسازد.
-            max_qty_by_cap = (equity * MAX_MARGIN_PER_TRADE_PCT / 100 * leverage) / unit_value
+            # سقف مستقل از فاصله‌ی SL: هیچ معامله‌ای بیش از max_margin_per_trade_pct
+            # (قابل‌تنظیم در هر حساب) از کل اکوییتی را به مارجین قفل نکند — حتی اگر
+            # حد ضرر (ATR-based) خیلی نزدیک به قیمت باشد و فرمول ریسک‌محور بخواهد
+            # حجم بسیار بزرگی بسازد.
+            margin_cap_pct = float(self.cfg.get("max_margin_per_trade_pct", DEFAULT_MAX_MARGIN_PER_TRADE_PCT)
+                                   or DEFAULT_MAX_MARGIN_PER_TRADE_PCT)
+            max_qty_by_cap = (equity * margin_cap_pct / 100 * leverage) / unit_value
             if max_qty_by_cap < qty:
                 qty = max_qty_by_cap
                 self.log(
-                    f"{symbol}: حجم به‌خاطر سقف {MAX_MARGIN_PER_TRADE_PCT:g}٪ مارجین هر معامله کاهش یافت.",
+                    f"{symbol}: حجم به‌خاطر سقف {margin_cap_pct:g}٪ مارجین هر معامله کاهش یافت.",
                     "warn",
                 )
 
@@ -585,12 +587,22 @@ class AccountRunner:
         account_stats = history.get_account_stats(
             self.account_id, self.cfg.get("trading_mode", "paper"), equity, balance,
         )
+        # پوزیشن‌های paper از قبل stop_loss/take_profit دارند؛ درایورهای live
+        # (توبیت/تبدیل) این مقادیر را در اندپوینت پوزیشن‌ها برنمی‌گردانند، پس
+        # از همان _live_position_targets که برای تشخیص «SL خورد یا TP» نگه
+        # می‌داریم، برای نمایش در داشبورد هم استفاده می‌شود.
+        positions = []
+        for p in self.positions:
+            targets = self._live_position_targets.get(p.get("id"))
+            if targets and not p.get("stop_loss") and not p.get("take_profit"):
+                p = {**p, "stop_loss": targets.get("stop_loss"), "take_profit": targets.get("take_profit")}
+            positions.append(p)
         return {
             "running": self.running,
             "status": self.status,
             "account_info": self.account_info,
             "account_stats": account_stats,
-            "positions": self.positions,
+            "positions": positions,
             "logs": list(self.logs),
             "last_signals": self.last_signals,
         }
