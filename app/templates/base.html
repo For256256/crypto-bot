@@ -133,6 +133,9 @@ tailwind.config = {
       ('settings', '/settings', 'tune', 'تنظیمات'),
       ('support', '/support', 'support_agent', 'پشتیبانی'),
     ] %}
+    {% if user and user.role == 'admin' %}
+      {% set nav = nav + [('admin', '/admin', 'admin_panel_settings', 'مدیریت')] %}
+    {% endif %}
     {% for key, href, icon, label in nav %}
     <a href="{{ href }}" class="flex items-center gap-3 rounded-lg p-3 mx-3 transition-all duration-200 text-sm
       {{ 'bg-secondary-container text-on-secondary-container' if active == key else 'text-on-surface-variant hover:bg-surface-container-high' }}">
@@ -165,6 +168,12 @@ tailwind.config = {
       <a href="/settings" class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center hover:bg-surface-bright transition-colors">
         <span class="material-symbols-outlined text-on-surface-variant text-xl">settings</span>
       </a>
+      {% if user %}
+      <span class="hidden sm:inline text-xs text-on-surface-variant mono-num">{{ user.username }}</span>
+      <button onclick="logoutUser()" title="خروج" class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center hover:bg-sell/20 transition-colors">
+        <span class="material-symbols-outlined text-on-surface-variant text-xl">logout</span>
+      </button>
+      {% endif %}
     </div>
   </div>
 </header>
@@ -200,10 +209,16 @@ async function callApi(url, method = 'GET', body = null) {
   const opt = { method, headers: {} };
   if (body) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
   const r = await fetch(url, opt);
+  if (r.status === 401) { location.href = '/login'; throw new Error('نیاز به ورود مجدد'); }
   let data = null;
   try { data = await r.json(); } catch (e) {}
   if (!r.ok) throw new Error((data && (data.detail || data.message)) || ('HTTP ' + r.status));
   return data;
+}
+
+async function logoutUser() {
+  try { await fetch('/logout', { method: 'POST' }); } catch (e) {}
+  location.href = '/login';
 }
 
 function fmt(v, d = 2) { if (v === null || v === undefined || isNaN(v)) return '—'; return Number(v).toFixed(d); }

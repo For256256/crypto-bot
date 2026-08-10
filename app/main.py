@@ -1,10 +1,10 @@
 import json
 import secrets
 from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
 from pydantic import BaseModel
 from typing import Optional
@@ -15,31 +15,32 @@ from app.core import config_store
 from app.core import history
 from app.core import tickets
 from app.core import app_settings
+from app.core import users
+from app.core import auth
 from app.core.exchanges.toobit import normalize_symbol
 
 app = FastAPI(title="کریپتو بات — Toobit Futures")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
-security = HTTPBasic()
+
+_session_secret = settings.SESSION_SECRET_KEY or secrets.token_urlsafe(32)
+if not settings.SESSION_SECRET_KEY:
+    print("[crypto-bot] هشدار: SESSION_SECRET_KEY تنظیم نشده — یک کلید موقت تصادفی ساخته شد "
+          "(با هر ری‌استارت سرویس، همه‌ی کاربران باید دوباره لاگین کنند). "
+          "SESSION_SECRET_KEY را در .env تنظیم کنید.")
+app.add_middleware(SessionMiddleware, secret_key=_session_secret, session_cookie="cbot_session",
+                   same_site="lax", max_age=2592000)
+
+
+@app.exception_handler(auth.NotAuthenticated)
+async def _not_authenticated_handler(request: Request, exc: auth.NotAuthenticated):
+    return RedirectResponse(f"/login?next={request.url.path}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.on_event("startup")
 async def on_startup():
+    users.ensure_admin_seed(settings.DASHBOARD_USER, settings.DASHBOARD_PASSWORD)
     bot_manager.sync_from_config()
-
-
-def require_auth(credentials: HTTPBasicCredentials = Depends(security)):
-    if not settings.DASHBOARD_PASSWORD:
-        return True
-    ok_user = secrets.compare_digest(credentials.username, settings.DASHBOARD_USER)
-    ok_pass = secrets.compare_digest(credentials.password, settings.DASHBOARD_PASSWORD)
-    if not (ok_user and ok_pass):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="نام کاربری یا رمز عبور اشتباه است",
-            headers={"WWW-Authenticate": "Basic"},
-        )
-    return True
 
 
 class AccountIn(BaseModel):
@@ -73,35 +74,88 @@ class SymbolIn(BaseModel):
     max_qty: Optional[float] = None
 
 
+# ---------- ورود/ثبت‌نام/خروج ----------
+class LoginIn(BaseModel):
+    username: str
+    password: str
+
+
+class RegisterIn(BaseModel):
+    username: str
+    password: str
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    if auth.get_current_user(request) is not None:
+        return RedirectResponse("/")
+    return templates.TemplateResponse("login.html", {"request": request})
+
+
+@app.post("/login")
+async def login_submit(request: Request, payload: LoginIn):
+    user = users.verify_login(payload.username, payload.password)
+    if user is None:
+        raise HTTPException(401, "نام کاربری یا رمز عبور اشتباه است")
+    request.session["user_id"] = user["id"]
+    return {"ok": True}
+
+
+@app.post("/logout")
+async def logout_submit(request: Request):
+    request.session.clear()
+    return {"ok": True}
+
+
+@app.get("/register", response_class=HTMLResponse)
+async def register_page(request: Request):
+    if auth.get_current_user(request) is not None:
+        return RedirectResponse("/")
+    return templates.TemplateResponse("register.html", {"request": request})
+
+
+@app.post("/register")
+async def register_submit(request: Request, payload: RegisterIn):
+    try:
+        user = users.create_user(payload.username, payload.password, role="user")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    request.session["user_id"] = user["id"]
+    return {"ok": True}
+
+
 # ---------- صفحات داشبورد ----------
 @app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request, _: bool = Depends(require_auth)):
-    return templates.TemplateResponse("dashboard.html", {"request": request, "active": "dashboard"})
+async def dashboard(request: Request):
+    user = auth.get_current_user(request)
+    if user is None:
+        return templates.TemplateResponse("landing.html", {"request": request})
+    return templates.TemplateResponse("dashboard.html", {"request": request, "active": "dashboard", "user": user})
 
 
 @app.get("/strategies", response_class=HTMLResponse)
-async def strategies_page(request: Request, _: bool = Depends(require_auth)):
-    return templates.TemplateResponse("strategies.html", {"request": request, "active": "strategies"})
+async def strategies_page(request: Request, user: dict = Depends(auth.require_user_page)):
+    return templates.TemplateResponse("strategies.html", {"request": request, "active": "strategies", "user": user})
 
 
 @app.get("/reports", response_class=HTMLResponse)
-async def reports_page(request: Request, _: bool = Depends(require_auth)):
-    return templates.TemplateResponse("reports.html", {"request": request, "active": "reports"})
+async def reports_page(request: Request, user: dict = Depends(auth.require_user_page)):
+    return templates.TemplateResponse("reports.html", {"request": request, "active": "reports", "user": user})
 
 
 @app.get("/logs", response_class=HTMLResponse)
-async def logs_page(request: Request, _: bool = Depends(require_auth)):
-    return templates.TemplateResponse("logs.html", {"request": request, "active": "logs"})
+async def logs_page(request: Request, user: dict = Depends(auth.require_user_page)):
+    return templates.TemplateResponse("logs.html", {"request": request, "active": "logs", "user": user})
 
 
 @app.get("/settings", response_class=HTMLResponse)
-async def settings_page(request: Request, _: bool = Depends(require_auth)):
-    return templates.TemplateResponse("settings.html", {"request": request, "active": "settings"})
+async def settings_page(request: Request, user: dict = Depends(auth.require_user_page)):
+    return templates.TemplateResponse("settings.html", {"request": request, "active": "settings", "user": user})
 
 
 @app.get("/support", response_class=HTMLResponse)
-async def support_page(request: Request, _: bool = Depends(require_auth)):
-    return templates.TemplateResponse("support.html", {"request": request, "active": "support"})
+async def support_page(request: Request, user: dict = Depends(auth.require_user_page)):
+    return templates.TemplateResponse("support.html", {"request": request, "active": "support", "user": user})
 
 
 # ---------- بک‌تست استراتژی ----------
@@ -114,7 +168,7 @@ class BacktestIn(BaseModel):
 
 
 @app.post("/api/backtest")
-async def run_backtest_api(payload: BacktestIn, _: bool = Depends(require_auth)):
+async def run_backtest_api(payload: BacktestIn, _: dict = Depends(auth.require_user)):
     from app.core.backtest import run_backtest
     from app.core.exchanges.toobit import ToobitDriver
     from app.core.exchanges.base import ExchangeError
@@ -144,12 +198,12 @@ class TicketIn(BaseModel):
 
 
 @app.get("/api/tickets")
-async def get_tickets(_: bool = Depends(require_auth)):
+async def get_tickets(_: dict = Depends(auth.require_user)):
     return tickets.list_tickets()
 
 
 @app.post("/api/tickets")
-async def create_ticket(payload: TicketIn, _: bool = Depends(require_auth)):
+async def create_ticket(payload: TicketIn, _: dict = Depends(auth.require_user)):
     try:
         return tickets.create_ticket(payload.subject, payload.body, payload.unit)
     except ValueError as e:
@@ -158,18 +212,18 @@ async def create_ticket(payload: TicketIn, _: bool = Depends(require_auth)):
 
 # ---------- تنظیمات کلی برنامه (اعلان‌ها) ----------
 @app.get("/api/app-settings")
-async def get_app_settings(_: bool = Depends(require_auth)):
+async def get_app_settings(_: dict = Depends(auth.require_user)):
     return app_settings.get_settings()
 
 
 @app.put("/api/app-settings")
-async def put_app_settings(payload: dict, _: bool = Depends(require_auth)):
+async def put_app_settings(payload: dict, _: dict = Depends(auth.require_user)):
     return app_settings.update_settings(payload)
 
 
 # ---------- وضعیت کلی ----------
 @app.get("/api/status")
-async def api_status(_: bool = Depends(require_auth)):
+async def api_status(_: dict = Depends(auth.require_user)):
     return await bot_manager.get_status()
 
 
@@ -179,7 +233,7 @@ async def health():
 
 
 @app.get("/api/strategies")
-async def get_strategies(_: bool = Depends(require_auth)):
+async def get_strategies(_: dict = Depends(auth.require_user)):
     from app.core.strategies.registry import list_strategies
     return list_strategies()
 
@@ -189,7 +243,7 @@ _symbols_cache: dict = {}
 
 
 @app.get("/api/futures-symbols")
-async def futures_symbols(exchange: str = "toobit", force: bool = False, _: bool = Depends(require_auth)):
+async def futures_symbols(exchange: str = "toobit", force: bool = False, _: dict = Depends(auth.require_user)):
     """لیست همه‌ی نمادهای قابل معامله در فیوچرز صرافی انتخاب‌شده — برای لیست کشویی داشبورد.
     endpoint عمومی صرافی است و نیازی به کلید API ندارد."""
     import time as _time
@@ -232,7 +286,7 @@ async def futures_symbols(exchange: str = "toobit", force: bool = False, _: bool
 
 
 @app.get("/api/webhook-info")
-async def webhook_info(request: Request, _: bool = Depends(require_auth)):
+async def webhook_info(request: Request, _: dict = Depends(auth.require_user)):
     """آدرس Webhook و نمونه‌ی پیام Alert در TradingView را برمی‌گرداند."""
     host = request.headers.get("host", f"YOUR-SERVER-IP:{settings.DASHBOARD_PORT}")
     url = f"http://{host}/webhook/tradingview"
@@ -250,7 +304,7 @@ async def webhook_info(request: Request, _: bool = Depends(require_auth)):
 
 
 @app.post("/api/webhook-token/rotate")
-async def rotate_webhook_token(request: Request, _: bool = Depends(require_auth)):
+async def rotate_webhook_token(request: Request, _: dict = Depends(auth.require_user)):
     """تولید توکن جدید وبهوک و ذخیره در .env (توکن قبلی بلافاصله باطل می‌شود)."""
     import os
     new_token = secrets.token_hex(24)
@@ -324,19 +378,19 @@ async def tradingview_webhook(request: Request):
 
 # ---------- مدیریت حساب‌ها ----------
 @app.get("/api/accounts")
-async def get_accounts(_: bool = Depends(require_auth)):
+async def get_accounts(_: dict = Depends(auth.require_user)):
     return config_store.list_accounts()
 
 
 @app.post("/api/accounts")
-async def create_account(payload: AccountIn, _: bool = Depends(require_auth)):
+async def create_account(payload: AccountIn, _: dict = Depends(auth.require_user)):
     account = config_store.add_account(payload.dict())
     bot_manager.sync_from_config()
     return account
 
 
 @app.post("/api/accounts/{account_id}/duplicate")
-async def duplicate_account(account_id: str, _: bool = Depends(require_auth)):
+async def duplicate_account(account_id: str, _: dict = Depends(auth.require_user)):
     """ساخت بات جدید با کپی کامل تنظیمات و نمادهای یک حساب."""
     try:
         account = config_store.duplicate_account(account_id)
@@ -347,7 +401,7 @@ async def duplicate_account(account_id: str, _: bool = Depends(require_auth)):
 
 
 @app.put("/api/accounts/{account_id}")
-async def edit_account(account_id: str, payload: AccountIn, _: bool = Depends(require_auth)):
+async def edit_account(account_id: str, payload: AccountIn, _: dict = Depends(auth.require_user)):
     try:
         account = config_store.update_account(account_id, payload.dict())
     except KeyError as e:
@@ -357,7 +411,7 @@ async def edit_account(account_id: str, payload: AccountIn, _: bool = Depends(re
 
 
 @app.post("/api/accounts/{account_id}/trading-mode")
-async def set_trading_mode(account_id: str, mode: str, _: bool = Depends(require_auth)):
+async def set_trading_mode(account_id: str, mode: str, _: dict = Depends(auth.require_user)):
     """سوییچ paper/live از داشبورد. برای اعمال، حساب باید متوقف و دوباره شروع شود."""
     if mode not in ("paper", "live"):
         raise HTTPException(400, "حالت باید paper یا live باشد")
@@ -371,7 +425,7 @@ async def set_trading_mode(account_id: str, mode: str, _: bool = Depends(require
 
 
 @app.delete("/api/accounts/{account_id}")
-async def remove_account(account_id: str, _: bool = Depends(require_auth)):
+async def remove_account(account_id: str, _: dict = Depends(auth.require_user)):
     await bot_manager.stop_account(account_id)
     config_store.delete_account(account_id)
     bot_manager.sync_from_config()
@@ -379,7 +433,7 @@ async def remove_account(account_id: str, _: bool = Depends(require_auth)):
 
 
 @app.post("/api/accounts/{account_id}/test-connection")
-async def test_connection(account_id: str, _: bool = Depends(require_auth)):
+async def test_connection(account_id: str, _: dict = Depends(auth.require_user)):
     accounts = {a["id"]: a for a in config_store.list_accounts()}
     cfg = accounts.get(account_id)
     if not cfg:
@@ -403,7 +457,7 @@ async def test_connection(account_id: str, _: bool = Depends(require_auth)):
 
 
 @app.post("/api/accounts/{account_id}/start")
-async def start_account(account_id: str, _: bool = Depends(require_auth)):
+async def start_account(account_id: str, _: dict = Depends(auth.require_user)):
     try:
         await bot_manager.start_account(account_id)
     except ValueError as e:
@@ -414,26 +468,26 @@ async def start_account(account_id: str, _: bool = Depends(require_auth)):
 
 
 @app.post("/api/accounts/{account_id}/stop")
-async def stop_account(account_id: str, _: bool = Depends(require_auth)):
+async def stop_account(account_id: str, _: dict = Depends(auth.require_user)):
     await bot_manager.stop_account(account_id)
     return (await bot_manager.get_status())["accounts"].get(account_id)
 
 
 @app.post("/api/start-all")
-async def start_all(_: bool = Depends(require_auth)):
+async def start_all(_: dict = Depends(auth.require_user)):
     await bot_manager.start_all()
     return await bot_manager.get_status()
 
 
 @app.post("/api/stop-all")
-async def stop_all(_: bool = Depends(require_auth)):
+async def stop_all(_: dict = Depends(auth.require_user)):
     await bot_manager.stop_all()
     return await bot_manager.get_status()
 
 
 # ---------- بستن دستی پوزیشن ----------
 @app.post("/api/accounts/{account_id}/close-position")
-async def close_position(account_id: str, payload: dict, _: bool = Depends(require_auth)):
+async def close_position(account_id: str, payload: dict, _: dict = Depends(auth.require_user)):
     result = await bot_manager.close_position_manual(account_id, payload)
     if not result.get("ok"):
         raise HTTPException(400, result.get("detail", "بستن پوزیشن ناموفق بود"))
@@ -443,7 +497,7 @@ async def close_position(account_id: str, payload: dict, _: bool = Depends(requi
 # ---------- گزارش‌گیری و سود/زیان ----------
 @app.get("/api/accounts/{account_id}/report")
 async def account_report(account_id: str, days: int = 30, mode: str | None = None,
-                         _: bool = Depends(require_auth)):
+                         _: dict = Depends(auth.require_user)):
     account = config_store.get_account(account_id)
     if account is None:
         raise HTTPException(404, "حساب پیدا نشد")
@@ -477,7 +531,7 @@ async def account_report(account_id: str, days: int = 30, mode: str | None = Non
 
 
 @app.post("/api/accounts/{account_id}/report/reset")
-async def reset_account_report(account_id: str, _: bool = Depends(require_auth)):
+async def reset_account_report(account_id: str, _: dict = Depends(auth.require_user)):
     """پاکسازی و ریست کامل گزارش‌های یک حساب — از این لحظه مثل حساب خام ثبت می‌شود."""
     if config_store.get_account(account_id) is None:
         raise HTTPException(404, "حساب پیدا نشد")
@@ -486,7 +540,7 @@ async def reset_account_report(account_id: str, _: bool = Depends(require_auth))
 
 # ---------- مدیریت نمادها در هر حساب ----------
 @app.post("/api/accounts/{account_id}/symbols/bulk")
-async def bulk_update_symbols(account_id: str, payload: dict, _: bool = Depends(require_auth)):
+async def bulk_update_symbols(account_id: str, payload: dict, _: dict = Depends(auth.require_user)):
     """اعمال دسته‌جمعی تنظیمات (تایم‌فریم، استراتژی، اهرم، حجم، وضعیت) روی همه نمادهای حساب."""
     try:
         count = config_store.bulk_update_symbols(account_id, payload or {})
@@ -499,7 +553,7 @@ async def bulk_update_symbols(account_id: str, payload: dict, _: bool = Depends(
 
 
 @app.post("/api/accounts/{account_id}/symbols")
-async def add_symbol(account_id: str, payload: SymbolIn, _: bool = Depends(require_auth)):
+async def add_symbol(account_id: str, payload: SymbolIn, _: dict = Depends(auth.require_user)):
     account = config_store.get_account(account_id)
     if account is None:
         raise HTTPException(404, "حساب پیدا نشد")
@@ -514,7 +568,7 @@ async def add_symbol(account_id: str, payload: SymbolIn, _: bool = Depends(requi
 
 
 @app.put("/api/accounts/{account_id}/symbols/{symbol}")
-async def edit_symbol(account_id: str, symbol: str, payload: SymbolIn, _: bool = Depends(require_auth)):
+async def edit_symbol(account_id: str, symbol: str, payload: SymbolIn, _: dict = Depends(auth.require_user)):
     account = config_store.get_account(account_id)
     if account is None:
         raise HTTPException(404, "حساب پیدا نشد")
@@ -528,7 +582,7 @@ async def edit_symbol(account_id: str, symbol: str, payload: SymbolIn, _: bool =
 
 
 @app.delete("/api/accounts/{account_id}/symbols/{symbol}")
-async def delete_symbol(account_id: str, symbol: str, _: bool = Depends(require_auth)):
+async def delete_symbol(account_id: str, symbol: str, _: dict = Depends(auth.require_user)):
     try:
         config_store.remove_symbol(account_id, symbol)
     except KeyError as e:
@@ -538,7 +592,7 @@ async def delete_symbol(account_id: str, symbol: str, _: bool = Depends(require_
 
 
 @app.post("/api/accounts/{account_id}/symbols/{symbol}/toggle")
-async def toggle_symbol(account_id: str, symbol: str, enabled: bool, _: bool = Depends(require_auth)):
+async def toggle_symbol(account_id: str, symbol: str, enabled: bool, _: dict = Depends(auth.require_user)):
     try:
         config_store.toggle_symbol(account_id, symbol, enabled)
     except KeyError as e:
