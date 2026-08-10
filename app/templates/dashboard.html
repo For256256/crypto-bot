@@ -2,6 +2,9 @@
 {% block title %}کریپتو بات - پیشخوان{% endblock %}
 
 {% block content %}
+<!-- وضعیت توکن فعال‌سازی -->
+<div id="tokenBanner" class="mb-4"></div>
+
 <!-- هدر آمار حساب -->
 <div id="accountBar" class="mb-6"></div>
 
@@ -169,6 +172,7 @@ let statusCache = {};
 let symbolsListCache = [];
 let symbolsListExchange = null;
 let selectedAccountId = null;
+let tokenStatus = null;
 
 const EXTRA_LABELS = {
   ema_fast: 'EMA سریع', ema_slow: 'EMA کند', rsi: 'RSI', supertrend: 'SuperTrend', atr: 'ATR',
@@ -268,6 +272,10 @@ function openAccountModal(acc) {
   onExchangeChange();
   g('f_api_key').value = acc ? (acc.api_key || '') : '';
   g('f_api_secret').value = acc ? (acc.api_secret || '') : '';
+  const liveOpt = g('f_trading_mode').querySelector('option[value="live"]');
+  const liveLocked = tokenStatus && !tokenStatus.is_admin && !tokenStatus.active;
+  liveOpt.disabled = liveLocked;
+  liveOpt.textContent = liveLocked ? 'واقعی (LIVE) — نیاز به توکن فعال' : 'واقعی (LIVE)';
   g('f_trading_mode').value = acc ? acc.trading_mode : 'paper';
   g('f_paper_balance').value = acc ? (acc.paper_balance ?? 10000) : 10000;
   g('f_risk_percent').value = acc ? acc.risk_percent : 1;
@@ -306,6 +314,10 @@ async function saveAccount() {
   if (!payload.name) { toast('نام حساب را وارد کنید', true); return; }
   if (payload.trading_mode === 'live' && (!payload.api_key || !payload.api_secret)) {
     toast('برای حالت واقعی (LIVE) کلید API و Secret الزامی است', true); return;
+  }
+  if (payload.trading_mode === 'live' && tokenStatus && !tokenStatus.is_admin && !tokenStatus.active) {
+    toast('برای معامله‌ی واقعی نیاز به توکن فعال‌سازی دارید — از پشتیبانی (واحد مالی) درخواست بدهید', true);
+    return;
   }
   try {
     if (editingAccountId) await callApi('/api/accounts/' + editingAccountId, 'PUT', payload);
@@ -778,7 +790,30 @@ async function refresh() {
   }
 }
 
-loadStrategies().then(refresh).catch(e => toast('خطا: ' + e.message, true));
+async function loadTokenStatus() {
+  try {
+    tokenStatus = await callApi('/api/tokens/me');
+  } catch (e) { return; }
+  const box = document.getElementById('tokenBanner');
+  if (tokenStatus.is_admin) { box.innerHTML = ''; return; }
+  if (tokenStatus.active) {
+    const exp = tokenStatus.token ? new Date(tokenStatus.token.expires_at).toLocaleDateString('fa-IR') : '';
+    box.innerHTML = `<div class="glass-card rounded-xl px-4 py-2.5 flex items-center gap-2 text-xs border-buy/30">
+      <span class="material-symbols-outlined text-buy text-base">verified</span>
+      <span class="text-on-surface-variant">توکن معاملات واقعی فعال است${exp ? ' — تا ' + exp : ''}</span>
+    </div>`;
+  } else {
+    box.innerHTML = `<div class="glass-card rounded-xl px-4 py-2.5 flex items-center justify-between flex-wrap gap-2 text-xs border-gold/30">
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-gold text-base">lock</span>
+        <span class="text-on-surface-variant">حساب شما فقط در حالت کاغذی (paper) قابل استفاده است. برای معامله‌ی واقعی به توکن فعال‌سازی نیاز دارید.</span>
+      </div>
+      <a href="/support" class="btn-ghost !py-1.5 !px-3 text-[11px]">درخواست توکن از پشتیبانی</a>
+    </div>`;
+  }
+}
+
+loadStrategies().then(refresh).then(loadTokenStatus).catch(e => toast('خطا: ' + e.message, true));
 setInterval(refresh, 5000);
 </script>
 {% endblock %}
