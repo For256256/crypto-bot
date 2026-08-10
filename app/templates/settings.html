@@ -28,17 +28,20 @@
 
     <!-- وبهوک -->
     <div class="glass-card rounded-2xl p-6">
-      <div class="flex justify-between items-center mb-4">
+      <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
         <h3 class="font-headline text-lg font-bold flex items-center gap-2">
           <span class="material-symbols-outlined text-primary">webhook</span> وبهوک TradingView
         </h3>
-        <button class="btn-ghost !py-2 flex items-center gap-1 text-xs" onclick="rotateToken()">
-          <span class="material-symbols-outlined text-base">refresh</span> تولید توکن جدید
-        </button>
+        <div class="flex items-center gap-2">
+          <select id="wh_account" class="field !w-auto !py-1.5 text-xs" onchange="loadWebhookInfo()"></select>
+          <button class="btn-ghost !py-2 flex items-center gap-1 text-xs" onclick="rotateToken()">
+            <span class="material-symbols-outlined text-base">refresh</span> تولید توکن جدید
+          </button>
+        </div>
       </div>
       <div class="bg-primary-container rounded-xl p-4 space-y-3">
         <div>
-          <div class="text-[11px] text-on-surface-variant mb-1">آدرس وبهوک (در آلرت TradingView قرار دهید)</div>
+          <div class="text-[11px] text-on-surface-variant mb-1">آدرس وبهوک اختصاصی همین حساب (در آلرت TradingView قرار دهید)</div>
           <div class="flex items-center gap-2">
             <code class="mono-num text-buy text-xs flex-1 break-all" dir="ltr" id="wh_url">…</code>
             <button class="btn-ghost !py-1 !px-2 text-xs" onclick="copyEl('wh_url')">کپی</button>
@@ -57,8 +60,8 @@
         </div>
       </div>
       <div class="text-[11px] text-on-surface-variant mt-3">
-        فرمت نماد هرچه باشد (BTCUSDT، BTCUSDT.P، BTC/USDT) به‌صورت خودکار به پرپچوال Toobit تبدیل می‌شود.
-        هر حسابی که گزینه‌ی «دریافت وبهوک» آن فعال باشد، سیگنال را دریافت می‌کند.
+        فرمت نماد هرچه باشد (BTCUSDT، BTCUSDT.P، BTC/USDT) به‌صورت خودکار به فرمت صرافی همین حساب تبدیل می‌شود.
+        هر حساب آدرس/توکن وبهوک اختصاصی خودش را دارد؛ سیگنال فقط روی همان حساب اعمال می‌شود.
       </div>
     </div>
   </div>
@@ -130,17 +133,33 @@ let accountsCache = [];
 let editingAccountId = null;
 
 async function loadAll() {
-  const [accounts, settings, wh] = await Promise.all([
-    callApi('/api/accounts'), callApi('/api/app-settings'), callApi('/api/webhook-info')]);
+  const [accounts, settings] = await Promise.all([callApi('/api/accounts'), callApi('/api/app-settings')]);
   accountsCache = accounts;
   renderAccounts();
   const n = (settings.notifications || {});
   document.getElementById('n_telegram').checked = !!n.telegram;
   document.getElementById('n_email').checked = !!n.email;
   document.getElementById('n_sms').checked = !!n.sms;
-  document.getElementById('wh_url').textContent = wh.url;
-  document.getElementById('wh_token').textContent = (wh.sample && wh.sample.token) || '—';
-  document.getElementById('wh_msg').textContent = JSON.stringify(wh.sample || {}, null, 2);
+
+  const whSel = document.getElementById('wh_account');
+  whSel.innerHTML = accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+  await loadWebhookInfo();
+}
+
+async function loadWebhookInfo() {
+  const accId = document.getElementById('wh_account').value;
+  if (!accId) {
+    document.getElementById('wh_url').textContent = '— ابتدا یک حساب بسازید —';
+    document.getElementById('wh_token').textContent = '—';
+    document.getElementById('wh_msg').textContent = '';
+    return;
+  }
+  try {
+    const wh = await callApi(`/api/accounts/${accId}/webhook-info`);
+    document.getElementById('wh_url').textContent = wh.url;
+    document.getElementById('wh_token').textContent = (wh.sample && wh.sample.token) || '—';
+    document.getElementById('wh_msg').textContent = JSON.stringify(wh.sample || {}, null, 2);
+  } catch (e) { toast('خطا: ' + e.message, true); }
 }
 
 function renderAccounts() {
@@ -226,9 +245,11 @@ async function saveNotif() {
 }
 
 async function rotateToken() {
-  if (!askConfirm('توکن جدید تولید شود؟ توکن قبلی بلافاصله باطل می‌شود و باید آلرت‌های TradingView را به‌روز کنید.')) return;
+  const accId = document.getElementById('wh_account').value;
+  if (!accId) return;
+  if (!askConfirm('توکن جدید تولید شود؟ توکن قبلی بلافاصله باطل می‌شود و باید آلرت‌های TradingView این حساب را به‌روز کنید.')) return;
   try {
-    const r = await callApi('/api/webhook-token/rotate', 'POST');
+    const r = await callApi(`/api/accounts/${accId}/webhook-token/rotate`, 'POST');
     document.getElementById('wh_url').textContent = r.url;
     document.getElementById('wh_token').textContent = r.token;
     toast('توکن جدید تولید شد');

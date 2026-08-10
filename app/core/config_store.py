@@ -6,6 +6,7 @@
 import copy
 import json
 import os
+import secrets
 import threading
 import uuid
 
@@ -16,6 +17,7 @@ CONFIG_PATH = os.getenv("ACCOUNTS_CONFIG_PATH") or os.path.abspath(_DEFAULT_PATH
 _lock = threading.Lock()
 
 ACCOUNT_DEFAULTS = {
+    "owner_id": None,
     "exchange": "toobit",
     "trading_mode": "paper",
     "api_key": "",
@@ -66,22 +68,34 @@ def _save(data: dict):
     os.replace(tmp, CONFIG_PATH)
 
 
-def list_accounts() -> list:
+def list_accounts(owner_id: str | None = None) -> list:
     with _lock:
-        return list(_load()["accounts"])
+        accounts = list(_load()["accounts"])
+    if owner_id is None:
+        return accounts
+    return [a for a in accounts if a.get("owner_id") == owner_id]
 
 
 def get_account(account_id: str):
-    for a in list_accounts():
+    with _lock:
+        accounts = list(_load()["accounts"])
+    for a in accounts:
         if a["id"] == account_id:
             return a
     return None
 
 
-def add_account(data: dict) -> dict:
+def add_account(data: dict, owner_id: str) -> dict:
     with _lock:
         store = _load()
-        account = {**ACCOUNT_DEFAULTS, **data, "id": uuid.uuid4().hex[:12], "symbols": []}
+        data = {k: v for k, v in data.items() if k not in ("id", "symbols", "owner_id", "webhook_token")}
+        account = {
+            **ACCOUNT_DEFAULTS, **data,
+            "id": uuid.uuid4().hex[:12],
+            "owner_id": owner_id,
+            "webhook_token": secrets.token_hex(24),
+            "symbols": [],
+        }
         store["accounts"].append(account)
         _save(store)
         return account
@@ -92,12 +106,46 @@ def update_account(account_id: str, data: dict) -> dict:
         store = _load()
         for a in store["accounts"]:
             if a["id"] == account_id:
-                # نمادها و id از ورودی به‌روز نمی‌شوند
-                data = {k: v for k, v in data.items() if k not in ("id", "symbols")}
+                # نمادها، id، مالکیت و توکن وبهوک از راه ادیت معمولی تغییر نمی‌کنند
+                data = {k: v for k, v in data.items() if k not in ("id", "symbols", "owner_id", "webhook_token")}
                 a.update(data)
                 _save(store)
                 return a
         raise KeyError("حساب پیدا نشد")
+
+
+def rotate_webhook_token(account_id: str) -> str:
+    """توکن وبهوک این حساب را با یک مقدار تصادفی جدید جایگزین می‌کند (قبلی بلافاصله باطل می‌شود)."""
+    with _lock:
+        store = _load()
+        for a in store["accounts"]:
+            if a["id"] == account_id:
+                new_token = secrets.token_hex(24)
+                a["webhook_token"] = new_token
+                _save(store)
+                return new_token
+        raise KeyError("حساب پیدا نشد")
+
+
+def migrate_owner_less_accounts(default_owner_id: str) -> int:
+    """به هر حساب قدیمی بدون owner_id (از قبل از معرفی چندکاربره)، مالک پیش‌فرض
+    (معمولاً ادمین) می‌دهد؛ ایدمپوتنت — بعد از اولین بار روی هر حساب کاری نمی‌کند.
+    همچنین حساب‌های قدیمی بدون webhook_token هم یکی می‌گیرند."""
+    with _lock:
+        store = _load()
+        changed = 0
+        any_modified = False
+        for a in store["accounts"]:
+            if not a.get("owner_id"):
+                a["owner_id"] = default_owner_id
+                changed += 1
+                any_modified = True
+            if not a.get("webhook_token"):
+                a["webhook_token"] = secrets.token_hex(24)
+                any_modified = True
+        if any_modified:
+            _save(store)
+        return changed
 
 
 def duplicate_account(account_id: str) -> dict:
@@ -113,6 +161,7 @@ def duplicate_account(account_id: str) -> dict:
             raise KeyError("حساب پیدا نشد")
         clone = copy.deepcopy(src)
         clone["id"] = uuid.uuid4().hex[:12]
+        clone["webhook_token"] = secrets.token_hex(24)
         existing = {a["name"] for a in store["accounts"]}
         base = f"کپی از {src['name']}"
         name, n = base, 2

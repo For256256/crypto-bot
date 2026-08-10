@@ -660,8 +660,8 @@ class BotManager:
         if runner is not None:
             await runner.stop()
 
-    async def start_all(self):
-        for cfg in config_store.list_accounts():
+    async def start_all(self, owner_id: str | None = None):
+        for cfg in config_store.list_accounts(owner_id):
             if not cfg.get("enabled", True):
                 continue
             runner = self.runners.get(cfg["id"])
@@ -671,8 +671,10 @@ class BotManager:
                 except Exception as e:
                     runner.log(f"شروع ناموفق: {e}", "error")
 
-    async def stop_all(self):
+    async def stop_all(self, owner_id: str | None = None):
         for runner in self.runners.values():
+            if owner_id is not None and runner.cfg.get("owner_id") != owner_id:
+                continue
             if runner.running:
                 await runner.stop()
 
@@ -683,9 +685,12 @@ class BotManager:
         if runner is not None and fresh is not None:
             runner.cfg = fresh
 
-    async def get_status(self) -> dict:
+    async def get_status(self, owner_id: str | None = None) -> dict:
         self.sync_from_config()
-        return {"accounts": {aid: r.status_dict() for aid, r in self.runners.items()}}
+        items = self.runners.items()
+        if owner_id is not None:
+            items = [(aid, r) for aid, r in items if r.cfg.get("owner_id") == owner_id]
+        return {"accounts": {aid: r.status_dict() for aid, r in items}}
 
     async def handle_webhook_signal(self, symbol_raw: str, signal: str, price: float | None,
                                     stop_loss: float | None, take_profit: float | None,

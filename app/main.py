@@ -39,7 +39,11 @@ async def _not_authenticated_handler(request: Request, exc: auth.NotAuthenticate
 
 @app.on_event("startup")
 async def on_startup():
-    users.ensure_admin_seed(settings.DASHBOARD_USER, settings.DASHBOARD_PASSWORD)
+    admin = users.ensure_admin_seed(settings.DASHBOARD_USER, settings.DASHBOARD_PASSWORD)
+    if admin is None:
+        admin = next((u for u in users.list_users() if u.get("role") == "admin"), None)
+    if admin is not None:
+        config_store.migrate_owner_less_accounts(admin["id"])
     bot_manager.sync_from_config()
 
 
@@ -223,8 +227,8 @@ async def put_app_settings(payload: dict, _: dict = Depends(auth.require_user)):
 
 # ---------- وضعیت کلی ----------
 @app.get("/api/status")
-async def api_status(_: dict = Depends(auth.require_user)):
-    return await bot_manager.get_status()
+async def api_status(user: dict = Depends(auth.require_user)):
+    return await bot_manager.get_status(None if user["role"] == "admin" else user["id"])
 
 
 @app.get("/api/health")
@@ -285,65 +289,68 @@ async def futures_symbols(exchange: str = "toobit", force: bool = False, _: dict
     return {"symbols": symbols, "cached": False}
 
 
-@app.get("/api/webhook-info")
-async def webhook_info(request: Request, _: dict = Depends(auth.require_user)):
-    """آدرس Webhook و نمونه‌ی پیام Alert در TradingView را برمی‌گرداند."""
-    host = request.headers.get("host", f"YOUR-SERVER-IP:{settings.DASHBOARD_PORT}")
-    url = f"http://{host}/webhook/tradingview"
-    sample = {
-        "token": settings.WEBHOOK_TOKEN or "<WEBHOOK_TOKEN از فایل .env>",
-        "symbol": "{{ticker}}",
-        "signal": "buy",            # buy | sell | close
-        "price": "{{close}}",
-        # اختیاری: اگر ندهید، از روی ATR خودکار محاسبه می‌شود
-        # "sl": 60000, "tp": 70000,
-        # اختیاری: فقط به یک حساب مشخص ارسال شود
-        # "account_id": "xxxxxxxx",
-    }
-    return {"url": url, "sample": sample, "token_set": bool(settings.WEBHOOK_TOKEN)}
-
-
-@app.post("/api/webhook-token/rotate")
-async def rotate_webhook_token(request: Request, _: dict = Depends(auth.require_user)):
-    """تولید توکن جدید وبهوک و ذخیره در .env (توکن قبلی بلافاصله باطل می‌شود)."""
-    import os
-    new_token = secrets.token_hex(24)
-    settings.WEBHOOK_TOKEN = new_token
-    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
-    try:
-        lines = []
-        if os.path.exists(env_path):
-            with open(env_path, "r", encoding="utf-8") as f:
-                lines = f.read().splitlines()
-        replaced = False
-        for i, line in enumerate(lines):
-            if line.startswith("WEBHOOK_TOKEN="):
-                lines[i] = f"WEBHOOK_TOKEN={new_token}"
-                replaced = True
-                break
-        if not replaced:
-            lines.append(f"WEBHOOK_TOKEN={new_token}")
-        with open(env_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines) + "\n")
-    except OSError:
-        pass  # در حافظه اعمال شده؛ در صورت خطای دیسک فقط تا ری‌استارت معتبر است
-    host = request.headers.get("host", f"YOUR-SERVER-IP:{settings.DASHBOARD_PORT}")
-    return {"token": new_token, "url": f"http://{host}/webhook/tradingview"}
-
-
 # ---------- Webhook تریدینگ‌ویو ----------
+def _parse_webhook_payload(raw: bytes) -> dict:
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        raise HTTPException(400, "بدنه‌ی درخواست JSON معتبر نیست. پیام Alert را دقیقاً مطابق نمونه‌ی صفحه‌ی تنظیمات تنظیم کنید.")
+
+
+def _to_float(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalize_signal(signal: str) -> str:
+    signal = signal.strip().lower()
+    if signal == "long":
+        return "buy"
+    if signal == "short":
+        return "sell"
+    return signal
+
+
+@app.post("/webhook/tradingview/{account_id}")
+async def tradingview_webhook_account(account_id: str, request: Request):
+    """نقطه‌ی دریافت سیگنال TradingView مخصوص یک حساب — هر حساب توکن اختصاصی خودش را دارد
+    (آدرس/توکن از صفحه‌ی تنظیمات همان حساب قابل کپی است)، پس این سیگنال فقط روی همین یک
+    حساب اعمال می‌شود و به حساب‌های سایر کاربران نشتی ندارد."""
+    account = config_store.get_account(account_id)
+    if account is None:
+        raise HTTPException(404, "حساب پیدا نشد")
+    payload = _parse_webhook_payload(await request.body())
+    token = account.get("webhook_token") or ""
+    if not token or not secrets.compare_digest(str(payload.get("token", "")), token):
+        raise HTTPException(401, "توکن وبهوک اشتباه است.")
+
+    symbol_raw = str(payload.get("symbol", "")).strip()
+    signal = _normalize_signal(str(payload.get("signal", "")))
+    if not symbol_raw or signal not in ("buy", "sell", "close"):
+        raise HTTPException(400, "فیلدهای symbol و signal (buy/sell/close) الزامی هستند.")
+
+    return await bot_manager.handle_webhook_signal(
+        symbol_raw=symbol_raw,
+        signal=signal,
+        price=_to_float(payload.get("price")),
+        stop_loss=_to_float(payload.get("sl")),
+        take_profit=_to_float(payload.get("tp")),
+        account_id=account_id,
+    )
+
+
 @app.post("/webhook/tradingview")
 async def tradingview_webhook(request: Request):
     """
-    نقطه‌ی دریافت سیگنال از TradingView (یا هر منبع خارجی دیگر).
-    امنیت: با WEBHOOK_TOKEN در .env محافظت می‌شود، نه با Basic Auth
-    (چون TradingView نمی‌تواند هدر Authorization بفرستد).
+    نسخه‌ی قدیمی/سراسری (منسوخ) — فقط برای سازگاری با Alert هایی که قبل از معرفی
+    وبهوک اختصاصی هر حساب (/webhook/tradingview/{account_id}) تنظیم شده‌اند نگه داشته
+    شده. با توکن سراسری WEBHOOK_TOKEN در .env کار می‌کند و اگر account_id در پیام
+    نباشد، ممکن است روی چند حساب هم‌نماد اعمال شود — لطفاً Alert های خود را به آدرس
+    اختصاصی هر حساب (از صفحه‌ی تنظیمات) به‌روزرسانی کنید.
     """
-    raw = await request.body()
-    try:
-        payload = json.loads(raw.decode("utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        raise HTTPException(400, "بدنه‌ی درخواست JSON معتبر نیست. پیام Alert را دقیقاً مطابق نمونه‌ی /api/webhook-info تنظیم کنید.")
+    payload = _parse_webhook_payload(await request.body())
 
     if not settings.WEBHOOK_TOKEN:
         raise HTTPException(503, "WEBHOOK_TOKEN در فایل .env تنظیم نشده است؛ وبهوک غیرفعال است.")
@@ -351,21 +358,11 @@ async def tradingview_webhook(request: Request):
         raise HTTPException(401, "توکن وبهوک اشتباه است.")
 
     symbol_raw = str(payload.get("symbol", "")).strip()
-    signal = str(payload.get("signal", "")).strip().lower()
-    if signal in ("long",):
-        signal = "buy"
-    if signal in ("short",):
-        signal = "sell"
+    signal = _normalize_signal(str(payload.get("signal", "")))
     if not symbol_raw or signal not in ("buy", "sell", "close"):
         raise HTTPException(400, "فیلدهای symbol و signal (buy/sell/close) الزامی هستند.")
 
-    def _to_float(v):
-        try:
-            return float(v)
-        except (TypeError, ValueError):
-            return None
-
-    result = await bot_manager.handle_webhook_signal(
+    return await bot_manager.handle_webhook_signal(
         symbol_raw=symbol_raw,
         signal=signal,
         price=_to_float(payload.get("price")),
@@ -373,25 +370,35 @@ async def tradingview_webhook(request: Request):
         take_profit=_to_float(payload.get("tp")),
         account_id=payload.get("account_id"),
     )
-    return result
 
 
 # ---------- مدیریت حساب‌ها ----------
+def _owned_account(account_id: str, user: dict) -> dict:
+    """حساب را برمی‌گرداند؛ 404 اگر نبود، 403 اگر متعلق به این کاربر نباشد (ادمین همه را می‌بیند)."""
+    account = config_store.get_account(account_id)
+    if account is None:
+        raise HTTPException(404, "حساب پیدا نشد")
+    if user.get("role") != "admin" and account.get("owner_id") != user["id"]:
+        raise HTTPException(403, "این حساب متعلق به شما نیست")
+    return account
+
+
 @app.get("/api/accounts")
-async def get_accounts(_: dict = Depends(auth.require_user)):
-    return config_store.list_accounts()
+async def get_accounts(user: dict = Depends(auth.require_user)):
+    return config_store.list_accounts(None if user["role"] == "admin" else user["id"])
 
 
 @app.post("/api/accounts")
-async def create_account(payload: AccountIn, _: dict = Depends(auth.require_user)):
-    account = config_store.add_account(payload.dict())
+async def create_account(payload: AccountIn, user: dict = Depends(auth.require_user)):
+    account = config_store.add_account(payload.dict(), owner_id=user["id"])
     bot_manager.sync_from_config()
     return account
 
 
 @app.post("/api/accounts/{account_id}/duplicate")
-async def duplicate_account(account_id: str, _: dict = Depends(auth.require_user)):
+async def duplicate_account(account_id: str, user: dict = Depends(auth.require_user)):
     """ساخت بات جدید با کپی کامل تنظیمات و نمادهای یک حساب."""
+    _owned_account(account_id, user)
     try:
         account = config_store.duplicate_account(account_id)
     except KeyError as e:
@@ -401,7 +408,8 @@ async def duplicate_account(account_id: str, _: dict = Depends(auth.require_user
 
 
 @app.put("/api/accounts/{account_id}")
-async def edit_account(account_id: str, payload: AccountIn, _: dict = Depends(auth.require_user)):
+async def edit_account(account_id: str, payload: AccountIn, user: dict = Depends(auth.require_user)):
+    _owned_account(account_id, user)
     try:
         account = config_store.update_account(account_id, payload.dict())
     except KeyError as e:
@@ -411,8 +419,9 @@ async def edit_account(account_id: str, payload: AccountIn, _: dict = Depends(au
 
 
 @app.post("/api/accounts/{account_id}/trading-mode")
-async def set_trading_mode(account_id: str, mode: str, _: dict = Depends(auth.require_user)):
+async def set_trading_mode(account_id: str, mode: str, user: dict = Depends(auth.require_user)):
     """سوییچ paper/live از داشبورد. برای اعمال، حساب باید متوقف و دوباره شروع شود."""
+    _owned_account(account_id, user)
     if mode not in ("paper", "live"):
         raise HTTPException(400, "حالت باید paper یا live باشد")
     try:
@@ -425,7 +434,8 @@ async def set_trading_mode(account_id: str, mode: str, _: dict = Depends(auth.re
 
 
 @app.delete("/api/accounts/{account_id}")
-async def remove_account(account_id: str, _: dict = Depends(auth.require_user)):
+async def remove_account(account_id: str, user: dict = Depends(auth.require_user)):
+    _owned_account(account_id, user)
     await bot_manager.stop_account(account_id)
     config_store.delete_account(account_id)
     bot_manager.sync_from_config()
@@ -433,11 +443,8 @@ async def remove_account(account_id: str, _: dict = Depends(auth.require_user)):
 
 
 @app.post("/api/accounts/{account_id}/test-connection")
-async def test_connection(account_id: str, _: dict = Depends(auth.require_user)):
-    accounts = {a["id"]: a for a in config_store.list_accounts()}
-    cfg = accounts.get(account_id)
-    if not cfg:
-        raise HTTPException(404, "حساب پیدا نشد")
+async def test_connection(account_id: str, user: dict = Depends(auth.require_user)):
+    cfg = _owned_account(account_id, user)
 
     from app.core.exchanges.factory import build_driver
     from app.core.exchanges.base import ExchangeError
@@ -457,7 +464,8 @@ async def test_connection(account_id: str, _: dict = Depends(auth.require_user))
 
 
 @app.post("/api/accounts/{account_id}/start")
-async def start_account(account_id: str, _: dict = Depends(auth.require_user)):
+async def start_account(account_id: str, user: dict = Depends(auth.require_user)):
+    _owned_account(account_id, user)
     try:
         await bot_manager.start_account(account_id)
     except ValueError as e:
@@ -468,26 +476,30 @@ async def start_account(account_id: str, _: dict = Depends(auth.require_user)):
 
 
 @app.post("/api/accounts/{account_id}/stop")
-async def stop_account(account_id: str, _: dict = Depends(auth.require_user)):
+async def stop_account(account_id: str, user: dict = Depends(auth.require_user)):
+    _owned_account(account_id, user)
     await bot_manager.stop_account(account_id)
     return (await bot_manager.get_status())["accounts"].get(account_id)
 
 
 @app.post("/api/start-all")
-async def start_all(_: dict = Depends(auth.require_user)):
-    await bot_manager.start_all()
-    return await bot_manager.get_status()
+async def start_all(user: dict = Depends(auth.require_user)):
+    owner_id = None if user["role"] == "admin" else user["id"]
+    await bot_manager.start_all(owner_id)
+    return await bot_manager.get_status(owner_id)
 
 
 @app.post("/api/stop-all")
-async def stop_all(_: dict = Depends(auth.require_user)):
-    await bot_manager.stop_all()
-    return await bot_manager.get_status()
+async def stop_all(user: dict = Depends(auth.require_user)):
+    owner_id = None if user["role"] == "admin" else user["id"]
+    await bot_manager.stop_all(owner_id)
+    return await bot_manager.get_status(owner_id)
 
 
 # ---------- بستن دستی پوزیشن ----------
 @app.post("/api/accounts/{account_id}/close-position")
-async def close_position(account_id: str, payload: dict, _: dict = Depends(auth.require_user)):
+async def close_position(account_id: str, payload: dict, user: dict = Depends(auth.require_user)):
+    _owned_account(account_id, user)
     result = await bot_manager.close_position_manual(account_id, payload)
     if not result.get("ok"):
         raise HTTPException(400, result.get("detail", "بستن پوزیشن ناموفق بود"))
@@ -497,10 +509,8 @@ async def close_position(account_id: str, payload: dict, _: dict = Depends(auth.
 # ---------- گزارش‌گیری و سود/زیان ----------
 @app.get("/api/accounts/{account_id}/report")
 async def account_report(account_id: str, days: int = 30, mode: str | None = None,
-                         _: dict = Depends(auth.require_user)):
-    account = config_store.get_account(account_id)
-    if account is None:
-        raise HTTPException(404, "حساب پیدا نشد")
+                         user: dict = Depends(auth.require_user)):
+    account = _owned_account(account_id, user)
     if mode not in (None, "paper", "live"):
         raise HTTPException(400, "mode باید paper یا live باشد")
     report = history.get_report(account_id, days=days, mode=mode)
@@ -531,17 +541,44 @@ async def account_report(account_id: str, days: int = 30, mode: str | None = Non
 
 
 @app.post("/api/accounts/{account_id}/report/reset")
-async def reset_account_report(account_id: str, _: dict = Depends(auth.require_user)):
+async def reset_account_report(account_id: str, user: dict = Depends(auth.require_user)):
     """پاکسازی و ریست کامل گزارش‌های یک حساب — از این لحظه مثل حساب خام ثبت می‌شود."""
-    if config_store.get_account(account_id) is None:
-        raise HTTPException(404, "حساب پیدا نشد")
+    _owned_account(account_id, user)
     return history.reset_account(account_id)
+
+
+# ---------- وبهوک اختصاصی هر حساب ----------
+@app.get("/api/accounts/{account_id}/webhook-info")
+async def account_webhook_info(account_id: str, request: Request, user: dict = Depends(auth.require_user)):
+    """آدرس Webhook اختصاصی و نمونه‌ی پیام Alert در TradingView برای همین حساب."""
+    account = _owned_account(account_id, user)
+    host = request.headers.get("host", f"YOUR-SERVER-IP:{settings.DASHBOARD_PORT}")
+    url = f"http://{host}/webhook/tradingview/{account_id}"
+    sample = {
+        "token": account.get("webhook_token", ""),
+        "symbol": "{{ticker}}",
+        "signal": "buy",            # buy | sell | close
+        "price": "{{close}}",
+        # اختیاری: اگر ندهید، از روی ATR خودکار محاسبه می‌شود
+        # "sl": 60000, "tp": 70000,
+    }
+    return {"url": url, "sample": sample, "token_set": bool(account.get("webhook_token"))}
+
+
+@app.post("/api/accounts/{account_id}/webhook-token/rotate")
+async def account_rotate_webhook_token(account_id: str, request: Request, user: dict = Depends(auth.require_user)):
+    """تولید توکن وبهوک جدید برای همین حساب (توکن قبلی بلافاصله باطل می‌شود)."""
+    _owned_account(account_id, user)
+    new_token = config_store.rotate_webhook_token(account_id)
+    host = request.headers.get("host", f"YOUR-SERVER-IP:{settings.DASHBOARD_PORT}")
+    return {"token": new_token, "url": f"http://{host}/webhook/tradingview/{account_id}"}
 
 
 # ---------- مدیریت نمادها در هر حساب ----------
 @app.post("/api/accounts/{account_id}/symbols/bulk")
-async def bulk_update_symbols(account_id: str, payload: dict, _: dict = Depends(auth.require_user)):
+async def bulk_update_symbols(account_id: str, payload: dict, user: dict = Depends(auth.require_user)):
     """اعمال دسته‌جمعی تنظیمات (تایم‌فریم، استراتژی، اهرم، حجم، وضعیت) روی همه نمادهای حساب."""
+    _owned_account(account_id, user)
     try:
         count = config_store.bulk_update_symbols(account_id, payload or {})
     except KeyError as e:
@@ -553,10 +590,8 @@ async def bulk_update_symbols(account_id: str, payload: dict, _: dict = Depends(
 
 
 @app.post("/api/accounts/{account_id}/symbols")
-async def add_symbol(account_id: str, payload: SymbolIn, _: dict = Depends(auth.require_user)):
-    account = config_store.get_account(account_id)
-    if account is None:
-        raise HTTPException(404, "حساب پیدا نشد")
+async def add_symbol(account_id: str, payload: SymbolIn, user: dict = Depends(auth.require_user)):
+    account = _owned_account(account_id, user)
     data = payload.dict()
     data["symbol"] = normalize_symbol_for(account.get("exchange", "toobit"), data["symbol"])
     try:
@@ -568,10 +603,8 @@ async def add_symbol(account_id: str, payload: SymbolIn, _: dict = Depends(auth.
 
 
 @app.put("/api/accounts/{account_id}/symbols/{symbol}")
-async def edit_symbol(account_id: str, symbol: str, payload: SymbolIn, _: dict = Depends(auth.require_user)):
-    account = config_store.get_account(account_id)
-    if account is None:
-        raise HTTPException(404, "حساب پیدا نشد")
+async def edit_symbol(account_id: str, symbol: str, payload: SymbolIn, user: dict = Depends(auth.require_user)):
+    account = _owned_account(account_id, user)
     data = payload.dict()
     data["symbol"] = normalize_symbol_for(account.get("exchange", "toobit"), data["symbol"])
     updated = config_store.update_symbol(account_id, symbol, data)
@@ -582,7 +615,8 @@ async def edit_symbol(account_id: str, symbol: str, payload: SymbolIn, _: dict =
 
 
 @app.delete("/api/accounts/{account_id}/symbols/{symbol}")
-async def delete_symbol(account_id: str, symbol: str, _: dict = Depends(auth.require_user)):
+async def delete_symbol(account_id: str, symbol: str, user: dict = Depends(auth.require_user)):
+    _owned_account(account_id, user)
     try:
         config_store.remove_symbol(account_id, symbol)
     except KeyError as e:
@@ -592,7 +626,8 @@ async def delete_symbol(account_id: str, symbol: str, _: dict = Depends(auth.req
 
 
 @app.post("/api/accounts/{account_id}/symbols/{symbol}/toggle")
-async def toggle_symbol(account_id: str, symbol: str, enabled: bool, _: dict = Depends(auth.require_user)):
+async def toggle_symbol(account_id: str, symbol: str, enabled: bool, user: dict = Depends(auth.require_user)):
+    _owned_account(account_id, user)
     try:
         config_store.toggle_symbol(account_id, symbol, enabled)
     except KeyError as e:
