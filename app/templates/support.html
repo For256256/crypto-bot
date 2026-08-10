@@ -107,7 +107,16 @@ async function loadTickets() {
     box.innerHTML = '<div class="glass-card rounded-xl p-8 text-center text-on-surface-variant text-sm">تیکتی ثبت نشده است — اولین تیکت را بسازید.</div>';
     return;
   }
-  box.innerHTML = tickets.map(t => `
+  box.innerHTML = tickets.map(t => {
+    const replies = (t.replies || []).map(r => `
+      <div class="flex gap-2 ${r.by_role === 'admin' ? 'flex-row-reverse text-left' : ''}">
+        <div class="max-w-[85%] rounded-lg px-3 py-2 text-xs ${r.by_role === 'admin' ? 'bg-primary/15 border border-primary/25' : 'bg-surface-container-highest'}">
+          <div class="text-[10px] text-on-surface-variant mb-1">${r.by_role === 'admin' ? 'پشتیبانی' : r.by_username} · ${faDate(r.time)}</div>
+          <div class="leading-6">${r.message}</div>
+        </div>
+      </div>`).join('');
+    const closed = t.status === 'closed';
+    return `
     <div class="glass-card rounded-xl p-4">
       <div class="flex justify-between items-center mb-2">
         <span class="text-[10px] px-2 py-0.5 rounded-full border ${STATUS_STYLES[t.status_label] || STATUS_STYLES['در حال بررسی']}">${t.status_label}</span>
@@ -116,10 +125,27 @@ async function loadTickets() {
       <div class="text-sm font-bold mb-1">${t.subject}</div>
       <div class="text-xs text-on-surface-variant leading-5">${t.body}</div>
       <div class="flex justify-between items-center mt-3 text-[10px] text-on-surface-variant">
-        <span>${t.unit || ''}</span>
+        <span>${t.unit || ''}${t.username ? ' · ' + t.username : ''}</span>
         <span>${faDate(t.created)}</span>
       </div>
-    </div>`).join('');
+      ${replies ? `<div class="space-y-2 mt-3 pt-3 border-t border-outline-variant/20">${replies}</div>` : ''}
+      ${!closed ? `<div class="flex items-center gap-2 mt-3">
+        <input class="field !py-1.5 text-xs" placeholder="پاسخ…" id="reply_${t.id}" onkeydown="if(event.key==='Enter') submitReply('${t.id}')">
+        <button class="btn-ghost !py-1.5 !px-3 text-xs" onclick="submitReply('${t.id}')">ارسال</button>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function submitReply(ticketId) {
+  const input = document.getElementById('reply_' + ticketId);
+  const message = input.value.trim();
+  if (!message) return;
+  try {
+    await callApi(`/api/tickets/${ticketId}/reply`, 'POST', { message });
+    input.value = '';
+    loadTickets();
+  } catch (e) { toast('خطا: ' + e.message, true); }
 }
 
 async function submitTicket() {
