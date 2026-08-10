@@ -200,6 +200,11 @@ async def support_page(request: Request, user: dict = Depends(auth.require_user_
     return templates.TemplateResponse("support.html", {"request": request, "active": "support", "user": user})
 
 
+@app.get("/billing", response_class=HTMLResponse)
+async def billing_page(request: Request, user: dict = Depends(auth.require_user_page)):
+    return templates.TemplateResponse("billing.html", {"request": request, "active": "billing", "user": user})
+
+
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_page(request: Request, user: dict = Depends(auth.require_admin_page)):
     return templates.TemplateResponse("admin.html", {"request": request, "active": "admin", "user": user})
@@ -322,9 +327,9 @@ async def admin_issue_token(payload: TokenIssueIn, user: dict = Depends(auth.req
         token = tokens.issue_token(payload.user_id, payload.duration_days, payload.note, user["id"])
     except ValueError as e:
         raise HTTPException(400, str(e))
-    asyncio.create_task(telegram.notify_user(
-        payload.user_id, f"✅ توکن معاملات واقعی شما فعال شد — {payload.duration_days} روز اعتبار دارد."
-    ))
+    msg = f"✅ پرداخت شما تأیید و توکن معاملات واقعی فعال شد — {payload.duration_days} روز اعتبار دارد."
+    asyncio.create_task(telegram.notify_user(payload.user_id, msg))
+    asyncio.create_task(mailer.notify_user_email(payload.user_id, "تأیید پرداخت و فعال‌سازی توکن — CryptoPulse", msg))
     return token
 
 
@@ -334,6 +339,70 @@ async def admin_revoke_token(token_id: str, _: dict = Depends(auth.require_admin
     if token is None:
         raise HTTPException(404, "توکن پیدا نشد")
     return token
+
+
+# ---------- خرید توکن (کیف پول دستی/آفلاین) ----------
+class PaymentPlanIn(BaseModel):
+    days: int
+    price_usdt: float
+
+
+class PaymentSettingsIn(BaseModel):
+    wallet_address: str
+    wallet_network: str = "USDT (TRC20)"
+    plans: list[PaymentPlanIn]
+
+
+@app.get("/api/payment/plans")
+async def get_payment_plans(_: dict = Depends(auth.require_user)):
+    return app_settings.get_settings().get("payment") or {}
+
+
+@app.get("/api/admin/payment-settings")
+async def get_payment_settings(_: dict = Depends(auth.require_admin)):
+    return app_settings.get_settings().get("payment") or {}
+
+
+@app.put("/api/admin/payment-settings")
+async def put_payment_settings(payload: PaymentSettingsIn, _: dict = Depends(auth.require_admin)):
+    if not payload.wallet_address.strip():
+        raise HTTPException(400, "آدرس ولت الزامی است.")
+    if not payload.plans:
+        raise HTTPException(400, "حداقل یک پلن لازم است.")
+    app_settings.update_settings({"payment": {
+        "wallet_address": payload.wallet_address.strip(),
+        "wallet_network": payload.wallet_network.strip() or "USDT (TRC20)",
+        "plans": [p.dict() for p in payload.plans],
+    }})
+    return app_settings.get_settings().get("payment")
+
+
+class DepositSubmitIn(BaseModel):
+    plan_days: int
+    plan_price: float
+    note: str = ""
+
+
+@app.post("/api/billing/submit-deposit")
+async def submit_deposit(payload: DepositSubmitIn, user: dict = Depends(auth.require_user)):
+    subject = f"درخواست فعال‌سازی توکن — {payload.plan_days} روزه ({payload.plan_price} USDT)"
+    body = (payload.note or "").strip() or "اطلاعات واریز پیوست نشده — لطفاً رسید/هش تراکنش را از طریق پاسخ تیکت ارسال کنید."
+    try:
+        ticket = tickets.create_ticket(subject, body, "مالی", user["id"], user["username"])
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    asyncio.create_task(telegram.notify_admin(
+        f"💰 درخواست خرید توکن جدید از {user['username']} — {payload.plan_days} روزه ({payload.plan_price} USDT). تیکت #{ticket['id']}"
+    ))
+    receipt = (
+        f"🧾 درخواست خرید توکن شما ثبت شد.\n"
+        f"پلن: {payload.plan_days} روزه — {payload.plan_price} USDT\n"
+        f"شماره تیکت: {ticket['id']}\n"
+        f"پس از تأیید واریز توسط واحد مالی، توکن فعال‌سازی برای شما صادر و اطلاع‌رسانی می‌شود."
+    )
+    asyncio.create_task(telegram.notify_user(user["id"], receipt))
+    asyncio.create_task(mailer.notify_user_email(user["id"], "رسید درخواست خرید توکن — CryptoPulse", receipt))
+    return ticket
 
 
 # ---------- مدیریت کاربران (پنل ادمین) ----------

@@ -131,8 +131,11 @@ tailwind.config = {
       ('reports', '/reports', 'monitoring', 'گزارشات'),
       ('logs', '/logs', 'receipt_long', 'لاگ‌ها'),
       ('settings', '/settings', 'tune', 'تنظیمات'),
-      ('support', '/support', 'support_agent', 'پشتیبانی'),
     ] %}
+    {% if user and user.role != 'admin' %}
+      {% set nav = nav + [('billing', '/billing', 'payments', 'خرید توکن')] %}
+    {% endif %}
+    {% set nav = nav + [('support', '/support', 'support_agent', 'پشتیبانی')] %}
     {% if user and user.role == 'admin' %}
       {% set nav = nav + [('admin', '/admin', 'admin_panel_settings', 'مدیریت')] %}
     {% endif %}

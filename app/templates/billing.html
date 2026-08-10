@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}خرید توکن فعال‌سازی | CryptoPulse{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+  <h2 class="font-headline text-2xl font-bold text-on-surface">خرید توکن فعال‌سازی معاملات واقعی</h2>
+  <p class="text-on-surface-variant text-sm mt-1">حساب‌های جدید فقط در حالت کاغذی (paper) قابل استفاده‌اند. برای معامله‌ی واقعی (LIVE) یک پلن انتخاب کنید و مبلغ را به کیف پول زیر واریز کنید.</p>
+</div>
+
+<div id="statusBanner" class="glass-card rounded-2xl p-4 mb-6 text-sm"></div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" id="plansGrid"></div>
+
+<div id="paymentBox" class="glass-card rounded-2xl p-6 hidden">
+  <h3 class="font-headline text-lg font-bold mb-4 flex items-center gap-2">
+    <span class="material-symbols-outlined text-primary">account_balance_wallet</span> پرداخت
+  </h3>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="space-y-4">
+      <div>
+        <div class="text-[11px] text-on-surface-variant mb-1">مبلغ قابل پرداخت</div>
+        <div class="mono-num text-2xl font-bold text-primary" dir="ltr" id="pay_amount">—</div>
+      </div>
+      <div>
+        <div class="text-[11px] text-on-surface-variant mb-1">شبکه</div>
+        <div class="mono-num text-sm" dir="ltr" id="pay_network">—</div>
+      </div>
+      <div>
+        <div class="text-[11px] text-on-surface-variant mb-1">آدرس کیف پول</div>
+        <div class="flex items-center gap-2">
+          <code class="mono-num text-buy text-xs flex-1 break-all" dir="ltr" id="pay_address">—</code>
+          <button class="btn-ghost !py-1 !px-2 text-xs" onclick="copyEl('pay_address')">کپی</button>
+        </div>
+      </div>
+      <p class="text-[11px] text-on-surface-variant leading-6 border-t border-outline-variant/20 pt-3">
+        پس از واریز دقیق مبلغ بالا به آدرس فوق، اطلاعات واریز (هش تراکنش یا رسید) را در کادر زیر وارد و ارسال کنید تا واحد مالی پرداخت را بررسی و توکن فعال‌سازی شما را صادر کند. پیام تأیید از طریق تلگرام و ایمیل ثبت‌نامی ارسال خواهد شد.
+      </p>
+      <div>
+        <label class="lbl">اطلاعات واریز (هش تراکنش / توضیح)</label>
+        <textarea id="deposit_note" class="field" rows="3" placeholder="مثلاً هش تراکنش شبکه TRC20…"></textarea>
+      </div>
+      <button class="btn-primary-of w-full !py-2.5" onclick="submitDeposit()">ارسال اطلاعات واریز</button>
+    </div>
+    <div class="flex items-center justify-center">
+      <div class="bg-white p-3 rounded-xl" id="pay_qr"></div>
+    </div>
+  </div>
+</div>
+
+<div class="glass-card rounded-2xl p-6 mt-6">
+  <h3 class="font-headline text-lg font-bold mb-4 flex items-center gap-2">
+    <span class="material-symbols-outlined text-primary">receipt_long</span> سوابق خرید توکن
+  </h3>
+  <div class="overflow-x-auto"><table class="of-table">
+    <thead><tr><th>تاریخ صدور</th><th>مدت</th><th>تاریخ انقضا</th><th>وضعیت</th><th>یادداشت</th></tr></thead>
+    <tbody id="historyTbody"></tbody>
+  </table></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let plansCache = [];
+let paymentCache = {};
+let selectedPlan = null;
+let qrInstance = null;
+
+function faDate(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('fa-IR') + ' ' + d.toLocaleTimeString('fa-IR', {hour: '2-digit', minute: '2-digit'});
+  } catch (e) { return String(iso).slice(0, 16).replace('T', ' '); }
+}
+
+async function loadStatus() {
+  const box = document.getElementById('statusBanner');
+  try {
+    const st = await callApi('/api/tokens/me');
+    if (st.is_admin) {
+      box.innerHTML = '<span class="text-buy">حساب ادمین — نیازی به توکن فعال‌سازی ندارید.</span>';
+    } else if (st.active) {
+      box.innerHTML = `<span class="text-buy">توکن معاملات واقعی شما فعال است — انقضا: <span class="mono-num" dir="ltr">${faDate(st.token.expires_at)}</span></span>`;
+    } else {
+      box.innerHTML = '<span class="text-gold">در حال حاضر توکن فعالی ندارید — فقط حالت کاغذی (paper) در دسترس است.</span>';
+    }
+  } catch (e) { box.innerHTML = '<span class="text-sell">خطا در دریافت وضعیت</span>'; }
+}
+
+async function loadPlans() {
+  paymentCache = await callApi('/api/payment/plans');
+  plansCache = paymentCache.plans || [];
+  const grid = document.getElementById('plansGrid');
+  grid.innerHTML = plansCache.map((p, i) => `
+    <div class="glass-card rounded-2xl p-6 text-center cursor-pointer plan-card" id="plan_${i}" onclick="selectPlan(${i})">
+      <div class="text-sm text-on-surface-variant mb-1">${p.days} روزه</div>
+      <div class="mono-num text-3xl font-bold text-primary" dir="ltr">${p.price_usdt}</div>
+      <div class="text-xs text-on-surface-variant mt-1">USDT</div>
+    </div>`).join('') || '<div class="col-span-full text-center text-on-surface-variant text-sm py-6">هنوز پلنی توسط ادمین تعریف نشده است.</div>';
+}
+
+function selectPlan(i) {
+  selectedPlan = plansCache[i];
+  document.querySelectorAll('.plan-card').forEach((el, idx) => {
+    el.classList.toggle('border-primary', idx === i);
+    el.style.borderColor = idx === i ? '#00dce5' : '';
+    el.style.boxShadow = idx === i ? '0 0 15px rgba(0,220,229,.25)' : '';
+  });
+  document.getElementById('pay_amount').textContent = selectedPlan.price_usdt + ' USDT';
+  document.getElementById('pay_network').textContent = paymentCache.wallet_network || '—';
+  document.getElementById('pay_address').textContent = paymentCache.wallet_address || 'هنوز توسط ادمین تنظیم نشده است';
+  document.getElementById('paymentBox').classList.remove('hidden');
+
+  const qrBox = document.getElementById('pay_qr');
+  qrBox.innerHTML = '';
+  if (paymentCache.wallet_address && window.QRCode) {
+    qrInstance = new QRCode(qrBox, {
+      text: paymentCache.wallet_address, width: 180, height: 180,
+      colorDark: '#0b1326', colorLight: '#ffffff',
+    });
+  }
+}
+
+async function submitDeposit() {
+  if (!selectedPlan) { toast('یک پلن انتخاب کنید', true); return; }
+  if (!paymentCache.wallet_address) { toast('آدرس کیف پول هنوز توسط ادمین تنظیم نشده است', true); return; }
+  const note = document.getElementById('deposit_note').value.trim();
+  try {
+    const r = await callApi('/api/billing/submit-deposit', 'POST', {
+      plan_days: selectedPlan.days, plan_price: selectedPlan.price_usdt, note,
+    });
+    toast('اطلاعات واریز ارسال شد — تیکت #' + r.id);
+    document.getElementById('deposit_note').value = '';
+    loadHistory();
+  } catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+const TOKEN_STATUS_LABEL = t => {
+  if (t.revoked) return '<span class="text-sell text-xs">باطل‌شده</span>';
+  if (new Date(t.expires_at) > new Date()) return '<span class="text-buy text-xs">فعال</span>';
+  return '<span class="text-on-surface-variant text-xs">منقضی‌شده</span>';
+};
+
+async function loadHistory() {
+  try {
+    const list = await callApi('/api/tokens/history');
+    document.getElementById('historyTbody').innerHTML = list.map(t => `
+      <tr><td class="mono-num text-xs" dir="ltr">${faDate(t.issued_at)}</td>
+      <td class="num">${t.duration_days} روز</td>
+      <td class="mono-num text-xs" dir="ltr">${faDate(t.expires_at)}</td>
+      <td>${TOKEN_STATUS_LABEL(t)}</td>
+      <td class="text-xs text-on-surface-variant">${t.note || '—'}</td></tr>`
+    ).join('') || '<tr><td colspan="5" class="text-center text-on-surface-variant py-6">هنوز توکنی صادر نشده است.</td></tr>';
+  } catch (e) {}
+}
+
+function copyEl(id) {
+  const txt = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(txt).then(() => toast('کپی شد'), () => toast('کپی ناموفق بود', true));
+}
+
+Promise.all([loadStatus(), loadPlans(), loadHistory()]).catch(e => toast('خطا: ' + e.message, true));
+</script>
+{% endblock %}
