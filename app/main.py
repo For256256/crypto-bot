@@ -201,17 +201,45 @@ class TicketIn(BaseModel):
     unit: str = "عمومی"
 
 
+class ReplyIn(BaseModel):
+    message: str
+
+
 @app.get("/api/tickets")
-async def get_tickets(_: dict = Depends(auth.require_user)):
-    return tickets.list_tickets()
+async def get_tickets(user: dict = Depends(auth.require_user)):
+    return tickets.list_tickets(None if user["role"] == "admin" else user["id"])
 
 
 @app.post("/api/tickets")
-async def create_ticket(payload: TicketIn, _: dict = Depends(auth.require_user)):
+async def create_ticket(payload: TicketIn, user: dict = Depends(auth.require_user)):
     try:
-        return tickets.create_ticket(payload.subject, payload.body, payload.unit)
+        return tickets.create_ticket(payload.subject, payload.body, payload.unit, user["id"], user["username"])
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+@app.post("/api/tickets/{ticket_id}/reply")
+async def reply_ticket_as_user(ticket_id: str, payload: ReplyIn, user: dict = Depends(auth.require_user)):
+    """ادامه دادن گفتگوی یک تیکت — هم صاحب تیکت و هم ادمین می‌توانند پاسخ اضافه کنند."""
+    ticket = tickets.get_ticket(ticket_id)
+    if ticket is None:
+        raise HTTPException(404, "تیکت پیدا نشد")
+    is_admin = user["role"] == "admin"
+    if not is_admin and ticket.get("user_id") != user["id"]:
+        raise HTTPException(403, "این تیکت متعلق به شما نیست")
+    try:
+        return tickets.add_reply(ticket_id, payload.message, user["id"], user["username"],
+                                 "admin" if is_admin else "user")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/admin/tickets/{ticket_id}/close")
+async def close_ticket_api(ticket_id: str, _: dict = Depends(auth.require_admin)):
+    ticket = tickets.close_ticket(ticket_id)
+    if ticket is None:
+        raise HTTPException(404, "تیکت پیدا نشد")
+    return ticket
 
 
 # ---------- تنظیمات کلی برنامه (اعلان‌ها) ----------
