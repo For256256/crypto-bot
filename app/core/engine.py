@@ -16,7 +16,7 @@ import math
 from collections import deque
 from datetime import datetime, timezone
 
-from app.core import config_store, history
+from app.core import config_store, history, tokens, users
 from app.core.exchanges.base import ExchangeError
 from app.core.exchanges.factory import build_driver
 from app.core.exchanges.paper import PaperDriver
@@ -38,6 +38,8 @@ def normalize_symbol_for(exchange: str, raw: str) -> str:
 from app.core.strategies.registry import run_strategy, STRATEGIES
 
 EQUITY_SNAPSHOT_SECONDS = 300
+# فاصله‌ی بررسی انقضای توکن فعال‌سازی معاملات واقعی حساب‌های کاربران عادی
+TOKEN_CHECK_INTERVAL_SECONDS = 300
 # فاصله‌ی پیش‌فرض SL/TP از قیمت ورود، به ضریب ATR — قابل تنظیم در هر حساب
 # (sl_tp_atr_mult). هر دو یک ضریب مشترک دارند تا نسبت ریسک:پاداش ۱:۱ بماند و
 # فاصله‌ی بیشتری تا حد ضرر باشد، برای کاهش برخورد زودهنگام به SL.
@@ -613,6 +615,52 @@ class BotManager:
 
     def __init__(self):
         self.runners: dict[str, AccountRunner] = {}
+        self._token_watchdog_task: asyncio.Task | None = None
+        self._token_warned: dict[str, str] = {}  # account_id -> token_id که قبلاً هشدار انقضا داده شده
+
+    def start_background_tasks(self):
+        """تسک‌های پس‌زمینه‌ی سطح‌برنامه (نه هر حساب) را یک‌بار در استارتاپ شروع می‌کند."""
+        if self._token_watchdog_task is None:
+            self._token_watchdog_task = asyncio.create_task(self._token_watchdog_loop())
+
+    async def _token_watchdog_loop(self):
+        while True:
+            try:
+                await self._check_live_token_expiry()
+            except Exception:
+                pass
+            await asyncio.sleep(TOKEN_CHECK_INTERVAL_SECONDS)
+
+    async def _check_live_token_expiry(self):
+        """اگر توکن فعال‌سازی مالک یک حساب live (کاربر عادی) منقضی/باطل شده باشد،
+        ربات آن حساب را خودکار متوقف می‌کند — نه فقط جلوی سوییچ جدید به live را
+        می‌گیرد. اگر کمتر از ۲۴ ساعت به انقضا مانده، یک‌بار هشدار هم داده می‌شود."""
+        for aid, runner in list(self.runners.items()):
+            owner_id = runner.cfg.get("owner_id")
+            if not owner_id:
+                continue
+            owner = users.get_user(owner_id)
+            if owner is None or owner.get("role") == "admin":
+                continue
+            if runner.running and runner.cfg.get("trading_mode") == "live":
+                if not tokens.has_active_token(owner_id):
+                    runner.log(
+                        "⛔ توکن فعال‌سازی معاملات واقعی منقضی/باطل شده — ربات به‌صورت خودکار متوقف شد.",
+                        "error",
+                    )
+                    await self.stop_account(aid)
+                    continue
+            active = tokens.get_active_token(owner_id)
+            if active is None:
+                continue
+            expires_at = active.get("expires_at", "")
+            try:
+                remaining = datetime.fromisoformat(expires_at) - datetime.now(timezone.utc)
+            except ValueError:
+                continue
+            if remaining.total_seconds() <= 86400 and self._token_warned.get(aid) != active["id"]:
+                self._token_warned[aid] = active["id"]
+                runner.log(f"⏳ توکن فعال‌سازی معاملات واقعی کمتر از ۲۴ ساعت دیگر منقضی می‌شود.", "warn")
 
     def sync_from_config(self):
         """runnerها را با فایل پیکربندی هم‌گام می‌کند (افزودن/به‌روزرسانی cfg).

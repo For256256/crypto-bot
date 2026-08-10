@@ -17,6 +17,7 @@ from app.core import tickets
 from app.core import app_settings
 from app.core import users
 from app.core import auth
+from app.core import tokens
 from app.core.exchanges.toobit import normalize_symbol
 
 app = FastAPI(title="کریپتو بات — Toobit Futures")
@@ -45,6 +46,7 @@ async def on_startup():
     if admin is not None:
         config_store.migrate_owner_less_accounts(admin["id"])
     bot_manager.sync_from_config()
+    bot_manager.start_background_tasks()
 
 
 class AccountIn(BaseModel):
@@ -242,6 +244,44 @@ async def close_ticket_api(ticket_id: str, _: dict = Depends(auth.require_admin)
     return ticket
 
 
+# ---------- توکن فعال‌سازی معاملات واقعی ----------
+class TokenIssueIn(BaseModel):
+    user_id: str
+    duration_days: int
+    note: str = ""
+
+
+@app.get("/api/tokens/me")
+async def my_token_status(user: dict = Depends(auth.require_user)):
+    if user["role"] == "admin":
+        return {"is_admin": True, "active": True, "token": None}
+    token = tokens.get_active_token(user["id"])
+    return {"is_admin": False, "active": token is not None, "token": token}
+
+
+@app.get("/api/admin/tokens")
+async def admin_list_tokens(_: dict = Depends(auth.require_admin)):
+    return tokens.list_tokens()
+
+
+@app.post("/api/admin/tokens")
+async def admin_issue_token(payload: TokenIssueIn, user: dict = Depends(auth.require_admin)):
+    if users.get_user(payload.user_id) is None:
+        raise HTTPException(404, "کاربر پیدا نشد")
+    try:
+        return tokens.issue_token(payload.user_id, payload.duration_days, payload.note, user["id"])
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/admin/tokens/{token_id}/revoke")
+async def admin_revoke_token(token_id: str, _: dict = Depends(auth.require_admin)):
+    token = tokens.revoke_token(token_id)
+    if token is None:
+        raise HTTPException(404, "توکن پیدا نشد")
+    return token
+
+
 # ---------- تنظیمات کلی برنامه (اعلان‌ها) ----------
 @app.get("/api/app-settings")
 async def get_app_settings(_: dict = Depends(auth.require_user)):
@@ -411,6 +451,18 @@ def _owned_account(account_id: str, user: dict) -> dict:
     return account
 
 
+def _assert_can_go_live(user: dict):
+    """ادمین محدودیت ندارد؛ کاربر عادی بدون توکن فعال نمی‌تواند حساب را live کند."""
+    if user.get("role") == "admin":
+        return
+    if not tokens.has_active_token(user["id"]):
+        raise HTTPException(
+            403,
+            "برای معامله‌ی واقعی (live) نیاز به توکن فعال‌سازی دارید — "
+            "از صفحه‌ی پشتیبانی (واحد مالی) درخواست خرید توکن کنید.",
+        )
+
+
 @app.get("/api/accounts")
 async def get_accounts(user: dict = Depends(auth.require_user)):
     return config_store.list_accounts(None if user["role"] == "admin" else user["id"])
@@ -418,6 +470,8 @@ async def get_accounts(user: dict = Depends(auth.require_user)):
 
 @app.post("/api/accounts")
 async def create_account(payload: AccountIn, user: dict = Depends(auth.require_user)):
+    if payload.trading_mode == "live":
+        _assert_can_go_live(user)
     account = config_store.add_account(payload.dict(), owner_id=user["id"])
     bot_manager.sync_from_config()
     return account
@@ -431,6 +485,9 @@ async def duplicate_account(account_id: str, user: dict = Depends(auth.require_u
         account = config_store.duplicate_account(account_id)
     except KeyError as e:
         raise HTTPException(404, str(e))
+    # اگر منبع live بود ولی کاربر دیگر توکن فعال ندارد (مثلاً منقضی شده)، کپی paper می‌شود
+    if account.get("trading_mode") == "live" and user.get("role") != "admin" and not tokens.has_active_token(user["id"]):
+        account = config_store.update_account(account["id"], {"trading_mode": "paper"})
     bot_manager.sync_from_config()
     return account
 
@@ -438,6 +495,8 @@ async def duplicate_account(account_id: str, user: dict = Depends(auth.require_u
 @app.put("/api/accounts/{account_id}")
 async def edit_account(account_id: str, payload: AccountIn, user: dict = Depends(auth.require_user)):
     _owned_account(account_id, user)
+    if payload.trading_mode == "live":
+        _assert_can_go_live(user)
     try:
         account = config_store.update_account(account_id, payload.dict())
     except KeyError as e:
@@ -452,6 +511,8 @@ async def set_trading_mode(account_id: str, mode: str, user: dict = Depends(auth
     _owned_account(account_id, user)
     if mode not in ("paper", "live"):
         raise HTTPException(400, "حالت باید paper یا live باشد")
+    if mode == "live":
+        _assert_can_go_live(user)
     try:
         account = config_store.update_account(account_id, {"trading_mode": mode})
     except KeyError as e:
