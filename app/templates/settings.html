@@ -68,6 +68,25 @@
 
   <!-- راست: تلگرام + اعلان‌ها + امنیت -->
   <div class="lg:col-span-4 flex flex-col gap-6">
+    <!-- ظاهر و تم -->
+    <div class="glass-card rounded-2xl p-6">
+      <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary">palette</span> ظاهر برنامه
+      </h3>
+      <div class="grid grid-cols-3 gap-2" id="themeSwitcher">
+        <button class="btn-ghost !py-2.5 flex flex-col items-center gap-1 text-[11px]" data-theme-opt="dark" onclick="setTheme('dark'); syncThemeSwitcher();">
+          <span class="material-symbols-outlined text-lg">dark_mode</span> تاریک
+        </button>
+        <button class="btn-ghost !py-2.5 flex flex-col items-center gap-1 text-[11px]" data-theme-opt="light" onclick="setTheme('light'); syncThemeSwitcher();">
+          <span class="material-symbols-outlined text-lg">light_mode</span> روشن
+        </button>
+        <button class="btn-ghost !py-2.5 flex flex-col items-center gap-1 text-[11px]" data-theme-opt="system" onclick="setTheme('system'); syncThemeSwitcher();">
+          <span class="material-symbols-outlined text-lg">brightness_auto</span> خودکار
+        </button>
+      </div>
+      <p class="text-[10px] text-on-surface-variant mt-3">حالت «خودکار» تم را از تنظیمات دستگاه/مرورگر شما می‌گیرد.</p>
+    </div>
+
     <!-- پروفایل کاربری -->
     <div class="glass-card rounded-2xl p-6">
       <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
@@ -537,6 +556,16 @@ async function savePaymentSettings() {
     toast('تنظیمات پرداخت ذخیره شد');
   } catch (e) { toast('خطا: ' + e.message, true); }
 }
+
+function syncThemeSwitcher() {
+  const cur = localStorage.getItem('cb_theme') || 'system';
+  document.querySelectorAll('#themeSwitcher [data-theme-opt]').forEach(btn => {
+    const active = btn.dataset.themeOpt === cur;
+    btn.classList.toggle('!border-primary', active);
+    btn.classList.toggle('!text-primary', active);
+  });
+}
+syncThemeSwitcher();
 
 loadAll().catch(e => toast('خطا: ' + e.message, true));
 </script>

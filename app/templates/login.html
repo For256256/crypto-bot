@@ -1,28 +1,53 @@
 <!DOCTYPE html>
-<html class="dark" dir="rtl" lang="fa">
+<html dir="rtl" lang="fa">
 <head>
 <meta charset="utf-8">
 <meta content="width=device-width, initial-scale=1.0" name="viewport">
 <title>ورود | CryptoPulse</title>
+<script>
+(function() {
+  var pref = localStorage.getItem('cb_theme');
+  if (pref === 'dark' || pref === 'light') document.documentElement.setAttribute('data-theme', pref);
+})();
+</script>
 <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100;300;400;500;700;900&family=Hanken+Grotesk:wght@700&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
 <script>
 tailwind.config = { theme: { extend: { colors: {
-  "surface": "#0b1326", "surface-container-low": "#131b2e", "on-surface": "#dae2fd",
-  "on-surface-variant": "#b9caca", "outline-variant": "#3a494a", "primary": "#00dce5",
-  "on-primary": "#002021", "sell": "#f43f5e", "gold": "#f0b90b",
+  "surface": "rgb(var(--c-surface) / <alpha-value>)", "surface-container-low": "rgb(var(--c-surface-container-low) / <alpha-value>)", "on-surface": "rgb(var(--c-on-surface) / <alpha-value>)",
+  "on-surface-variant": "rgb(var(--c-on-surface-variant) / <alpha-value>)", "outline-variant": "rgb(var(--c-outline-variant) / <alpha-value>)", "primary": "rgb(var(--c-primary) / <alpha-value>)",
+  "on-primary": "rgb(var(--c-on-primary) / <alpha-value>)", "sell": "rgb(var(--c-sell) / <alpha-value>)", "gold": "rgb(var(--c-gold) / <alpha-value>)",
 }, fontFamily: { headline: ["Vazirmatn", "Hanken Grotesk"], body: ["Vazirmatn"] } } } }
 </script>
 <style>
-  html { color-scheme: dark; }
-  body { background-color: #0b1326; font-family: 'Vazirmatn', sans-serif; color: #dae2fd; }
-  .glass-card { background: rgba(23, 31, 51, 0.75); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,.08); }
-  .field {
-    width: 100%; background-color: #060e20 !important; border: 1px solid rgba(255,255,255,.08); color: #dae2fd !important;
-    border-radius: 0.25rem; padding: 0.6rem 0.85rem; font-family: inherit; font-size: 0.9rem; color-scheme: dark;
+  :root {
+    --c-surface: 11 19 38; --c-surface-container-lowest: 6 14 32; --c-surface-container-low: 19 27 46;
+    --c-on-surface: 218 226 253; --c-on-surface-variant: 185 202 202; --c-outline-variant: 58 73 74;
+    --c-primary: 0 220 229; --c-on-primary: 0 32 33; --c-sell: 244 63 94; --c-gold: 240 185 11;
+    color-scheme: dark;
   }
-  .field:focus { outline: none; border-color: #00dce5; box-shadow: 0 0 0 3px rgba(0,220,229,.15); }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --c-surface: 247 249 252; --c-surface-container-lowest: 255 255 255; --c-surface-container-low: 238 241 247;
+      --c-on-surface: 19 26 44; --c-on-surface-variant: 85 96 110; --c-outline-variant: 199 206 217;
+      --c-primary: 0 150 158; --c-on-primary: 255 255 255; --c-sell: 225 29 72; --c-gold: 161 98 7;
+      color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --c-surface: 247 249 252; --c-surface-container-lowest: 255 255 255; --c-surface-container-low: 238 241 247;
+    --c-on-surface: 19 26 44; --c-on-surface-variant: 85 96 110; --c-outline-variant: 199 206 217;
+    --c-primary: 0 150 158; --c-on-primary: 255 255 255; --c-sell: 225 29 72; --c-gold: 161 98 7;
+    color-scheme: light;
+  }
+  body { background-color: rgb(var(--c-surface)); font-family: 'Vazirmatn', sans-serif; color: rgb(var(--c-on-surface)); }
+  .glass-card { background: rgb(var(--c-surface-container-low) / 0.75); backdrop-filter: blur(20px); border: 1px solid rgb(var(--c-on-surface) / 0.08); }
+  .field {
+    width: 100%; background-color: rgb(var(--c-surface-container-lowest)) !important; border: 1px solid rgb(var(--c-on-surface) / 0.08); color: rgb(var(--c-on-surface)) !important;
+    border-radius: 0.25rem; padding: 0.6rem 0.85rem; font-family: inherit; font-size: 0.9rem;
+  }
+  .field:focus { outline: none; border-color: rgb(var(--c-primary)); box-shadow: 0 0 0 3px rgb(var(--c-primary) / 0.15); }
   .btn-primary-of {
     background: linear-gradient(135deg, #00dce5, #00696e); color: #002021; border-radius: 0.25rem; font-weight: 700;
     padding: 0.65rem 1.2rem; font-size: 0.9rem; transition: .2s; cursor: pointer; border: none; width: 100%;

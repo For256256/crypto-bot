@@ -1,35 +1,40 @@
 <!DOCTYPE html>
-<html class="dark" dir="rtl" lang="fa">
+<html dir="rtl" lang="fa">
 <head>
 <meta charset="utf-8">
 <meta content="width=device-width, initial-scale=1.0" name="viewport">
 <title>{% block title %}CryptoPulse{% endblock %}</title>
+<script>
+(function() {
+  var pref = localStorage.getItem('cb_theme');
+  if (pref === 'dark' || pref === 'light') document.documentElement.setAttribute('data-theme', pref);
+})();
+</script>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100;300;400;500;700;900&family=Hanken+Grotesk:wght@400;600;700&family=Noto+Sans:wght@400;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
 <script id="tailwind-config">
 tailwind.config = {
-  darkMode: "class",
   theme: {
     extend: {
       colors: {
-        "tertiary-fixed-dim": "#c0c1ff", "primary-fixed-dim": "#00dce5", "surface-bright": "#31394d",
-        "surface-container-highest": "#2d3449", "on-secondary-fixed": "#002113", "inverse-on-surface": "#283044",
-        "on-tertiary-fixed-variant": "#2f2ebe", "primary-fixed": "#63f7ff", "on-secondary-container": "#00311f",
-        "on-background": "#dae2fd", "surface-container-lowest": "#060e20", "on-tertiary-fixed": "#07006c",
-        "on-surface-variant": "#b9caca", "inverse-surface": "#dae2fd", "primary": "#00dce5",
-        "secondary-fixed-dim": "#4edea3", "on-primary-container": "#006c71", "on-secondary": "#003824",
-        "surface-container-high": "#222a3d", "background": "#0b1326", "on-error": "#690005",
-        "surface-container-low": "#131b2e", "tertiary": "#fcf8ff", "on-primary": "#003739",
-        "surface-tint": "#00dce5", "surface-container": "#171f33", "outline": "#849495",
-        "primary-container": "#00f5ff", "error": "#ffb4ab", "surface-variant": "#2d3449",
-        "tertiary-container": "#dbdaff", "on-secondary-fixed-variant": "#005236", "secondary": "#4edea3",
-        "surface": "#0b1326", "inverse-primary": "#00696e", "secondary-container": "#00a572",
-        "surface-dim": "#0b1326", "on-tertiary": "#1000a9", "tertiary-fixed": "#e1e0ff",
-        "on-surface": "#dae2fd", "on-primary-fixed": "#002021", "error-container": "#93000a",
-        "secondary-fixed": "#6ffbbe", "outline-variant": "#3a494a", "on-primary-fixed-variant": "#004f53",
-        "on-error-container": "#ffdad6", "on-tertiary-container": "#4c4ed9",
-        "buy": "#4edea3", "sell": "#f43f5e", "info-blue": "#4c4ed9", "gold": "#f0b90b"
+        "tertiary-fixed-dim": "rgb(var(--c-tertiary-fixed-dim) / <alpha-value>)", "primary-fixed-dim": "rgb(var(--c-primary-fixed-dim) / <alpha-value>)", "surface-bright": "rgb(var(--c-surface-bright) / <alpha-value>)",
+        "surface-container-highest": "rgb(var(--c-surface-container-highest) / <alpha-value>)", "on-secondary-fixed": "rgb(var(--c-on-secondary-fixed) / <alpha-value>)", "inverse-on-surface": "rgb(var(--c-inverse-on-surface) / <alpha-value>)",
+        "on-tertiary-fixed-variant": "rgb(var(--c-on-tertiary-fixed-variant) / <alpha-value>)", "primary-fixed": "rgb(var(--c-primary-fixed) / <alpha-value>)", "on-secondary-container": "rgb(var(--c-on-secondary-container) / <alpha-value>)",
+        "on-background": "rgb(var(--c-on-background) / <alpha-value>)", "surface-container-lowest": "rgb(var(--c-surface-container-lowest) / <alpha-value>)", "on-tertiary-fixed": "rgb(var(--c-on-tertiary-fixed) / <alpha-value>)",
+        "on-surface-variant": "rgb(var(--c-on-surface-variant) / <alpha-value>)", "inverse-surface": "rgb(var(--c-inverse-surface) / <alpha-value>)", "primary": "rgb(var(--c-primary) / <alpha-value>)",
+        "secondary-fixed-dim": "rgb(var(--c-secondary-fixed-dim) / <alpha-value>)", "on-primary-container": "rgb(var(--c-on-primary-container) / <alpha-value>)", "on-secondary": "rgb(var(--c-on-secondary) / <alpha-value>)",
+        "surface-container-high": "rgb(var(--c-surface-container-high) / <alpha-value>)", "background": "rgb(var(--c-background) / <alpha-value>)", "on-error": "rgb(var(--c-on-error) / <alpha-value>)",
+        "surface-container-low": "rgb(var(--c-surface-container-low) / <alpha-value>)", "tertiary": "rgb(var(--c-tertiary) / <alpha-value>)", "on-primary": "rgb(var(--c-on-primary) / <alpha-value>)",
+        "surface-tint": "rgb(var(--c-surface-tint) / <alpha-value>)", "surface-container": "rgb(var(--c-surface-container) / <alpha-value>)", "outline": "rgb(var(--c-outline) / <alpha-value>)",
+        "primary-container": "rgb(var(--c-primary-container) / <alpha-value>)", "error": "rgb(var(--c-error) / <alpha-value>)", "surface-variant": "rgb(var(--c-surface-variant) / <alpha-value>)",
+        "tertiary-container": "rgb(var(--c-tertiary-container) / <alpha-value>)", "on-secondary-fixed-variant": "rgb(var(--c-on-secondary-fixed-variant) / <alpha-value>)", "secondary": "rgb(var(--c-secondary) / <alpha-value>)",
+        "surface": "rgb(var(--c-surface) / <alpha-value>)", "inverse-primary": "rgb(var(--c-inverse-primary) / <alpha-value>)", "secondary-container": "rgb(var(--c-secondary-container) / <alpha-value>)",
+        "surface-dim": "rgb(var(--c-surface-dim) / <alpha-value>)", "on-tertiary": "rgb(var(--c-on-tertiary) / <alpha-value>)", "tertiary-fixed": "rgb(var(--c-tertiary-fixed) / <alpha-value>)",
+        "on-surface": "rgb(var(--c-on-surface) / <alpha-value>)", "on-primary-fixed": "rgb(var(--c-on-primary-fixed) / <alpha-value>)", "error-container": "rgb(var(--c-error-container) / <alpha-value>)",
+        "secondary-fixed": "rgb(var(--c-secondary-fixed) / <alpha-value>)", "outline-variant": "rgb(var(--c-outline-variant) / <alpha-value>)", "on-primary-fixed-variant": "rgb(var(--c-on-primary-fixed-variant) / <alpha-value>)",
+        "on-error-container": "rgb(var(--c-on-error-container) / <alpha-value>)", "on-tertiary-container": "rgb(var(--c-on-tertiary-container) / <alpha-value>)",
+        "buy": "rgb(var(--c-buy) / <alpha-value>)", "sell": "rgb(var(--c-sell) / <alpha-value>)", "info-blue": "rgb(var(--c-info-blue) / <alpha-value>)", "gold": "rgb(var(--c-gold) / <alpha-value>)"
       },
       borderRadius: { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" },
       fontFamily: {
@@ -40,40 +45,100 @@ tailwind.config = {
 }
 </script>
 <style>
-  html { color-scheme: dark; }
-  body { background-color: #0b1326; font-family: 'Vazirmatn', sans-serif; color: #dae2fd; }
+  :root {
+    --c-tertiary-fixed-dim: 192 193 255; --c-primary-fixed-dim: 0 220 229; --c-surface-bright: 49 57 77;
+    --c-surface-container-highest: 45 52 73; --c-on-secondary-fixed: 0 33 19; --c-inverse-on-surface: 40 48 68;
+    --c-on-tertiary-fixed-variant: 47 46 190; --c-primary-fixed: 99 247 255; --c-on-secondary-container: 0 49 31;
+    --c-on-background: 218 226 253; --c-surface-container-lowest: 6 14 32; --c-on-tertiary-fixed: 7 0 108;
+    --c-on-surface-variant: 185 202 202; --c-inverse-surface: 218 226 253; --c-primary: 0 220 229;
+    --c-secondary-fixed-dim: 78 222 163; --c-on-primary-container: 0 108 113; --c-on-secondary: 0 56 36;
+    --c-surface-container-high: 34 42 61; --c-background: 11 19 38; --c-on-error: 105 0 5;
+    --c-surface-container-low: 19 27 46; --c-tertiary: 252 248 255; --c-on-primary: 0 55 57;
+    --c-surface-tint: 0 220 229; --c-surface-container: 23 31 51; --c-outline: 132 148 149;
+    --c-primary-container: 16 51 60; --c-error: 255 180 171; --c-surface-variant: 45 52 73;
+    --c-tertiary-container: 219 218 255; --c-on-secondary-fixed-variant: 0 82 54; --c-secondary: 78 222 163;
+    --c-surface: 11 19 38; --c-inverse-primary: 0 105 110; --c-secondary-container: 0 165 114;
+    --c-surface-dim: 11 19 38; --c-on-tertiary: 16 0 169; --c-tertiary-fixed: 225 224 255;
+    --c-on-surface: 218 226 253; --c-on-primary-fixed: 0 32 33; --c-error-container: 147 0 10;
+    --c-secondary-fixed: 111 251 190; --c-outline-variant: 58 73 74; --c-on-primary-fixed-variant: 0 79 83;
+    --c-on-error-container: 255 218 214; --c-on-tertiary-container: 76 78 217;
+    --c-buy: 78 222 163; --c-sell: 244 63 94; --c-info-blue: 76 78 217; --c-gold: 240 185 11;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --c-tertiary-fixed-dim: 111 113 224; --c-primary-fixed-dim: 0 150 158; --c-surface-bright: 255 255 255;
+      --c-surface-container-highest: 210 215 228; --c-on-secondary-fixed: 215 247 232; --c-inverse-on-surface: 238 241 247;
+      --c-on-tertiary-fixed-variant: 75 74 208; --c-primary-fixed: 127 224 230; --c-on-secondary-container: 4 81 47;
+      --c-on-background: 19 26 44; --c-surface-container-lowest: 255 255 255; --c-on-tertiary-fixed: 222 220 255;
+      --c-on-surface-variant: 85 96 110; --c-inverse-surface: 32 40 56; --c-primary: 0 150 158;
+      --c-secondary-fixed-dim: 23 145 95; --c-on-primary-container: 0 77 82; --c-on-secondary: 234 251 243;
+      --c-surface-container-high: 221 225 236; --c-background: 247 249 252; --c-on-error: 255 255 255;
+      --c-surface-container-low: 238 241 247; --c-tertiary: 91 91 214; --c-on-primary: 255 255 255;
+      --c-surface-tint: 0 150 158; --c-surface-container: 232 235 243; --c-outline: 140 150 163;
+      --c-primary-container: 217 246 248; --c-error: 186 26 26; --c-surface-variant: 221 225 236;
+      --c-tertiary-container: 228 227 255; --c-on-secondary-fixed-variant: 0 95 102; --c-secondary: 23 145 95;
+      --c-surface: 247 249 252; --c-inverse-primary: 94 235 242; --c-secondary-container: 185 243 218;
+      --c-surface-dim: 238 241 247; --c-on-tertiary: 255 255 255; --c-tertiary-fixed: 228 227 255;
+      --c-on-surface: 19 26 44; --c-on-primary-fixed: 255 255 255; --c-error-container: 255 218 214;
+      --c-secondary-fixed: 185 243 218; --c-outline-variant: 199 206 217; --c-on-primary-fixed-variant: 0 95 102;
+      --c-on-error-container: 65 0 2; --c-on-tertiary-container: 50 48 168;
+      --c-buy: 23 145 95; --c-sell: 225 29 72; --c-info-blue: 67 56 202; --c-gold: 161 98 7;
+      color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --c-tertiary-fixed-dim: 111 113 224; --c-primary-fixed-dim: 0 150 158; --c-surface-bright: 255 255 255;
+    --c-surface-container-highest: 210 215 228; --c-on-secondary-fixed: 215 247 232; --c-inverse-on-surface: 238 241 247;
+    --c-on-tertiary-fixed-variant: 75 74 208; --c-primary-fixed: 127 224 230; --c-on-secondary-container: 4 81 47;
+    --c-on-background: 19 26 44; --c-surface-container-lowest: 255 255 255; --c-on-tertiary-fixed: 222 220 255;
+    --c-on-surface-variant: 85 96 110; --c-inverse-surface: 32 40 56; --c-primary: 0 150 158;
+    --c-secondary-fixed-dim: 23 145 95; --c-on-primary-container: 0 77 82; --c-on-secondary: 234 251 243;
+    --c-surface-container-high: 221 225 236; --c-background: 247 249 252; --c-on-error: 255 255 255;
+    --c-surface-container-low: 238 241 247; --c-tertiary: 91 91 214; --c-on-primary: 255 255 255;
+    --c-surface-tint: 0 150 158; --c-surface-container: 232 235 243; --c-outline: 140 150 163;
+    --c-primary-container: 217 246 248; --c-error: 186 26 26; --c-surface-variant: 221 225 236;
+    --c-tertiary-container: 228 227 255; --c-on-secondary-fixed-variant: 0 95 102; --c-secondary: 23 145 95;
+    --c-surface: 247 249 252; --c-inverse-primary: 94 235 242; --c-secondary-container: 185 243 218;
+    --c-surface-dim: 238 241 247; --c-on-tertiary: 255 255 255; --c-tertiary-fixed: 228 227 255;
+    --c-on-surface: 19 26 44; --c-on-primary-fixed: 255 255 255; --c-error-container: 255 218 214;
+    --c-secondary-fixed: 185 243 218; --c-outline-variant: 199 206 217; --c-on-primary-fixed-variant: 0 95 102;
+    --c-on-error-container: 65 0 2; --c-on-tertiary-container: 50 48 168;
+    --c-buy: 23 145 95; --c-sell: 225 29 72; --c-info-blue: 67 56 202; --c-gold: 161 98 7;
+    color-scheme: light;
+  }
+  body { background-color: rgb(var(--c-surface)); font-family: 'Vazirmatn', sans-serif; color: rgb(var(--c-on-surface)); }
   .glass-card {
-    background: rgba(23, 31, 51, 0.75);
+    background: rgb(var(--c-surface-container) / 0.75);
     backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid rgb(var(--c-on-surface) / 0.08);
     transition: all 0.3s ease;
   }
-  .glass-card:hover { border-color: #00dce555; box-shadow: 0 0 15px rgba(0, 220, 229, 0.12); }
+  .glass-card:hover { border-color: rgb(var(--c-primary) / 0.33); box-shadow: 0 0 15px rgb(var(--c-primary) / 0.12); }
   .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
   .pulse-active { animation: pulse 2s infinite; }
   @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
   .mono-num { font-family: 'JetBrains Mono', monospace; }
   ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: #0b1326; }
-  ::-webkit-scrollbar-thumb { background: #2d3449; border-radius: 10px; }
+  ::-webkit-scrollbar-track { background: rgb(var(--c-surface)); }
+  ::-webkit-scrollbar-thumb { background: rgb(var(--c-surface-variant)); border-radius: 10px; }
   .field {
-    width: 100%; background-color: #060e20 !important; border: 1px solid rgba(255,255,255,.08); color: #dae2fd !important;
+    width: 100%; background-color: rgb(var(--c-surface-container-lowest)) !important; border: 1px solid rgb(var(--c-on-surface) / 0.08); color: rgb(var(--c-on-surface)) !important;
     border-radius: 0.25rem; padding: 0.5rem 0.75rem; font-family: inherit; font-size: 0.85rem;
-    color-scheme: dark;
   }
-  .field:focus { outline: none; border-color: #00dce5; box-shadow: 0 0 0 3px rgba(0,220,229,.15); }
-  .field option { background-color: #131b2e; color: #dae2fd; }
+  .field:focus { outline: none; border-color: rgb(var(--c-primary)); box-shadow: 0 0 0 3px rgb(var(--c-primary) / 0.15); }
+  .field option { background-color: rgb(var(--c-surface-container-low)); color: rgb(var(--c-on-surface)); }
   .field:-webkit-autofill, .field:-webkit-autofill:focus {
-    -webkit-text-fill-color: #dae2fd;
-    -webkit-box-shadow: 0 0 0 1000px #060e20 inset;
+    -webkit-text-fill-color: rgb(var(--c-on-surface));
+    -webkit-box-shadow: 0 0 0 1000px rgb(var(--c-surface-container-lowest)) inset;
     transition: background-color 9999s ease-out;
   }
-  .lbl { display: block; color: #849495; font-size: 0.72rem; margin-bottom: 0.3rem; }
+  .lbl { display: block; color: rgb(var(--c-outline)); font-size: 0.72rem; margin-bottom: 0.3rem; }
   .btn-ghost {
-    border: 1px solid #3a494a; color: #dae2fd; border-radius: 0.25rem;
+    border: 1px solid rgb(var(--c-outline-variant)); color: rgb(var(--c-on-surface)); border-radius: 0.25rem;
     padding: 0.45rem 1rem; font-size: 0.8rem; transition: .2s; cursor: pointer; background: transparent;
   }
-  .btn-ghost:hover { background: rgba(0,220,229,.08); }
+  .btn-ghost:hover { background: rgb(var(--c-primary) / 0.08); }
   .btn-primary-of {
     background: linear-gradient(135deg, #00dce5, #00696e); color: #002021; border-radius: 0.25rem; font-weight: 700;
     padding: 0.5rem 1.2rem; font-size: 0.8rem; transition: .2s; cursor: pointer; border: none;
@@ -82,33 +147,34 @@ tailwind.config = {
   .btn-buy { background: #4edea3; color: #002113; border-radius: 0.25rem; font-weight: 700; padding: 0.5rem 1.5rem; font-size: .85rem; cursor: pointer; border: none; }
   .btn-sell { background: #f43f5e; color: #fff; border-radius: 0.25rem; font-weight: 700; padding: 0.5rem 1.5rem; font-size: .85rem; cursor: pointer; border: none; }
   /* سوئیچ */
-  .of-switch { position: relative; width: 40px; height: 22px; appearance: none; background: #2d3449; border-radius: 9999px; cursor: pointer; transition: .2s; }
-  .of-switch:checked { background: #4edea3; }
-  .of-switch::after { content: ''; position: absolute; top: 3px; right: 3px; width: 16px; height: 16px; background: #dae2fd; border-radius: 9999px; transition: .2s; }
+  .of-switch { position: relative; width: 40px; height: 22px; appearance: none; background: rgb(var(--c-surface-variant)); border-radius: 9999px; cursor: pointer; transition: .2s; }
+  .of-switch:checked { background: rgb(var(--c-buy)); }
+  .of-switch::after { content: ''; position: absolute; top: 3px; right: 3px; width: 16px; height: 16px; background: rgb(var(--c-on-surface)); border-radius: 9999px; transition: .2s; }
   .of-switch:checked::after { transform: translateX(-18px); }
   /* مودال */
   .modal-bg { display: none; position: fixed; inset: 0; background: rgba(6,14,32,.75); backdrop-filter: blur(6px); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
   .modal-bg.open { display: flex; }
   .modal-panel {
-    background: rgba(23, 31, 51, 0.94); backdrop-filter: blur(20px);
-    border: 1px solid rgba(255,255,255,.08); border-radius: 0.75rem; padding: 1.5rem;
+    background: rgb(var(--c-surface-container) / 0.97); backdrop-filter: blur(20px);
+    border: 1px solid rgb(var(--c-on-surface) / 0.08); border-radius: 0.75rem; padding: 1.5rem;
     width: 580px; max-width: 100%; max-height: 90vh; overflow-y: auto;
   }
   .modal-panel.wide { width: 920px; }
   /* toast */
   #toast {
     position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px);
-    background: #131b2e; border: 1px solid #3a494a; border-radius: 0.5rem;
+    background: rgb(var(--c-surface-container-low)); border: 1px solid rgb(var(--c-outline-variant)); border-radius: 0.5rem;
     padding: 10px 22px; font-size: .8rem; opacity: 0; pointer-events: none; transition: .25s; z-index: 200; max-width: 90vw;
+    color: rgb(var(--c-on-surface));
   }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-  #toast.error { border-color: #f43f5e; color: #ffb4ab; }
+  #toast.error { border-color: rgb(var(--c-sell)); color: rgb(var(--c-error)); }
   table.of-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
   table.of-table th {
-    position: sticky; top: 0; background: #131b2e; color: #849495; font-weight: 500;
-    font-size: .68rem; text-align: right; padding: 0.5rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,.08);
+    position: sticky; top: 0; background: rgb(var(--c-surface-container-low)); color: rgb(var(--c-outline)); font-weight: 500;
+    font-size: .68rem; text-align: right; padding: 0.5rem 0.75rem; border-bottom: 1px solid rgb(var(--c-on-surface) / 0.08);
   }
-  table.of-table td { padding: 0.55rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,.08); }
+  table.of-table td { padding: 0.55rem 0.75rem; border-bottom: 1px solid rgb(var(--c-on-surface) / 0.08); }
   table.of-table td.num { font-family: 'JetBrains Mono', monospace; text-align: left; direction: ltr; }
 </style>
 {% block head %}{% endblock %}
@@ -168,6 +234,9 @@ tailwind.config = {
     <div class="flex items-center gap-2 md:gap-3">
       <button onclick="startAll()" class="btn-buy flex items-center gap-1"><span class="material-symbols-outlined text-base">play_arrow</span><span class="hidden sm:inline">شروع همه</span></button>
       <button onclick="stopAll()" class="btn-sell flex items-center gap-1"><span class="material-symbols-outlined text-base">stop</span><span class="hidden sm:inline">توقف همه</span></button>
+      <button onclick="cycleTheme()" id="themeBtn" title="تغییر تم" class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center hover:bg-surface-bright transition-colors">
+        <span class="material-symbols-outlined text-on-surface-variant text-xl" id="themeIcon">brightness_auto</span>
+      </button>
       <a href="/settings" class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center hover:bg-surface-bright transition-colors">
         <span class="material-symbols-outlined text-on-surface-variant text-xl">settings</span>
       </a>
@@ -240,6 +309,33 @@ function askConfirm(msg) { return window.confirm(msg); }
 
 async function startAll() { try { await callApi('/api/start-all', 'POST'); toast('همه شروع شدند'); } catch (e) { toast('خطا: ' + e.message, true); } if (typeof refresh === 'function') refresh(); }
 async function stopAll() { try { await callApi('/api/stop-all', 'POST'); toast('همه متوقف شدند'); } catch (e) { toast('خطا: ' + e.message, true); } if (typeof refresh === 'function') refresh(); }
+
+// ---------- تم (تاریک/روشن/خودکار) ----------
+const THEME_ICONS = { dark: 'dark_mode', light: 'light_mode', system: 'brightness_auto' };
+const THEME_LABELS = { dark: 'تاریک', light: 'روشن', system: 'خودکار (بر اساس دستگاه)' };
+
+function applyTheme(pref) {
+  if (pref === 'dark' || pref === 'light') document.documentElement.setAttribute('data-theme', pref);
+  else document.documentElement.removeAttribute('data-theme');
+  const icon = document.getElementById('themeIcon');
+  if (icon) icon.textContent = THEME_ICONS[pref] || THEME_ICONS.system;
+  const btn = document.getElementById('themeBtn');
+  if (btn) btn.title = 'تم: ' + (THEME_LABELS[pref] || THEME_LABELS.system);
+}
+
+function setTheme(pref) {
+  localStorage.setItem('cb_theme', pref);
+  applyTheme(pref);
+}
+
+function cycleTheme() {
+  const cur = localStorage.getItem('cb_theme') || 'system';
+  const next = cur === 'dark' ? 'light' : (cur === 'light' ? 'system' : 'dark');
+  setTheme(next);
+  toast('تم: ' + THEME_LABELS[next]);
+}
+
+applyTheme(localStorage.getItem('cb_theme') || 'system');
 
 // وضعیت کلی سیستم در سایدبار
 async function pollSystemStatus() {
