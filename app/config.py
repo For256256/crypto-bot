@@ -21,6 +21,9 @@ class Settings:
     DASHBOARD_USER: str = os.getenv("DASHBOARD_USER", "admin")
     DASHBOARD_PASSWORD: str = os.getenv("DASHBOARD_PASSWORD", "")
 
+    # ---- کلید امضای سشن (کوکی لاگین چندکاربره) ----
+    SESSION_SECRET_KEY: str = os.getenv("SESSION_SECRET_KEY", "")
+
     # ---- توکن محافظ Webhook تریدینگ‌ویو ----
     WEBHOOK_TOKEN: str = os.getenv("WEBHOOK_TOKEN", "")
 

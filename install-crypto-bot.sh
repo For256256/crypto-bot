@@ -68,14 +68,28 @@ if [ ! -f .env ]; then
   log "ساخت .env با رمز و توکن تصادفی…"
   RAND_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(12))")
   RAND_TOKEN=$(python3 -c "import secrets; print(secrets.token_urlsafe(24))")
+  RAND_SESSION_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
   cp .env.example .env
   sed -i "s#^DASHBOARD_PASSWORD=.*#DASHBOARD_PASSWORD=${RAND_PASSWORD}#" .env
   sed -i "s#^WEBHOOK_TOKEN=.*#WEBHOOK_TOKEN=${RAND_TOKEN}#" .env
+  sed -i "s#^SESSION_SECRET_KEY=.*#SESSION_SECRET_KEY=${RAND_SESSION_KEY}#" .env
   echo "  رمز داشبورد: ${RAND_PASSWORD}"
   echo "  توکن وبهوک: ${RAND_TOKEN}"
   echo "  (این مقادیر فقط همین یک‌بار نمایش داده می‌شوند — در ${INSTALL_DIR}/.env هم ذخیره شده‌اند)"
 else
   log ".env از قبل موجود است — دست‌نخورده باقی می‌ماند."
+fi
+
+# نصب‌های قدیمی‌تر SESSION_SECRET_KEY را در .env ندارند — بدون آن جلسه‌ی
+# لاگین کار نمی‌کند، پس اگر غایب بود همین یک خط اضافه/تولید می‌شود.
+if ! grep -q '^SESSION_SECRET_KEY=.\+' .env 2>/dev/null; then
+  log "افزودن SESSION_SECRET_KEY به .env موجود…"
+  RAND_SESSION_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
+  if grep -q '^SESSION_SECRET_KEY=' .env; then
+    sed -i "s#^SESSION_SECRET_KEY=.*#SESSION_SECRET_KEY=${RAND_SESSION_KEY}#" .env
+  else
+    echo "SESSION_SECRET_KEY=${RAND_SESSION_KEY}" >> .env
+  fi
 fi
 
 DASHBOARD_PORT=$(grep -E '^DASHBOARD_PORT=' .env | tail -1 | cut -d= -f2)
