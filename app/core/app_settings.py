@@ -1,6 +1,7 @@
 """
-تنظیمات کلی برنامه (اعلان‌ها و ...) — config/app_settings.json.
-در حال حاضر فقط وضعیت سوئیچ‌های اعلان صفحه‌ی تنظیمات را نگه می‌دارد.
+تنظیمات کلی برنامه — config/app_settings.json.
+سوئیچ‌های اعلان صفحه‌ی تنظیمات + تنظیمات سراسری ربات تلگرام (توکن بات، چت آیدی
+ادمین، آفست آخرین آپدیت دریافت‌شده برای long-polling) را نگه می‌دارد.
 """
 import json
 import os
@@ -17,7 +18,13 @@ DEFAULTS = {
         "telegram": False,
         "email": False,
         "sms": False,
-    }
+    },
+    "telegram": {
+        "bot_token": "",
+        "admin_chat_id": "",
+        "bot_username": "",
+        "last_update_id": 0,
+    },
 }
 
 

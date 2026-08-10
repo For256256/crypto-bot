@@ -88,6 +88,17 @@ class AccountRunner:
             "message": message,
         })
 
+    def _notify_owner(self, text: str):
+        """اعلان تلگرام fire-and-forget به مالک این حساب (اگر تلگرامش وصل باشد)."""
+        owner_id = self.cfg.get("owner_id")
+        if not owner_id:
+            return
+        from app.core import telegram
+        try:
+            asyncio.create_task(telegram.notify_user(owner_id, f"[{self.cfg.get('name', '')}] {text}"))
+        except RuntimeError:
+            pass
+
     # ---------- چرخه‌ی حیات ----------
     async def start(self):
         if self.running:
@@ -123,6 +134,7 @@ class AccountRunner:
     async def _loop(self):
         interval = max(10, int(self.cfg.get("poll_interval_seconds", 60)))
         while self.running:
+            was_error = self.status in ("خطای صرافی", "خطا")
             try:
                 await self._tick()
             except asyncio.CancelledError:
@@ -130,9 +142,13 @@ class AccountRunner:
             except ExchangeError as e:
                 self.status = "خطای صرافی"
                 self.log(f"خطای صرافی: {e}", "error")
+                if not was_error:
+                    self._notify_owner(f"⚠️ خطای صرافی: {e}")
             except Exception as e:
                 self.status = "خطا"
                 self.log(f"خطای غیرمنتظره: {e}", "error")
+                if not was_error:
+                    self._notify_owner(f"⚠️ خطای غیرمنتظره: {e}")
             await asyncio.sleep(interval)
 
     async def _tick(self):
@@ -170,10 +186,16 @@ class AccountRunner:
         if isinstance(self.driver, PaperDriver):
             for trade in self.driver.drain_closed_trades():
                 history.record_trade(self.account_id, mode, trade)
+                realized = trade.get("realized", 0)
                 self.log(
                     f"معامله‌ی {trade['symbol']} بسته شد ({trade.get('closed_by')}) — "
-                    f"سود/زیان خالص از کارمزد: {trade.get('realized', 0):+.2f} USDT",
-                    "info" if trade.get("realized", 0) >= 0 else "warn",
+                    f"سود/زیان خالص از کارمزد: {realized:+.2f} USDT",
+                    "info" if realized >= 0 else "warn",
+                )
+                emoji = "✅" if realized >= 0 else "🔴"
+                self._notify_owner(
+                    f"{emoji} معامله‌ی {trade['symbol']} بسته شد ({trade.get('closed_by')}) — "
+                    f"سود/زیان خالص: {realized:+.2f} USDT"
                 )
         else:
             # live: پوزیشنی که قبلاً می‌دیدیم و الان نیست یعنی در صرافی بسته شده
@@ -199,6 +221,11 @@ class AccountRunner:
                     self.log(
                         f"پوزیشن {prev['symbol']} در سمت صرافی بسته شد ({label}) "
                         f"(سود/زیان تقریبی خالص از کارمزد: {realized:+.2f} USDT — کارمزد برآوردی: {fee:.2f})"
+                    )
+                    emoji = "✅" if realized >= 0 else "🔴"
+                    self._notify_owner(
+                        f"{emoji} پوزیشن {prev['symbol']} در سمت صرافی بسته شد ({label}) — "
+                        f"سود/زیان تقریبی خالص: {realized:+.2f} USDT"
                     )
             self._known_live_positions = current_ids
 
@@ -252,10 +279,11 @@ class AccountRunner:
         gross = position.get("profit") or 0.0
         fee = await self._estimate_live_fee(position["symbol"], position.get("entry_price"),
                                             position.get("mark_price"), position.get("qty"))
+        realized = gross - fee
         history.record_trade(self.account_id, self.cfg.get("trading_mode", "paper"), {
             **position,
             "close_price": position.get("mark_price"),
-            "realized": gross - fee,
+            "realized": realized,
             "fee": fee,
             "closed_by": closed_by,
             "estimated": True,
@@ -263,6 +291,9 @@ class AccountRunner:
         })
         self._known_live_positions.pop(position.get("id"), None)
         self._live_position_targets.pop(position.get("id"), None)
+        emoji = "✅" if realized >= 0 else "🔴"
+        label = {"SL": "حد ضرر", "TP": "حد سود", "manual": "دستی", "reversal": "تغییر جهت"}.get(closed_by, closed_by)
+        self._notify_owner(f"{emoji} پوزیشن {position['symbol']} بسته شد ({label}) — سود/زیان: {realized:+.2f} USDT")
 
     # ---------- سقف ضرر روزانه ----------
     def _check_daily_loss(self):
@@ -283,6 +314,7 @@ class AccountRunner:
                 f"⛔ سقف ضرر روزانه ({max_loss}٪) رسید — تا فردا (UTC) ورودی جدید ممنوع است.",
                 "error",
             )
+            self._notify_owner(f"⛔ سقف ضرر روزانه ({max_loss}٪) رسید — تا فردا ورودی جدید ممنوع است.")
         elif self._daily["blocked"]:
             self.status = "متوقف (سقف ضرر روزانه)"
 
@@ -423,6 +455,10 @@ class AccountRunner:
         self.log(
             f"✅ ورود {('Long' if side == 'buy' else 'Short')} {symbol} | حجم: {qty:g} @ ~{price:g} | "
             f"SL: {stop_loss:g} | TP: {take_profit:g} | اهرم: {leverage}x"
+        )
+        self._notify_owner(
+            f"📈 ورود {('Long' if side == 'buy' else 'Short')} {symbol} | حجم: {qty:g} @ ~{price:g} | "
+            f"SL: {stop_loss:g} | TP: {take_profit:g}"
         )
         if result.get("tp_sl_set") is False:
             self.log(result.get("tp_sl_error", "ست کردن TP/SL ناموفق بود"), "error")
@@ -644,10 +680,9 @@ class BotManager:
                 continue
             if runner.running and runner.cfg.get("trading_mode") == "live":
                 if not tokens.has_active_token(owner_id):
-                    runner.log(
-                        "⛔ توکن فعال‌سازی معاملات واقعی منقضی/باطل شده — ربات به‌صورت خودکار متوقف شد.",
-                        "error",
-                    )
+                    msg = "⛔ توکن فعال‌سازی معاملات واقعی منقضی/باطل شده — ربات به‌صورت خودکار متوقف شد."
+                    runner.log(msg, "error")
+                    runner._notify_owner(msg)
                     await self.stop_account(aid)
                     continue
             active = tokens.get_active_token(owner_id)
@@ -660,7 +695,9 @@ class BotManager:
                 continue
             if remaining.total_seconds() <= 86400 and self._token_warned.get(aid) != active["id"]:
                 self._token_warned[aid] = active["id"]
-                runner.log(f"⏳ توکن فعال‌سازی معاملات واقعی کمتر از ۲۴ ساعت دیگر منقضی می‌شود.", "warn")
+                msg = "⏳ توکن فعال‌سازی معاملات واقعی کمتر از ۲۴ ساعت دیگر منقضی می‌شود."
+                runner.log(msg, "warn")
+                runner._notify_owner(msg)
 
     def sync_from_config(self):
         """runnerها را با فایل پیکربندی هم‌گام می‌کند (افزودن/به‌روزرسانی cfg).
