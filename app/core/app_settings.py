@@ -34,6 +34,15 @@ DEFAULTS = {
         "from_name": "CryptoPulse",
         "use_tls": True,
     },
+    "payment": {
+        "wallet_address": "",
+        "wallet_network": "USDT (TRC20)",
+        "plans": [
+            {"days": 30, "price_usdt": 20},
+            {"days": 60, "price_usdt": 38},
+            {"days": 90, "price_usdt": 75},
+        ],
+    },
 }
 
 

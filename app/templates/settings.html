@@ -129,6 +129,22 @@
         <p id="em_status" class="text-[11px] text-on-surface-variant"></p>
       </div>
     </div>
+
+    <!-- تنظیمات کیف پول و پلن‌های خرید توکن (فقط ادمین) -->
+    <div class="glass-card rounded-2xl p-6">
+      <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
+        <span class="material-symbols-outlined text-gold">account_balance_wallet</span> کیف پول و پلن‌های خرید توکن (ادمین)
+      </h3>
+      <div class="space-y-3">
+        <div><label class="lbl">آدرس کیف پول</label><input id="pm_wallet_address" class="field mono-num" dir="ltr"></div>
+        <div><label class="lbl">شبکه</label><input id="pm_wallet_network" class="field mono-num" dir="ltr" placeholder="USDT (TRC20)"></div>
+        <div class="border-t border-outline-variant/20 pt-3">
+          <label class="lbl mb-2">پلن‌ها (مدت به روز / قیمت به دلار)</label>
+          <div class="grid grid-cols-2 gap-2 mb-1.5" id="pm_plans"></div>
+        </div>
+        <button class="btn-ghost w-full !py-2 text-xs" onclick="savePaymentSettings()">ذخیره</button>
+      </div>
+    </div>
     {% endif %}
 
     <div class="glass-card rounded-2xl p-6">
@@ -215,7 +231,7 @@ function faDate(iso) {
 
 async function loadAll() {
   const tasks = [callApi('/api/accounts'), loadTelegramCard()];
-  if (IS_ADMIN) { tasks.push(callApi('/api/app-settings')); tasks.push(loadTelegramAdminSettings()); tasks.push(loadEmailAdminSettings()); }
+  if (IS_ADMIN) { tasks.push(callApi('/api/app-settings')); tasks.push(loadTelegramAdminSettings()); tasks.push(loadEmailAdminSettings()); tasks.push(loadPaymentAdminSettings()); }
   else { tasks.push(loadTokenHistory()); }
   const [accounts, , settings] = await Promise.all(tasks);
   accountsCache = accounts;
@@ -493,6 +509,33 @@ async function rotateToken() {
 function copyEl(id) {
   const txt = document.getElementById(id).textContent;
   navigator.clipboard.writeText(txt).then(() => toast('کپی شد'), () => toast('کپی ناموفق بود', true));
+}
+
+async function loadPaymentAdminSettings() {
+  if (!IS_ADMIN) return;
+  try {
+    const s = await callApi('/api/admin/payment-settings');
+    document.getElementById('pm_wallet_address').value = s.wallet_address || '';
+    document.getElementById('pm_wallet_network').value = s.wallet_network || '';
+    const plans = (s.plans && s.plans.length) ? s.plans : [{days: 30, price_usdt: 20}, {days: 60, price_usdt: 38}, {days: 90, price_usdt: 75}];
+    document.getElementById('pm_plans').innerHTML = plans.map((p, i) => `
+      <input class="field mono-num text-xs" dir="ltr" type="number" value="${p.days}" placeholder="روز" data-plan-days="${i}">
+      <input class="field mono-num text-xs" dir="ltr" type="number" step="0.01" value="${p.price_usdt}" placeholder="USDT" data-plan-price="${i}">`
+    ).join('');
+  } catch (e) {}
+}
+
+async function savePaymentSettings() {
+  const wallet_address = document.getElementById('pm_wallet_address').value.trim();
+  const wallet_network = document.getElementById('pm_wallet_network').value.trim();
+  const days = [...document.querySelectorAll('[data-plan-days]')].map(el => parseInt(el.value) || 0);
+  const prices = [...document.querySelectorAll('[data-plan-price]')].map(el => parseFloat(el.value) || 0);
+  const plans = days.map((d, i) => ({ days: d, price_usdt: prices[i] })).filter(p => p.days > 0 && p.price_usdt > 0);
+  if (!wallet_address) { toast('آدرس کیف پول را وارد کنید', true); return; }
+  try {
+    await callApi('/api/admin/payment-settings', 'PUT', { wallet_address, wallet_network, plans });
+    toast('تنظیمات پرداخت ذخیره شد');
+  } catch (e) { toast('خطا: ' + e.message, true); }
 }
 
 loadAll().catch(e => toast('خطا: ' + e.message, true));
