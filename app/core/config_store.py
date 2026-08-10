@@ -24,6 +24,7 @@ ACCOUNT_DEFAULTS = {
     "risk_percent": 1.0,
     "default_leverage": 5,
     "sl_tp_atr_mult": 3.0,
+    "max_margin_per_trade_pct": 25.0,
     "max_open_positions": 2,
     "max_daily_loss_percent": 5.0,
     "poll_interval_seconds": 60,
