@@ -18,6 +18,7 @@ from app.core import app_settings
 from app.core import users
 from app.core import auth
 from app.core import tokens
+from app.core import presets
 from app.core.exchanges.toobit import normalize_symbol
 
 app = FastAPI(title="کریپتو بات — Toobit Futures")
@@ -164,6 +165,11 @@ async def support_page(request: Request, user: dict = Depends(auth.require_user_
     return templates.TemplateResponse("support.html", {"request": request, "active": "support", "user": user})
 
 
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_page(request: Request, user: dict = Depends(auth.require_admin_page)):
+    return templates.TemplateResponse("admin.html", {"request": request, "active": "admin", "user": user})
+
+
 # ---------- بک‌تست استراتژی ----------
 class BacktestIn(BaseModel):
     symbol: str
@@ -280,6 +286,88 @@ async def admin_revoke_token(token_id: str, _: dict = Depends(auth.require_admin
     if token is None:
         raise HTTPException(404, "توکن پیدا نشد")
     return token
+
+
+# ---------- مدیریت کاربران (پنل ادمین) ----------
+class ResetPasswordIn(BaseModel):
+    new_password: str = ""
+
+
+@app.get("/api/admin/users")
+async def admin_list_users(_: dict = Depends(auth.require_admin)):
+    all_accounts = config_store.list_accounts()
+    counts: dict[str, int] = {}
+    for a in all_accounts:
+        oid = a.get("owner_id")
+        if oid:
+            counts[oid] = counts.get(oid, 0) + 1
+    out = []
+    for u in users.list_users():
+        row = users.public_view(u)
+        row["accounts_count"] = counts.get(u["id"], 0)
+        row["has_active_token"] = tokens.has_active_token(u["id"])
+        out.append(row)
+    return out
+
+
+@app.post("/api/admin/users/{user_id}/enable")
+async def admin_set_user_enabled(user_id: str, enabled: bool, _: dict = Depends(auth.require_admin)):
+    user = users.set_enabled(user_id, enabled)
+    if user is None:
+        raise HTTPException(404, "کاربر پیدا نشد")
+    return users.public_view(user)
+
+
+@app.post("/api/admin/users/{user_id}/reset-password")
+async def admin_reset_password(user_id: str, payload: ResetPasswordIn, _: dict = Depends(auth.require_admin)):
+    """چون فعلاً ایمیل/فراموشی‌رمز نداریم، این تنها راه بازیابی رمز کاربر است."""
+    new_password = payload.new_password.strip() or secrets.token_urlsafe(9)
+    if len(new_password) < 6:
+        raise HTTPException(400, "رمز عبور باید حداقل ۶ کاراکتر باشد.")
+    user = users.set_password(user_id, new_password)
+    if user is None:
+        raise HTTPException(404, "کاربر پیدا نشد")
+    return {"user_id": user_id, "new_password": new_password}
+
+
+# ---------- پیش‌فرض‌های پیشنهادی استراتژی (پنل ادمین) ----------
+class PresetIn(BaseModel):
+    name: str
+    description: str = ""
+    strategy: str = "supertrend_ema_rsi"
+    strategy_params: dict = {}
+    timeframe: str = "1h"
+    leverage: Optional[int] = None
+    risk_percent: Optional[float] = None
+    sl_tp_atr_mult: Optional[float] = None
+
+
+@app.get("/api/presets")
+async def get_presets(_: dict = Depends(auth.require_user)):
+    return presets.list_presets()
+
+
+@app.post("/api/admin/presets")
+async def create_preset_api(payload: PresetIn, user: dict = Depends(auth.require_admin)):
+    try:
+        return presets.create_preset(payload.dict(), user["id"])
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.put("/api/admin/presets/{preset_id}")
+async def update_preset_api(preset_id: str, payload: PresetIn, _: dict = Depends(auth.require_admin)):
+    preset = presets.update_preset(preset_id, payload.dict())
+    if preset is None:
+        raise HTTPException(404, "پیش‌فرض پیدا نشد")
+    return preset
+
+
+@app.delete("/api/admin/presets/{preset_id}")
+async def delete_preset_api(preset_id: str, _: dict = Depends(auth.require_admin)):
+    if not presets.delete_preset(preset_id):
+        raise HTTPException(404, "پیش‌فرض پیدا نشد")
+    return {"deleted": preset_id}
 
 
 # ---------- تنظیمات کلی برنامه (اعلان‌ها) ----------
