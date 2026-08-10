@@ -1,3 +1,4 @@
+import asyncio
 import json
 import secrets
 from fastapi import FastAPI, Depends, HTTPException, status
@@ -19,6 +20,7 @@ from app.core import users
 from app.core import auth
 from app.core import tokens
 from app.core import presets
+from app.core import telegram
 from app.core.exchanges.toobit import normalize_symbol
 
 app = FastAPI(title="کریپتو بات — Toobit Futures")
@@ -48,6 +50,7 @@ async def on_startup():
         config_store.migrate_owner_less_accounts(admin["id"])
     bot_manager.sync_from_config()
     bot_manager.start_background_tasks()
+    asyncio.create_task(telegram.poll_updates_loop())
 
 
 class AccountIn(BaseModel):
@@ -128,6 +131,7 @@ async def register_submit(request: Request, payload: RegisterIn):
     except ValueError as e:
         raise HTTPException(400, str(e))
     request.session["user_id"] = user["id"]
+    asyncio.create_task(telegram.notify_admin(f"👤 کاربر جدید ثبت‌نام کرد: {user['username']}"))
     return {"ok": True}
 
 
@@ -221,9 +225,13 @@ async def get_tickets(user: dict = Depends(auth.require_user)):
 @app.post("/api/tickets")
 async def create_ticket(payload: TicketIn, user: dict = Depends(auth.require_user)):
     try:
-        return tickets.create_ticket(payload.subject, payload.body, payload.unit, user["id"], user["username"])
+        ticket = tickets.create_ticket(payload.subject, payload.body, payload.unit, user["id"], user["username"])
     except ValueError as e:
         raise HTTPException(400, str(e))
+    asyncio.create_task(telegram.notify_admin(
+        f"🎫 تیکت جدید ({ticket['unit']}) از {user['username']}: {ticket['subject']}"
+    ))
+    return ticket
 
 
 @app.post("/api/tickets/{ticket_id}/reply")
@@ -275,9 +283,13 @@ async def admin_issue_token(payload: TokenIssueIn, user: dict = Depends(auth.req
     if users.get_user(payload.user_id) is None:
         raise HTTPException(404, "کاربر پیدا نشد")
     try:
-        return tokens.issue_token(payload.user_id, payload.duration_days, payload.note, user["id"])
+        token = tokens.issue_token(payload.user_id, payload.duration_days, payload.note, user["id"])
     except ValueError as e:
         raise HTTPException(400, str(e))
+    asyncio.create_task(telegram.notify_user(
+        payload.user_id, f"✅ توکن معاملات واقعی شما فعال شد — {payload.duration_days} روز اعتبار دارد."
+    ))
+    return token
 
 
 @app.post("/api/admin/tokens/{token_id}/revoke")
@@ -370,15 +382,72 @@ async def delete_preset_api(preset_id: str, _: dict = Depends(auth.require_admin
     return {"deleted": preset_id}
 
 
-# ---------- تنظیمات کلی برنامه (اعلان‌ها) ----------
+# ---------- تنظیمات کلی برنامه (سراسری — فقط ادمین) ----------
 @app.get("/api/app-settings")
-async def get_app_settings(_: dict = Depends(auth.require_user)):
+async def get_app_settings(_: dict = Depends(auth.require_admin)):
     return app_settings.get_settings()
 
 
 @app.put("/api/app-settings")
-async def put_app_settings(payload: dict, _: dict = Depends(auth.require_user)):
+async def put_app_settings(payload: dict, _: dict = Depends(auth.require_admin)):
     return app_settings.update_settings(payload)
+
+
+# ---------- ربات تلگرام ----------
+class TelegramSettingsIn(BaseModel):
+    bot_token: str
+    admin_chat_id: str = ""
+
+
+@app.get("/api/admin/telegram-settings")
+async def get_telegram_settings(_: dict = Depends(auth.require_admin)):
+    data = app_settings.get_settings().get("telegram") or {}
+    return {"bot_token_set": bool(data.get("bot_token")), "bot_username": data.get("bot_username", ""),
+            "admin_chat_id": data.get("admin_chat_id", "")}
+
+
+@app.put("/api/admin/telegram-settings")
+async def put_telegram_settings(payload: TelegramSettingsIn, _: dict = Depends(auth.require_admin)):
+    bot_token = payload.bot_token.strip()
+    me = await telegram.get_me(bot_token)
+    if me is None:
+        raise HTTPException(400, "توکن ربات نامعتبر است — از BotFather یک توکن معتبر بگیرید.")
+    app_settings.update_settings({"telegram": {
+        "bot_token": bot_token, "bot_username": me.get("username", ""),
+        "admin_chat_id": payload.admin_chat_id.strip(),
+    }})
+    return {"ok": True, "bot_username": me.get("username", "")}
+
+
+@app.get("/api/settings/telegram/link-code")
+async def telegram_link_code(user: dict = Depends(auth.require_user)):
+    bot_username = (app_settings.get_settings().get("telegram") or {}).get("bot_username", "")
+    if not bot_username:
+        raise HTTPException(503, "ربات تلگرام هنوز توسط ادمین تنظیم نشده است.")
+    code = users.set_link_code(user["id"])
+    return {"code": code, "bot_username": bot_username, "ttl_minutes": users.LINK_CODE_TTL_MINUTES}
+
+
+@app.post("/api/settings/telegram/unlink")
+async def telegram_unlink(user: dict = Depends(auth.require_user)):
+    users.set_telegram_chat_id(user["id"], None)
+    return {"ok": True}
+
+
+@app.get("/api/settings/telegram/status")
+async def telegram_status(user: dict = Depends(auth.require_user)):
+    fresh = users.get_user(user["id"]) or user
+    return {"linked": bool(fresh.get("telegram_chat_id")), "notify_telegram": fresh.get("notify_telegram", True)}
+
+
+class NotifyPrefIn(BaseModel):
+    notify_telegram: bool
+
+
+@app.put("/api/settings/notifications")
+async def put_notification_prefs(payload: NotifyPrefIn, user: dict = Depends(auth.require_user)):
+    users.set_notify_telegram(user["id"], payload.notify_telegram)
+    return {"ok": True}
 
 
 # ---------- وضعیت کلی ----------

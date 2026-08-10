@@ -66,28 +66,47 @@
     </div>
   </div>
 
-  <!-- راست: اعلان‌ها + امنیت -->
+  <!-- راست: تلگرام + اعلان‌ها + امنیت -->
   <div class="lg:col-span-4 flex flex-col gap-6">
+    <!-- اتصال تلگرام شخصی -->
+    <div class="glass-card rounded-2xl p-6">
+      <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary">send</span> اتصال تلگرام
+      </h3>
+      <div id="tgStatusBox" class="text-xs text-on-surface-variant">در حال بارگذاری…</div>
+    </div>
+
+    {% if user.role == 'admin' %}
+    <!-- تنظیمات ربات تلگرام (فقط ادمین) -->
+    <div class="glass-card rounded-2xl p-6">
+      <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
+        <span class="material-symbols-outlined text-gold">smart_toy</span> تنظیمات ربات تلگرام (ادمین)
+      </h3>
+      <div class="space-y-3">
+        <div><label class="lbl">Bot Token (از BotFather)</label><input id="tg_bot_token" class="field mono-num" dir="ltr" type="password" placeholder="123456:ABC-DEF..."></div>
+        <div><label class="lbl">Chat ID ادمین (برای اعلان‌های سیستمی)</label><input id="tg_admin_chat_id" class="field mono-num" dir="ltr" placeholder="بعد از اتصال شخصی خودتان پر می‌شود"></div>
+        <button class="btn-ghost w-full !py-2 text-xs" onclick="saveTelegramSettings()">ذخیره و اعتبارسنجی</button>
+        <p id="tg_bot_status" class="text-[11px] text-on-surface-variant"></p>
+      </div>
+    </div>
+    {% endif %}
+
     <div class="glass-card rounded-2xl p-6">
       <h3 class="font-headline font-bold mb-5 flex items-center gap-2">
         <span class="material-symbols-outlined text-primary">notifications</span> تنظیمات اعلان‌رسانی
       </h3>
       <div class="space-y-4" id="notifBox">
         <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3"><span class="material-symbols-outlined text-on-surface-variant">send</span><div><div class="text-sm">تلگرام</div><div class="text-[10px] text-on-surface-variant">دریافت سیگنال و هشدارها</div></div></div>
-          <input type="checkbox" id="n_telegram" class="of-switch" onchange="saveNotif()">
-        </div>
-        <div class="flex items-center justify-between">
           <div class="flex items-center gap-3"><span class="material-symbols-outlined text-on-surface-variant">mail</span><div><div class="text-sm">ایمیل</div><div class="text-[10px] text-on-surface-variant">گزارش عملکرد هفتگی</div></div></div>
-          <input type="checkbox" id="n_email" class="of-switch" onchange="saveNotif()">
+          <input type="checkbox" id="n_email" class="of-switch" onchange="saveNotif()" {{ '' if user.role == 'admin' else 'disabled' }}>
         </div>
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3"><span class="material-symbols-outlined text-on-surface-variant">sms</span><div><div class="text-sm">پیامک (SMS)</div><div class="text-[10px] text-on-surface-variant">اعلان بستن پوزیشن و سوددهی</div></div></div>
-          <input type="checkbox" id="n_sms" class="of-switch" onchange="saveNotif()">
+          <input type="checkbox" id="n_sms" class="of-switch" onchange="saveNotif()" {{ '' if user.role == 'admin' else 'disabled' }}>
         </div>
       </div>
       <p class="text-[10px] text-on-surface-variant mt-4 border-t border-outline-variant/20 pt-3 leading-5">
-        وضعیت این سوئیچ‌ها ذخیره می‌شود؛ اتصال به سرویس‌های ارسال (ربات تلگرام/ایمیل) در نسخه‌های بعدی فعال می‌شود.
+        این دو کانال هنوز پیاده‌سازی نشده‌اند (فقط وضعیت سوئیچ ذخیره می‌شود). اعلان تلگرام از کارت بالا واقعاً فعال است.
       </p>
     </div>
 
@@ -129,21 +148,99 @@
 
 {% block scripts %}
 <script>
+const IS_ADMIN = {{ 'true' if user.role == 'admin' else 'false' }};
 let accountsCache = [];
 let editingAccountId = null;
 
 async function loadAll() {
-  const [accounts, settings] = await Promise.all([callApi('/api/accounts'), callApi('/api/app-settings')]);
+  const tasks = [callApi('/api/accounts'), loadTelegramCard()];
+  if (IS_ADMIN) { tasks.push(callApi('/api/app-settings')); tasks.push(loadTelegramAdminSettings()); }
+  const [accounts, , settings] = await Promise.all(tasks);
   accountsCache = accounts;
   renderAccounts();
-  const n = (settings.notifications || {});
-  document.getElementById('n_telegram').checked = !!n.telegram;
-  document.getElementById('n_email').checked = !!n.email;
-  document.getElementById('n_sms').checked = !!n.sms;
+  if (IS_ADMIN && settings) {
+    const n = (settings.notifications || {});
+    document.getElementById('n_email').checked = !!n.email;
+    document.getElementById('n_sms').checked = !!n.sms;
+  }
 
   const whSel = document.getElementById('wh_account');
   whSel.innerHTML = accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
   await loadWebhookInfo();
+}
+
+async function loadTelegramCard() {
+  const box = document.getElementById('tgStatusBox');
+  try {
+    const st = await callApi('/api/settings/telegram/status');
+    if (st.linked) {
+      box.innerHTML = `
+        <div class="flex items-center gap-2 mb-3"><span class="material-symbols-outlined text-buy text-base">check_circle</span>
+          <span>حساب تلگرام شما متصل است.</span></div>
+        <div class="flex items-center justify-between mb-3">
+          <span>دریافت اعلان‌های معاملاتی</span>
+          <input type="checkbox" id="n_tg_personal" class="of-switch" ${st.notify_telegram ? 'checked' : ''} onchange="saveTelegramNotifyPref()">
+        </div>
+        <button class="btn-ghost w-full !py-2 text-xs !text-sell !border-sell/40" onclick="unlinkTelegram()">قطع اتصال</button>`;
+    } else {
+      box.innerHTML = `
+        <p class="mb-3 leading-6">با اتصال تلگرام، اعلان باز/بسته‌شدن پوزیشن، خطاها و برخورد سقف ضرر روزانه را همان‌جا دریافت می‌کنید.</p>
+        <button class="btn-primary-of w-full !py-2 text-xs" onclick="getTelegramLinkCode()">دریافت کد اتصال</button>
+        <div id="tgLinkCodeBox" class="mt-3 hidden"></div>`;
+    }
+  } catch (e) {
+    box.innerHTML = `<p class="text-sell">خطا: ${e.message}</p>`;
+  }
+}
+
+async function getTelegramLinkCode() {
+  try {
+    const r = await callApi('/api/settings/telegram/link-code');
+    const box = document.getElementById('tgLinkCodeBox');
+    box.classList.remove('hidden');
+    box.innerHTML = `
+      <div class="bg-primary-container rounded-lg p-3 text-center">
+        <p class="text-[11px] text-on-surface-variant mb-2">در تلگرام به ربات پیام دهید:</p>
+        <code class="mono-num text-buy text-sm block mb-2" dir="ltr">/start ${r.code}</code>
+        <a href="https://t.me/${r.bot_username}?start=${r.code}" target="_blank" class="btn-ghost !py-1.5 !px-3 text-xs inline-block">باز کردن ربات در تلگرام</a>
+        <p class="text-[10px] text-on-surface-variant mt-2">این کد تا ${r.ttl_minutes} دقیقه معتبر است.</p>
+      </div>`;
+  } catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+async function unlinkTelegram() {
+  if (!askConfirm('اتصال تلگرام قطع شود؟')) return;
+  try { await callApi('/api/settings/telegram/unlink', 'POST'); loadTelegramCard(); }
+  catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+async function saveTelegramNotifyPref() {
+  try {
+    await callApi('/api/settings/notifications', 'PUT', { notify_telegram: document.getElementById('n_tg_personal').checked });
+    toast('ذخیره شد');
+  } catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+async function loadTelegramAdminSettings() {
+  if (!IS_ADMIN) return;
+  try {
+    const s = await callApi('/api/admin/telegram-settings');
+    document.getElementById('tg_admin_chat_id').value = s.admin_chat_id || '';
+    document.getElementById('tg_bot_status').textContent = s.bot_token_set
+      ? `متصل به ربات: @${s.bot_username}` : 'هنوز توکنی تنظیم نشده است.';
+  } catch (e) {}
+}
+
+async function saveTelegramSettings() {
+  const bot_token = document.getElementById('tg_bot_token').value.trim();
+  const admin_chat_id = document.getElementById('tg_admin_chat_id').value.trim();
+  if (!bot_token) { toast('توکن ربات را وارد کنید', true); return; }
+  try {
+    const r = await callApi('/api/admin/telegram-settings', 'PUT', { bot_token, admin_chat_id });
+    toast('ربات متصل شد: @' + r.bot_username);
+    document.getElementById('tg_bot_token').value = '';
+    loadTelegramAdminSettings();
+  } catch (e) { toast('خطا: ' + e.message, true); }
 }
 
 async function loadWebhookInfo() {
@@ -235,8 +332,8 @@ async function saveKey(thenTest) {
 function testKey() { saveKey(true); }
 
 async function saveNotif() {
+  if (!IS_ADMIN) return;
   const patch = { notifications: {
-    telegram: document.getElementById('n_telegram').checked,
     email: document.getElementById('n_email').checked,
     sms: document.getElementById('n_sms').checked,
   }};
