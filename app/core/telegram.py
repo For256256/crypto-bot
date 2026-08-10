@@ -13,6 +13,7 @@ chat_id او را ذخیره می‌کند. از آن به بعد notify_user/no
 عمومی ندارد؛ long-polling نیازی به آن ندارد.
 """
 import asyncio
+import os
 import re
 
 import httpx
@@ -22,6 +23,8 @@ from app.core import app_settings, users
 API_BASE = "https://api.telegram.org/bot{token}"
 POLL_TIMEOUT_SECONDS = 25
 _START_RE = re.compile(r"^/start\s+([A-Za-z0-9]+)")
+# لوگوی پلتفرم — برای پیغام خوشامدگویی بعد از اتصال موفق حساب تلگرام
+LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "logo-full.png")
 
 
 def _bot_token() -> str:
@@ -57,6 +60,25 @@ async def send_message(chat_id: str, text: str) -> bool:
         return False
 
 
+async def send_photo(chat_id: str, photo_path: str, caption: str = "") -> bool:
+    token = _bot_token()
+    if not token or not chat_id or not os.path.exists(photo_path):
+        return False
+    url = API_BASE.format(token=token) + "/sendPhoto"
+    try:
+        with open(photo_path, "rb") as f:
+            photo_bytes = f.read()
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.post(
+                url,
+                data={"chat_id": chat_id, "caption": caption},
+                files={"photo": ("logo.png", photo_bytes, "image/png")},
+            )
+        return resp.status_code == 200
+    except (httpx.HTTPError, OSError):
+        return False
+
+
 async def notify_user(user_id: str | None, text: str):
     if not user_id:
         return
@@ -88,7 +110,9 @@ async def _handle_update(update: dict):
         await send_message(str(chat_id), "کد نامعتبر یا منقضی‌شده است — یک کد جدید از صفحه‌ی تنظیمات بگیرید.")
         return
     users.set_telegram_chat_id(user["id"], str(chat_id))
-    await send_message(str(chat_id), f"✅ حساب تلگرام شما به کاربر «{user['username']}» در کریپتو بات متصل شد.")
+    welcome = f"✅ حساب تلگرام شما به کاربر «{user['username']}» در CryptoPulse متصل شد.\nاز این پس اعلان معاملات و هشدارهای حسابتان همین‌جا ارسال می‌شود."
+    if not await send_photo(str(chat_id), LOGO_PATH, caption=welcome):
+        await send_message(str(chat_id), welcome)
 
 
 async def poll_updates_loop():
