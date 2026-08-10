@@ -23,7 +23,7 @@ from app.core import presets
 from app.core import telegram
 from app.core.exchanges.toobit import normalize_symbol
 
-app = FastAPI(title="کریپتو بات — Toobit Futures")
+app = FastAPI(title="CryptoPulse — Toobit / Tabdeal Futures")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
