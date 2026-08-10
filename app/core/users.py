@@ -7,6 +7,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import threading
 import uuid
@@ -20,15 +21,21 @@ _lock = threading.Lock()
 
 PBKDF2_ITERATIONS = 200_000
 LINK_CODE_TTL_MINUTES = 15
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 USER_DEFAULTS = {
     "role": "user",              # "admin" | "user"
     "enabled": True,
+    "email": None,
     "telegram_chat_id": None,
     "telegram_link_code": None,
     "telegram_link_code_expires": None,
     "notify_telegram": True,
 }
+
+
+def is_valid_email(email: str) -> bool:
+    return bool(_EMAIL_RE.match((email or "").strip()))
 
 
 def _now_iso() -> str:
@@ -94,13 +101,16 @@ def get_user_by_username(username: str) -> dict | None:
     return None
 
 
-def create_user(username: str, password: str, role: str = "user") -> dict:
+def create_user(username: str, password: str, email: str = "", role: str = "user") -> dict:
     username = (username or "").strip()
     password = password or ""
+    email = (email or "").strip().lower()
     if not username or len(username) < 3:
         raise ValueError("نام کاربری باید حداقل ۳ کاراکتر باشد.")
     if not password or len(password) < 6:
         raise ValueError("رمز عبور باید حداقل ۶ کاراکتر باشد.")
+    if not is_valid_email(email):
+        raise ValueError("ایمیل معتبر نیست.")
     if role not in ("admin", "user"):
         role = "user"
     with _lock:
@@ -111,6 +121,7 @@ def create_user(username: str, password: str, role: str = "user") -> dict:
             **USER_DEFAULTS,
             "id": uuid.uuid4().hex[:12],
             "username": username,
+            "email": email,
             "password_hash": _hash_password(password),
             "role": role,
             "created_at": _now_iso(),
@@ -142,6 +153,13 @@ def _update(user_id: str, patch: dict) -> dict | None:
 
 def set_password(user_id: str, new_password: str) -> dict | None:
     return _update(user_id, {"password_hash": _hash_password(new_password)})
+
+
+def set_email(user_id: str, email: str) -> dict | None:
+    email = (email or "").strip().lower()
+    if not is_valid_email(email):
+        raise ValueError("ایمیل معتبر نیست.")
+    return _update(user_id, {"email": email})
 
 
 def set_enabled(user_id: str, enabled: bool) -> dict | None:

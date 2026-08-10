@@ -68,6 +68,26 @@
 
   <!-- راست: تلگرام + اعلان‌ها + امنیت -->
   <div class="lg:col-span-4 flex flex-col gap-6">
+    <!-- پروفایل کاربری -->
+    <div class="glass-card rounded-2xl p-6">
+      <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary">account_circle</span> پروفایل کاربری
+      </h3>
+      <div class="space-y-3">
+        <div><label class="lbl">نام کاربری</label><div class="field !bg-surface-container-high text-on-surface-variant mono-num" dir="ltr">{{ user.username }}</div></div>
+        <div><label class="lbl">تاریخ عضویت</label><div class="field !bg-surface-container-high text-on-surface-variant mono-num text-xs" dir="ltr" id="p_joined">—</div></div>
+        <div><label class="lbl">ایمیل (برای سوابق خرید و اعلان‌ها)</label><input id="p_email" type="email" class="field mono-num" dir="ltr" value="{{ user.email or '' }}"></div>
+        <button class="btn-ghost w-full !py-2 text-xs" onclick="saveProfileEmail()">ذخیره ایمیل</button>
+      </div>
+      <div class="border-t border-outline-variant/20 mt-4 pt-4 space-y-3">
+        <h4 class="text-xs font-bold text-on-surface-variant mb-1">تغییر رمز عبور</h4>
+        <div><label class="lbl">رمز عبور فعلی</label><input id="p_cur_pw" type="password" class="field" autocomplete="current-password"></div>
+        <div><label class="lbl">رمز عبور جدید (حداقل ۶ کاراکتر)</label><input id="p_new_pw" type="password" class="field" autocomplete="new-password"></div>
+        <div><label class="lbl">تکرار رمز عبور جدید</label><input id="p_new_pw2" type="password" class="field" autocomplete="new-password"></div>
+        <button class="btn-primary-of w-full !py-2 text-xs" onclick="changePassword()">تغییر رمز عبور</button>
+      </div>
+    </div>
+
     <!-- اتصال تلگرام شخصی -->
     <div class="glass-card rounded-2xl p-6">
       <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
@@ -87,6 +107,26 @@
         <div><label class="lbl">Chat ID ادمین (برای اعلان‌های سیستمی)</label><input id="tg_admin_chat_id" class="field mono-num" dir="ltr" placeholder="بعد از اتصال شخصی خودتان پر می‌شود"></div>
         <button class="btn-ghost w-full !py-2 text-xs" onclick="saveTelegramSettings()">ذخیره و اعتبارسنجی</button>
         <p id="tg_bot_status" class="text-[11px] text-on-surface-variant"></p>
+      </div>
+    </div>
+
+    <!-- تنظیمات SMTP ایمیل (فقط ادمین) -->
+    <div class="glass-card rounded-2xl p-6">
+      <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
+        <span class="material-symbols-outlined text-gold">mail</span> تنظیمات ایمیل SMTP (ادمین)
+      </h3>
+      <div class="space-y-3">
+        <div><label class="lbl">آدرس سرور SMTP</label><input id="em_host" class="field mono-num" dir="ltr" placeholder="smtp.example.com"></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="lbl">پورت</label><input id="em_port" class="field mono-num" dir="ltr" type="number" value="587"></div>
+          <div class="flex items-end pb-1"><label class="flex items-center gap-2 text-xs"><input type="checkbox" id="em_tls" class="of-switch" checked> STARTTLS</label></div>
+        </div>
+        <div><label class="lbl">نام کاربری SMTP</label><input id="em_user" class="field mono-num" dir="ltr"></div>
+        <div><label class="lbl">رمز عبور SMTP</label><input id="em_password" class="field mono-num" dir="ltr" type="password" placeholder="خالی = بدون تغییر"></div>
+        <div><label class="lbl">آدرس فرستنده</label><input id="em_from_address" class="field mono-num" dir="ltr" placeholder="no-reply@example.com"></div>
+        <div><label class="lbl">نام فرستنده</label><input id="em_from_name" class="field" value="CryptoPulse"></div>
+        <button class="btn-ghost w-full !py-2 text-xs" onclick="saveEmailSettings()">ذخیره و تست اتصال</button>
+        <p id="em_status" class="text-[11px] text-on-surface-variant"></p>
       </div>
     </div>
     {% endif %}
@@ -126,6 +166,19 @@
   </div>
 </div>
 
+{% if user.role != 'admin' %}
+<!-- سوابق خرید توکن -->
+<div class="glass-card rounded-2xl p-6 mt-6">
+  <h3 class="font-headline text-lg font-bold mb-4 flex items-center gap-2">
+    <span class="material-symbols-outlined text-primary">receipt_long</span> سوابق خرید توکن فعال‌سازی
+  </h3>
+  <div class="overflow-x-auto"><table class="of-table">
+    <thead><tr><th>تاریخ صدور</th><th>مدت</th><th>تاریخ انقضا</th><th>وضعیت</th><th>یادداشت</th></tr></thead>
+    <tbody id="tokenHistoryTbody"></tbody>
+  </table></div>
+</div>
+{% endif %}
+
 <!-- مودال ویرایش کلید -->
 <div class="modal-bg" id="keyModalBg">
   <div class="modal-panel">
@@ -152,9 +205,18 @@ const IS_ADMIN = {{ 'true' if user.role == 'admin' else 'false' }};
 let accountsCache = [];
 let editingAccountId = null;
 
+function faDate(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('fa-IR') + ' ' + d.toLocaleTimeString('fa-IR', {hour: '2-digit', minute: '2-digit'});
+  } catch (e) { return String(iso).slice(0, 16).replace('T', ' '); }
+}
+
 async function loadAll() {
   const tasks = [callApi('/api/accounts'), loadTelegramCard()];
-  if (IS_ADMIN) { tasks.push(callApi('/api/app-settings')); tasks.push(loadTelegramAdminSettings()); }
+  if (IS_ADMIN) { tasks.push(callApi('/api/app-settings')); tasks.push(loadTelegramAdminSettings()); tasks.push(loadEmailAdminSettings()); }
+  else { tasks.push(loadTokenHistory()); }
   const [accounts, , settings] = await Promise.all(tasks);
   accountsCache = accounts;
   renderAccounts();
@@ -167,6 +229,81 @@ async function loadAll() {
   const whSel = document.getElementById('wh_account');
   whSel.innerHTML = accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
   await loadWebhookInfo();
+
+  document.getElementById('p_joined').textContent = faDate('{{ user.created_at or "" }}');
+}
+
+async function saveProfileEmail() {
+  const email = document.getElementById('p_email').value.trim();
+  try { await callApi('/api/profile', 'PUT', { email }); toast('ایمیل ذخیره شد'); }
+  catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+async function changePassword() {
+  const current_password = document.getElementById('p_cur_pw').value;
+  const new_password = document.getElementById('p_new_pw').value;
+  const new_password2 = document.getElementById('p_new_pw2').value;
+  if (new_password !== new_password2) { toast('تکرار رمز جدید یکسان نیست', true); return; }
+  try {
+    await callApi('/api/profile/change-password', 'POST', { current_password, new_password });
+    toast('رمز عبور تغییر کرد');
+    document.getElementById('p_cur_pw').value = '';
+    document.getElementById('p_new_pw').value = '';
+    document.getElementById('p_new_pw2').value = '';
+  } catch (e) { toast('خطا: ' + e.message, true); }
+}
+
+const TOKEN_STATUS_LABEL = t => {
+  if (t.revoked) return '<span class="text-sell text-xs">باطل‌شده</span>';
+  if (new Date(t.expires_at) > new Date()) return '<span class="text-buy text-xs">فعال</span>';
+  return '<span class="text-on-surface-variant text-xs">منقضی‌شده</span>';
+};
+
+async function loadTokenHistory() {
+  try {
+    const list = await callApi('/api/tokens/history');
+    document.getElementById('tokenHistoryTbody').innerHTML = list.map(t => `
+      <tr><td class="mono-num text-xs" dir="ltr">${faDate(t.issued_at)}</td>
+      <td class="num">${t.duration_days} روز</td>
+      <td class="mono-num text-xs" dir="ltr">${faDate(t.expires_at)}</td>
+      <td>${TOKEN_STATUS_LABEL(t)}</td>
+      <td class="text-xs text-on-surface-variant">${t.note || '—'}</td></tr>`
+    ).join('') || '<tr><td colspan="5" class="text-center text-on-surface-variant py-6">هنوز توکنی صادر نشده است.</td></tr>';
+  } catch (e) {}
+}
+
+async function loadEmailAdminSettings() {
+  if (!IS_ADMIN) return;
+  try {
+    const s = await callApi('/api/admin/email-settings');
+    document.getElementById('em_host').value = s.smtp_host || '';
+    document.getElementById('em_port').value = s.smtp_port || 587;
+    document.getElementById('em_tls').checked = s.use_tls !== false;
+    document.getElementById('em_user').value = s.smtp_user || '';
+    document.getElementById('em_from_address').value = s.from_address || '';
+    document.getElementById('em_from_name').value = s.from_name || 'CryptoPulse';
+    document.getElementById('em_status').textContent = s.smtp_host
+      ? (s.smtp_password_set ? 'تنظیم شده' : 'سرور تنظیم شده ولی بدون رمز عبور') : 'هنوز تنظیم نشده است.';
+  } catch (e) {}
+}
+
+async function saveEmailSettings() {
+  const payload = {
+    smtp_host: document.getElementById('em_host').value.trim(),
+    smtp_port: parseInt(document.getElementById('em_port').value) || 587,
+    use_tls: document.getElementById('em_tls').checked,
+    smtp_user: document.getElementById('em_user').value.trim(),
+    smtp_password: document.getElementById('em_password').value,
+    from_address: document.getElementById('em_from_address').value.trim(),
+    from_name: document.getElementById('em_from_name').value.trim() || 'CryptoPulse',
+  };
+  if (!payload.smtp_host) { toast('آدرس سرور SMTP را وارد کنید', true); return; }
+  try {
+    await callApi('/api/admin/email-settings', 'PUT', payload);
+    toast('تنظیمات ایمیل ذخیره و اتصال تأیید شد');
+    document.getElementById('em_password').value = '';
+    loadEmailAdminSettings();
+  } catch (e) { toast('خطا: ' + e.message, true); }
 }
 
 async function loadTelegramCard() {
