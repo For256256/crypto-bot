@@ -34,8 +34,11 @@ tailwind.config = { theme: { extend: { colors: {
   }
   .btn-ghost-lg:hover { background: rgba(0,220,229,.08); border-color: #00dce555; }
   .text-gradient { background: linear-gradient(90deg, #00dce5, #4edea3); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-  .hero-glow { position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(60% 50% at 50% 0%, rgba(0,220,229,.14), transparent 70%); }
+  .hero-glow { position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(60% 60% at 70% 20%, rgba(0,220,229,.16), transparent 70%); }
   .bg-grid { background-size: 40px 40px; background-image: linear-gradient(to right, rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.03) 1px, transparent 1px); }
+  .neon-glow { box-shadow: 0 0 30px rgba(0,220,229,.15); }
+  @keyframes floaty { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+  .animate-float { animation: floaty 4s ease-in-out infinite; }
 </style>
 </head>
 <body class="min-h-screen overflow-x-hidden">
@@ -44,91 +47,167 @@ tailwind.config = { theme: { extend: { colors: {
   <div class="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] rounded-full bg-secondary/5 blur-[150px]"></div>
 </div>
 
-<header class="sticky top-0 z-30 bg-surface/80 backdrop-blur-xl border-b border-white/5">
-  <div class="max-w-6xl mx-auto flex items-center justify-between px-5 py-3.5">
-    <div class="flex items-center gap-2.5">
-      <div class="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center border border-primary/30" style="box-shadow:0 0 12px rgba(0,220,229,.25)">
-        <span class="material-symbols-outlined text-primary text-xl">monitor_heart</span>
+<!-- نوار بالا -->
+<nav class="sticky top-0 z-30 bg-surface/80 backdrop-blur-xl border-b border-white/5 h-16 flex items-center">
+  <div class="max-w-6xl mx-auto w-full flex items-center justify-between px-5">
+    <div class="flex items-center gap-6">
+      <a href="/" class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center border border-primary/30" style="box-shadow:0 0 12px rgba(0,220,229,.25)">
+          <span class="material-symbols-outlined text-primary text-xl">monitor_heart</span>
+        </div>
+        <span class="font-headline text-lg font-black">CryptoPulse</span>
+      </a>
+      <div class="hidden md:flex gap-6 items-center mr-4 pr-6 border-r border-white/10">
+        <a class="text-on-surface-variant text-sm hover:text-primary transition-colors" href="#features">ویژگی‌ها</a>
+        <a class="text-on-surface-variant text-sm hover:text-primary transition-colors" href="/support">پشتیبانی</a>
       </div>
-      <span class="font-headline text-lg font-black">CryptoPulse</span>
     </div>
-    <div class="flex items-center gap-2">
-      <a href="/login" class="btn-ghost-lg !py-2 !px-4 text-xs">ورود</a>
-      <a href="/register" class="btn-gradient !py-2 !px-4 text-xs">شروع رایگان</a>
+    <div class="flex items-center gap-3">
+      <a href="/login" class="text-on-surface-variant hover:text-primary transition-colors text-sm px-3 py-2">ورود</a>
+      <a href="/register" class="btn-gradient !py-2 !px-5 text-xs !rounded-full">ثبت‌نام</a>
     </div>
   </div>
-</header>
+</nav>
 
-<section class="relative max-w-4xl mx-auto px-5 pt-20 pb-16 text-center">
-  <div class="hero-glow"></div>
-  <span class="inline-flex items-center gap-1.5 text-[11px] text-primary bg-primary/10 border border-primary/30 rounded-full px-3 py-1 mb-6">
-    <span class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></span> Toobit · Tabdeal Futures
-  </span>
-  <h1 class="font-headline text-3xl md:text-5xl font-extrabold leading-tight mb-5">
-    ربات معاملاتی هوشمند<br>برای فیوچرز <span class="text-gradient">کریپتو</span>
-  </h1>
-  <p class="text-on-surface-variant text-sm md:text-base max-w-xl mx-auto mb-9 leading-8">
-    ۴ استراتژی داخلی، مدیریت ریسک خودکار، اتصال به توبیت و تبدیل، تست کاملاً رایگان با
-    حالت کاغذی و گزارش‌گیری کامل سود و زیان — همه در یک داشبورد.
-  </p>
-  <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
-    <a href="/register" class="btn-gradient flex items-center gap-2">
-      <span class="material-symbols-outlined text-lg">rocket_launch</span> ساخت حساب رایگان
-    </a>
-    <a href="/login" class="btn-ghost-lg flex items-center gap-2">
-      <span class="material-symbols-outlined text-lg">login</span> ورود به داشبورد
-    </a>
-  </div>
-  <p class="text-[11px] text-on-surface-variant mt-4">بدون نیاز به کارت بانکی — حساب جدید همیشه با حالت تست (paper) شروع می‌شود.</p>
-</section>
+<main class="max-w-6xl mx-auto px-5">
+  <!-- هیرو -->
+  <section class="relative min-h-[70vh] flex flex-col md:flex-row items-center justify-between gap-12 py-16 md:py-20">
+    <div class="hero-glow"></div>
+    <div class="w-full md:w-1/2 flex flex-col gap-6 text-center md:text-right">
+      <div class="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 rounded-full px-4 py-1.5 w-fit mx-auto md:mx-0">
+        <span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+        <span class="text-[11px] text-primary tracking-wider">Toobit · Tabdeal Futures</span>
+      </div>
+      <h1 class="font-headline text-3xl md:text-5xl font-extrabold leading-tight">
+        ربات معاملاتی هوشمند<br>برای <span class="text-gradient">فیوچرز کریپتو</span>
+      </h1>
+      <p class="text-on-surface-variant text-sm md:text-base max-w-lg mx-auto md:mx-0 leading-relaxed">
+        ۴ استراتژی داخلی، مدیریت ریسک خودکار، اتصال به توبیت و تبدیل، تست کاملاً رایگان با
+        حالت کاغذی و گزارش‌گیری کامل سود و زیان — همه در یک داشبورد.
+      </p>
+      <div class="flex flex-col sm:flex-row items-center gap-4 justify-center md:justify-start">
+        <a href="/register" class="w-full sm:w-auto btn-gradient flex items-center justify-center gap-2">
+          <span class="material-symbols-outlined text-lg">rocket_launch</span> ساخت حساب رایگان
+        </a>
+        <a href="/login" class="w-full sm:w-auto btn-ghost-lg flex items-center justify-center gap-2">
+          <span class="material-symbols-outlined text-lg">login</span> ورود به داشبورد
+        </a>
+      </div>
+      <div class="flex items-center justify-center md:justify-start gap-8 mt-4 border-t border-white/5 pt-6">
+        <div class="flex flex-col">
+          <span class="font-headline text-2xl font-bold mono-num text-right" dir="ltr">4</span>
+          <span class="text-[11px] text-on-surface-variant">استراتژی داخلی</span>
+        </div>
+        <div class="w-px h-10 bg-white/10"></div>
+        <div class="flex flex-col">
+          <span class="font-headline text-2xl font-bold mono-num text-right" dir="ltr">2</span>
+          <span class="text-[11px] text-on-surface-variant">صرافی پشتیبانی‌شده</span>
+        </div>
+        <div class="w-px h-10 bg-white/10"></div>
+        <div class="flex flex-col">
+          <span class="font-headline text-2xl font-bold mono-num text-right" dir="ltr">0</span>
+          <span class="text-[11px] text-on-surface-variant">هزینه‌ی تست کاغذی</span>
+        </div>
+      </div>
+    </div>
 
-<main class="max-w-6xl mx-auto px-5 pb-24 flex flex-col gap-20">
-  <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
-    <div class="glass-card rounded-2xl p-6">
-      <div class="w-11 h-11 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center mb-4">
-        <span class="material-symbols-outlined text-primary">strategy</span>
+    <!-- ویژوال هیرو -->
+    <div class="w-full md:w-1/2 relative h-[340px] md:h-[440px] flex items-center justify-center">
+      <div class="absolute inset-0 glass-card neon-glow rounded-3xl overflow-hidden">
+        <svg class="absolute inset-0 w-full h-full opacity-70" preserveAspectRatio="none" viewBox="0 0 100 100">
+          <defs>
+            <linearGradient id="heroGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#00dce5" stop-opacity="0.35"/>
+              <stop offset="100%" stop-color="#0b1326" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path d="M0,75 L8,68 L16,72 L24,55 L32,60 L40,42 L48,48 L56,30 L64,36 L72,20 L80,28 L88,15 L100,10 L100,100 L0,100 Z" fill="url(#heroGrad)"/>
+          <path d="M0,75 L8,68 L16,72 L24,55 L32,60 L40,42 L48,48 L56,30 L64,36 L72,20 L80,28 L88,15 L100,10" fill="none" stroke="#00dce5" stroke-width="0.8"/>
+        </svg>
+        <div class="absolute top-6 right-6 glass-card p-3 rounded-xl border-secondary/30 flex items-center gap-3 animate-float">
+          <span class="material-symbols-outlined text-secondary" style="font-variation-settings:'FILL' 1">trending_up</span>
+          <div class="flex flex-col dir-ltr text-left" dir="ltr">
+            <span class="text-[10px] text-on-surface-variant mono-num">BTC/USDT</span>
+            <span class="text-sm font-bold text-secondary mono-num">Live</span>
+          </div>
+        </div>
+        <div class="absolute bottom-6 left-6 right-6 glass-card p-4 rounded-xl">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="material-symbols-outlined text-primary text-base">candlestick_chart</span>
+            <span class="text-xs font-bold">داشبورد معاملات زنده</span>
+          </div>
+          <p class="text-[11px] text-on-surface-variant leading-5">پوزیشن‌های باز، حد ضرر/سود و سود و زیان لحظه‌ای هر حساب را یک‌جا ببینید.</p>
+        </div>
       </div>
-      <h3 class="font-headline font-bold mb-2">۴ استراتژی حرفه‌ای</h3>
-      <p class="text-on-surface-variant text-xs leading-6">SuperTrend+EMA+RSI، MACD روند، برگشت بولینگر و روبان MA+Kijun+PSAR — قابل تنظیم برای هر نماد.</p>
-    </div>
-    <div class="glass-card rounded-2xl p-6">
-      <div class="w-11 h-11 rounded-xl bg-secondary/10 border border-secondary/30 flex items-center justify-center mb-4">
-        <span class="material-symbols-outlined text-secondary">shield</span>
-      </div>
-      <h3 class="font-headline font-bold mb-2">مدیریت ریسک خودکار</h3>
-      <p class="text-on-surface-variant text-xs leading-6">حد ضرر/سود خودکار از ATR، سقف مارجین هر معامله، سقف ضرر روزانه — همه از داشبورد قابل‌تنظیم.</p>
-    </div>
-    <div class="glass-card rounded-2xl p-6">
-      <div class="w-11 h-11 rounded-xl bg-tertiary/10 border border-tertiary/30 flex items-center justify-center mb-4">
-        <span class="material-symbols-outlined" style="color:#a5a6ff">monitoring</span>
-      </div>
-      <h3 class="font-headline font-bold mb-2">گزارش کامل سود و زیان</h3>
-      <p class="text-on-surface-variant text-xs leading-6">منحنی اکوییتی، نرخ برد، کارمزد هر معامله و تاریخچه‌ی کامل تراکنش‌ها.</p>
-    </div>
-    <div class="glass-card rounded-2xl p-6">
-      <div class="w-11 h-11 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center mb-4">
-        <span class="material-symbols-outlined text-primary">send</span>
-      </div>
-      <h3 class="font-headline font-bold mb-2">اعلان لحظه‌ای تلگرام</h3>
-      <p class="text-on-surface-variant text-xs leading-6">حساب تلگرام خودتان را وصل کنید و باز/بسته‌شدن معامله و هشدارها را همان‌جا دریافت کنید.</p>
-    </div>
-    <div class="glass-card rounded-2xl p-6">
-      <div class="w-11 h-11 rounded-xl bg-secondary/10 border border-secondary/30 flex items-center justify-center mb-4">
-        <span class="material-symbols-outlined text-secondary">draw</span>
-      </div>
-      <h3 class="font-headline font-bold mb-2">وبهوک TradingView</h3>
-      <p class="text-on-surface-variant text-xs leading-6">سیگنال‌های استراتژی خودتان را از TradingView مستقیم به حساب هر کاربر متصل کنید.</p>
-    </div>
-    <div class="glass-card rounded-2xl p-6">
-      <div class="w-11 h-11 rounded-xl bg-tertiary/10 border border-tertiary/30 flex items-center justify-center mb-4">
-        <span class="material-symbols-outlined" style="color:#a5a6ff">verified_user</span>
-      </div>
-      <h3 class="font-headline font-bold mb-2">تست کاملاً رایگان</h3>
-      <p class="text-on-surface-variant text-xs leading-6">هر حساب جدید با حالت کاغذی (paper) شروع می‌شود — بدون هیچ ریسکی استراتژی‌ها را امتحان کنید.</p>
     </div>
   </section>
 
-  <section class="glass-card rounded-2xl p-8 md:p-12 text-center">
+  <!-- ویژگی‌ها -->
+  <section id="features" class="flex flex-col gap-12 py-12">
+    <div class="text-center max-w-2xl mx-auto flex flex-col gap-3">
+      <h2 class="font-headline text-2xl font-bold">چرا CryptoPulse؟</h2>
+      <p class="text-on-surface-variant text-sm">زیرساختی برای اجرای منظم استراتژی‌های معاملاتی، با مدیریت ریسک از همان لحظه‌ی اول.</p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="glass-card p-8 rounded-2xl flex flex-col gap-5 group">
+        <div class="w-14 h-14 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+          <span class="material-symbols-outlined text-primary text-2xl">strategy</span>
+        </div>
+        <div>
+          <h3 class="font-bold mb-2">۴ استراتژی حرفه‌ای</h3>
+          <p class="text-on-surface-variant text-sm leading-6">SuperTrend+EMA+RSI، MACD روند، برگشت بولینگر و روبان MA+Kijun+PSAR — قابل تنظیم برای هر نماد.</p>
+        </div>
+      </div>
+      <div class="glass-card p-8 rounded-2xl flex flex-col gap-5 group">
+        <div class="w-14 h-14 rounded-xl bg-secondary/10 border border-secondary/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+          <span class="material-symbols-outlined text-secondary text-2xl">shield</span>
+        </div>
+        <div>
+          <h3 class="font-bold mb-2">مدیریت ریسک خودکار</h3>
+          <p class="text-on-surface-variant text-sm leading-6">حد ضرر/سود خودکار از ATR، سقف مارجین هر معامله و سقف ضرر روزانه — همه از داشبورد قابل‌تنظیم.</p>
+        </div>
+      </div>
+      <div class="glass-card p-8 rounded-2xl flex flex-col gap-5 group">
+        <div class="w-14 h-14 rounded-xl bg-tertiary/10 border border-tertiary/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+          <span class="material-symbols-outlined text-2xl" style="color:#a5a6ff">lock</span>
+        </div>
+        <div>
+          <h3 class="font-bold mb-2">کلیدهای شما، فقط روی سرور شما</h3>
+          <p class="text-on-surface-variant text-sm leading-6">کلید API فقط روی همان سرور نصب‌شده‌ی شما ذخیره می‌شود و به‌جای دیگری ارسال نمی‌گردد.</p>
+        </div>
+      </div>
+      <div class="glass-card p-8 rounded-2xl flex flex-col gap-5 group">
+        <div class="w-14 h-14 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+          <span class="material-symbols-outlined text-primary text-2xl">send</span>
+        </div>
+        <div>
+          <h3 class="font-bold mb-2">اعلان لحظه‌ای تلگرام</h3>
+          <p class="text-on-surface-variant text-sm leading-6">حساب تلگرام خودتان را وصل کنید و باز/بسته‌شدن معامله و هشدارها را همان‌جا دریافت کنید.</p>
+        </div>
+      </div>
+      <div class="glass-card p-8 rounded-2xl flex flex-col gap-5 group">
+        <div class="w-14 h-14 rounded-xl bg-secondary/10 border border-secondary/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+          <span class="material-symbols-outlined text-secondary text-2xl">draw</span>
+        </div>
+        <div>
+          <h3 class="font-bold mb-2">وبهوک TradingView</h3>
+          <p class="text-on-surface-variant text-sm leading-6">سیگنال‌های استراتژی خودتان را از TradingView مستقیم به حساب متصل کنید.</p>
+        </div>
+      </div>
+      <div class="glass-card p-8 rounded-2xl flex flex-col gap-5 group">
+        <div class="w-14 h-14 rounded-xl bg-tertiary/10 border border-tertiary/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+          <span class="material-symbols-outlined text-2xl" style="color:#a5a6ff">verified_user</span>
+        </div>
+        <div>
+          <h3 class="font-bold mb-2">تست کاملاً رایگان</h3>
+          <p class="text-on-surface-variant text-sm leading-6">هر حساب جدید با حالت کاغذی (paper) شروع می‌شود — بدون هیچ ریسکی استراتژی‌ها را امتحان کنید.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- دعوت به ثبت‌نام -->
+  <section class="glass-card rounded-2xl p-8 md:p-14 text-center my-8">
     <h2 class="font-headline text-2xl font-bold mb-3">آماده‌اید شروع کنید؟</h2>
     <p class="text-on-surface-variant text-sm mb-7 max-w-md mx-auto">ثبت‌نام رایگان است و فوراً می‌توانید در حالت کاغذی استراتژی‌ها را روی بازار واقعی تست کنید.</p>
     <a href="/register" class="btn-gradient inline-flex items-center gap-2">
@@ -137,8 +216,12 @@ tailwind.config = { theme: { extend: { colors: {
   </section>
 </main>
 
-<footer class="border-t border-white/5 py-6 text-center text-[11px] text-on-surface-variant">
-  CryptoPulse — داشبورد معاملات هوشمند فیوچرز
+<footer class="border-t border-white/5 py-8 px-5 flex flex-col md:flex-row items-center justify-between gap-4 max-w-6xl mx-auto text-[11px] text-on-surface-variant">
+  <div class="flex items-center gap-2">
+    <span class="material-symbols-outlined text-primary text-base">monitor_heart</span>
+    <span class="font-headline font-bold">CryptoPulse</span>
+  </div>
+  <span>© CryptoPulse — داشبورد معاملات هوشمند فیوچرز</span>
 </footer>
 
 </body>
