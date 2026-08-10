@@ -3,70 +3,76 @@
 <head>
 <meta charset="utf-8">
 <meta content="width=device-width, initial-scale=1.0" name="viewport">
-<title>کریپتو بات — داشبورد معاملات هوشمند فیوچرز</title>
+<title>CryptoPulse — داشبورد معاملات هوشمند فیوچرز</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
-<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100;300;400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100;300;400;500;700;800;900&family=Hanken+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
 <script>
 tailwind.config = { theme: { extend: { colors: {
-  "surface": "#141313", "surface-container-low": "#1c1b1b", "surface-container": "#201f1f",
-  "on-surface": "#e5e2e1", "on-surface-variant": "#c7c6ca", "outline-variant": "#46464a",
-  "primary": "#c8c6c7", "on-primary": "#313031", "buy": "#2ebd85", "sell": "#f6465d", "gold": "#f0b90b",
-}, fontFamily: { headline: ["Vazirmatn"], body: ["Vazirmatn"], mono: ["JetBrains Mono", "monospace"] } } } }
+  "surface": "#0b1326", "surface-container-lowest": "#060e20", "surface-container-low": "#131b2e",
+  "surface-container": "#171f33", "surface-container-high": "#222a3d", "surface-container-highest": "#2d3449",
+  "on-surface": "#dae2fd", "on-surface-variant": "#b9caca", "outline": "#849495", "outline-variant": "#3a494a",
+  "primary": "#00dce5", "on-primary": "#002021", "primary-container": "#00f5ff",
+  "secondary": "#4edea3", "on-secondary": "#003824", "tertiary": "#a5a6ff",
+  "buy": "#4edea3", "sell": "#f43f5e", "gold": "#f0b90b",
+}, fontFamily: { headline: ["Vazirmatn", "Hanken Grotesk"], body: ["Vazirmatn"], mono: ["JetBrains Mono", "monospace"] } } } }
 </script>
 <style>
   html { color-scheme: dark; scroll-behavior: smooth; }
-  body { background-color: #0A0A0B; font-family: 'Vazirmatn', sans-serif; color: #e5e2e1; }
-  .glass-card { background: rgba(30, 34, 45, 0.7); backdrop-filter: blur(20px); border: 1px solid #2F333E; transition: all .3s ease; }
-  .glass-card:hover { border-color: #f0b90b55; }
+  body { background-color: #0b1326; font-family: 'Vazirmatn', sans-serif; color: #dae2fd; }
+  .glass-card { background: rgba(23, 31, 51, 0.7); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,.08); transition: all .3s ease; }
+  .glass-card:hover { border-color: #00dce555; box-shadow: 0 0 20px rgba(0, 220, 229, .15); }
   .mono-num { font-family: 'JetBrains Mono', monospace; }
-  .btn-gold {
-    background: #f0b90b; color: #141313; border-radius: 0.5rem; font-weight: 800;
-    padding: 0.75rem 1.6rem; font-size: 0.9rem; transition: .2s; cursor: pointer; border: none;
+  .btn-gradient {
+    background: linear-gradient(135deg, #00dce5, #00696e); color: #002021; border-radius: 0.6rem; font-weight: 800;
+    padding: 0.8rem 1.7rem; font-size: 0.9rem; transition: .2s; cursor: pointer; border: none;
   }
-  .btn-gold:hover { background: #ffce2e; }
+  .btn-gradient:hover { box-shadow: 0 0 22px rgba(0,220,229,.45); transform: translateY(-1px); }
   .btn-ghost-lg {
-    border: 1px solid #46464a; color: #e5e2e1; border-radius: 0.5rem;
-    padding: 0.75rem 1.6rem; font-size: 0.9rem; transition: .2s; cursor: pointer; background: transparent;
+    border: 1px solid rgba(255,255,255,.14); color: #dae2fd; border-radius: 0.6rem;
+    padding: 0.8rem 1.7rem; font-size: 0.9rem; transition: .2s; cursor: pointer; background: transparent;
   }
-  .btn-ghost-lg:hover { background: rgba(255,255,255,.06); }
-  .hero-glow {
-    position: absolute; inset: 0; z-index: -1; pointer-events: none;
-    background: radial-gradient(60% 50% at 50% 0%, rgba(240,185,11,.14), transparent 70%);
-  }
+  .btn-ghost-lg:hover { background: rgba(0,220,229,.08); border-color: #00dce555; }
+  .text-gradient { background: linear-gradient(90deg, #00dce5, #4edea3); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .hero-glow { position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(60% 50% at 50% 0%, rgba(0,220,229,.14), transparent 70%); }
+  .bg-grid { background-size: 40px 40px; background-image: linear-gradient(to right, rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.03) 1px, transparent 1px); }
 </style>
 </head>
 <body class="min-h-screen overflow-x-hidden">
+<div class="fixed inset-0 z-[-1] overflow-hidden pointer-events-none bg-grid">
+  <div class="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-primary/5 blur-[120px]"></div>
+  <div class="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] rounded-full bg-secondary/5 blur-[150px]"></div>
+</div>
 
-<header class="sticky top-0 z-30 bg-surface/80 backdrop-blur-xl border-b border-outline-variant/20">
+<header class="sticky top-0 z-30 bg-surface/80 backdrop-blur-xl border-b border-white/5">
   <div class="max-w-6xl mx-auto flex items-center justify-between px-5 py-3.5">
     <div class="flex items-center gap-2.5">
-      <div class="w-9 h-9 rounded-full bg-gold/15 flex items-center justify-center border border-gold/30">
-        <span class="material-symbols-outlined text-gold text-xl">candlestick_chart</span>
+      <div class="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center border border-primary/30" style="box-shadow:0 0 12px rgba(0,220,229,.25)">
+        <span class="material-symbols-outlined text-primary text-xl">monitor_heart</span>
       </div>
-      <span class="font-headline text-lg font-black">کریپتو بات</span>
+      <span class="font-headline text-lg font-black">CryptoPulse</span>
     </div>
     <div class="flex items-center gap-2">
       <a href="/login" class="btn-ghost-lg !py-2 !px-4 text-xs">ورود</a>
-      <a href="/register" class="btn-gold !py-2 !px-4 text-xs">شروع رایگان</a>
+      <a href="/register" class="btn-gradient !py-2 !px-4 text-xs">شروع رایگان</a>
     </div>
   </div>
 </header>
 
 <section class="relative max-w-4xl mx-auto px-5 pt-20 pb-16 text-center">
   <div class="hero-glow"></div>
-  <span class="inline-flex items-center gap-1.5 text-[11px] text-gold bg-gold/10 border border-gold/30 rounded-full px-3 py-1 mb-6">
-    <span class="material-symbols-outlined text-sm">bolt</span> Toobit · Tabdeal Futures
+  <span class="inline-flex items-center gap-1.5 text-[11px] text-primary bg-primary/10 border border-primary/30 rounded-full px-3 py-1 mb-6">
+    <span class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></span> Toobit · Tabdeal Futures
   </span>
-  <h1 class="font-headline text-3xl md:text-5xl font-black leading-tight mb-5">
-    ربات معاملاتی هوشمند<br>برای فیوچرز <span class="text-gold">کریپتو</span>
+  <h1 class="font-headline text-3xl md:text-5xl font-extrabold leading-tight mb-5">
+    ربات معاملاتی هوشمند<br>برای فیوچرز <span class="text-gradient">کریپتو</span>
   </h1>
   <p class="text-on-surface-variant text-sm md:text-base max-w-xl mx-auto mb-9 leading-8">
     ۴ استراتژی داخلی، مدیریت ریسک خودکار، اتصال به توبیت و تبدیل، تست کاملاً رایگان با
     حالت کاغذی و گزارش‌گیری کامل سود و زیان — همه در یک داشبورد.
   </p>
   <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
-    <a href="/register" class="btn-gold flex items-center gap-2">
+    <a href="/register" class="btn-gradient flex items-center gap-2">
       <span class="material-symbols-outlined text-lg">rocket_launch</span> ساخت حساب رایگان
     </a>
     <a href="/login" class="btn-ghost-lg flex items-center gap-2">
@@ -76,34 +82,63 @@ tailwind.config = { theme: { extend: { colors: {
   <p class="text-[11px] text-on-surface-variant mt-4">بدون نیاز به کارت بانکی — حساب جدید همیشه با حالت تست (paper) شروع می‌شود.</p>
 </section>
 
-<section class="max-w-6xl mx-auto px-5 pb-20">
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<main class="max-w-6xl mx-auto px-5 pb-24 flex flex-col gap-20">
+  <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
     <div class="glass-card rounded-2xl p-6">
-      <div class="w-11 h-11 rounded-xl bg-buy/10 border border-buy/30 flex items-center justify-center mb-4">
-        <span class="material-symbols-outlined text-buy">strategy</span>
+      <div class="w-11 h-11 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center mb-4">
+        <span class="material-symbols-outlined text-primary">strategy</span>
       </div>
       <h3 class="font-headline font-bold mb-2">۴ استراتژی حرفه‌ای</h3>
       <p class="text-on-surface-variant text-xs leading-6">SuperTrend+EMA+RSI، MACD روند، برگشت بولینگر و روبان MA+Kijun+PSAR — قابل تنظیم برای هر نماد.</p>
     </div>
     <div class="glass-card rounded-2xl p-6">
-      <div class="w-11 h-11 rounded-xl bg-gold/10 border border-gold/30 flex items-center justify-center mb-4">
-        <span class="material-symbols-outlined text-gold">shield</span>
+      <div class="w-11 h-11 rounded-xl bg-secondary/10 border border-secondary/30 flex items-center justify-center mb-4">
+        <span class="material-symbols-outlined text-secondary">shield</span>
       </div>
       <h3 class="font-headline font-bold mb-2">مدیریت ریسک خودکار</h3>
       <p class="text-on-surface-variant text-xs leading-6">حد ضرر/سود خودکار از ATR، سقف مارجین هر معامله، سقف ضرر روزانه — همه از داشبورد قابل‌تنظیم.</p>
     </div>
     <div class="glass-card rounded-2xl p-6">
-      <div class="w-11 h-11 rounded-xl bg-info-blue/10 border border-info-blue/30 flex items-center justify-center mb-4">
-        <span class="material-symbols-outlined" style="color:#4d7cfe">monitoring</span>
+      <div class="w-11 h-11 rounded-xl bg-tertiary/10 border border-tertiary/30 flex items-center justify-center mb-4">
+        <span class="material-symbols-outlined" style="color:#a5a6ff">monitoring</span>
       </div>
       <h3 class="font-headline font-bold mb-2">گزارش کامل سود و زیان</h3>
       <p class="text-on-surface-variant text-xs leading-6">منحنی اکوییتی، نرخ برد، کارمزد هر معامله و تاریخچه‌ی کامل تراکنش‌ها.</p>
     </div>
-  </div>
-</section>
+    <div class="glass-card rounded-2xl p-6">
+      <div class="w-11 h-11 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center mb-4">
+        <span class="material-symbols-outlined text-primary">send</span>
+      </div>
+      <h3 class="font-headline font-bold mb-2">اعلان لحظه‌ای تلگرام</h3>
+      <p class="text-on-surface-variant text-xs leading-6">حساب تلگرام خودتان را وصل کنید و باز/بسته‌شدن معامله و هشدارها را همان‌جا دریافت کنید.</p>
+    </div>
+    <div class="glass-card rounded-2xl p-6">
+      <div class="w-11 h-11 rounded-xl bg-secondary/10 border border-secondary/30 flex items-center justify-center mb-4">
+        <span class="material-symbols-outlined text-secondary">draw</span>
+      </div>
+      <h3 class="font-headline font-bold mb-2">وبهوک TradingView</h3>
+      <p class="text-on-surface-variant text-xs leading-6">سیگنال‌های استراتژی خودتان را از TradingView مستقیم به حساب هر کاربر متصل کنید.</p>
+    </div>
+    <div class="glass-card rounded-2xl p-6">
+      <div class="w-11 h-11 rounded-xl bg-tertiary/10 border border-tertiary/30 flex items-center justify-center mb-4">
+        <span class="material-symbols-outlined" style="color:#a5a6ff">verified_user</span>
+      </div>
+      <h3 class="font-headline font-bold mb-2">تست کاملاً رایگان</h3>
+      <p class="text-on-surface-variant text-xs leading-6">هر حساب جدید با حالت کاغذی (paper) شروع می‌شود — بدون هیچ ریسکی استراتژی‌ها را امتحان کنید.</p>
+    </div>
+  </section>
 
-<footer class="border-t border-outline-variant/20 py-6 text-center text-[11px] text-on-surface-variant">
-  کریپتو بات — داشبورد معاملات هوشمند فیوچرز
+  <section class="glass-card rounded-2xl p-8 md:p-12 text-center">
+    <h2 class="font-headline text-2xl font-bold mb-3">آماده‌اید شروع کنید؟</h2>
+    <p class="text-on-surface-variant text-sm mb-7 max-w-md mx-auto">ثبت‌نام رایگان است و فوراً می‌توانید در حالت کاغذی استراتژی‌ها را روی بازار واقعی تست کنید.</p>
+    <a href="/register" class="btn-gradient inline-flex items-center gap-2">
+      <span class="material-symbols-outlined text-lg">rocket_launch</span> ساخت حساب رایگان
+    </a>
+  </section>
+</main>
+
+<footer class="border-t border-white/5 py-6 text-center text-[11px] text-on-surface-variant">
+  CryptoPulse — داشبورد معاملات هوشمند فیوچرز
 </footer>
 
 </body>

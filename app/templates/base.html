@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta content="width=device-width, initial-scale=1.0" name="viewport">
-<title>{% block title %}کریپتو بات{% endblock %}</title>
+<title>{% block title %}CryptoPulse{% endblock %}</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100;300;400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100;300;400;500;700;900&family=Hanken+Grotesk:wght@400;600;700&family=Noto+Sans:wght@400;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
 <script id="tailwind-config">
 tailwind.config = {
@@ -13,27 +13,27 @@ tailwind.config = {
   theme: {
     extend: {
       colors: {
-        "on-background": "#e5e2e1", "on-secondary": "#2c303c", "on-secondary-fixed": "#171b26",
-        "surface-bright": "#3a3939", "on-secondary-container": "#b1b4c3", "surface-tint": "#c8c6c7",
-        "on-primary-fixed-variant": "#474647", "surface-container-high": "#2b2a2a", "primary": "#c8c6c7",
-        "primary-fixed-dim": "#c8c6c7", "tertiary": "#cac6c2", "secondary-container": "#434653",
-        "on-primary": "#313031", "on-secondary-fixed-variant": "#434653", "on-error-container": "#ffdad6",
-        "tertiary-fixed-dim": "#cac6c2", "tertiary-fixed": "#e7e2dd", "on-tertiary-fixed": "#1d1b19",
-        "on-primary-fixed": "#1c1b1c", "error": "#ffb4ab", "on-tertiary-fixed-variant": "#494643",
-        "surface-container": "#201f1f", "surface-variant": "#353434", "secondary-fixed": "#dfe2f1",
-        "inverse-surface": "#e5e2e1", "outline-variant": "#46464a", "surface-container-highest": "#353434",
-        "surface-dim": "#141313", "background": "#141313", "surface-container-lowest": "#0e0e0e",
-        "secondary-fixed-dim": "#c3c6d5", "on-tertiary": "#32302d", "inverse-on-surface": "#313030",
-        "surface-container-low": "#1c1b1b", "on-surface": "#e5e2e1", "on-tertiary-container": "#7c7975",
-        "primary-container": "#0a0a0b", "surface": "#141313", "outline": "#919094",
-        "primary-fixed": "#e5e2e3", "primary-fixed-dim": "#c8c6c7", "on-primary-container": "#7a797a",
-        "error-container": "#93000a", "on-error": "#690005", "secondary": "#c3c6d5",
-        "on-surface-variant": "#c7c6ca", "inverse-primary": "#5f5e5f", "tertiary-container": "#0b0a08",
-        "buy": "#2ebd85", "sell": "#f6465d", "info-blue": "#4d7cfe", "gold": "#f0b90b"
+        "tertiary-fixed-dim": "#c0c1ff", "primary-fixed-dim": "#00dce5", "surface-bright": "#31394d",
+        "surface-container-highest": "#2d3449", "on-secondary-fixed": "#002113", "inverse-on-surface": "#283044",
+        "on-tertiary-fixed-variant": "#2f2ebe", "primary-fixed": "#63f7ff", "on-secondary-container": "#00311f",
+        "on-background": "#dae2fd", "surface-container-lowest": "#060e20", "on-tertiary-fixed": "#07006c",
+        "on-surface-variant": "#b9caca", "inverse-surface": "#dae2fd", "primary": "#00dce5",
+        "secondary-fixed-dim": "#4edea3", "on-primary-container": "#006c71", "on-secondary": "#003824",
+        "surface-container-high": "#222a3d", "background": "#0b1326", "on-error": "#690005",
+        "surface-container-low": "#131b2e", "tertiary": "#fcf8ff", "on-primary": "#003739",
+        "surface-tint": "#00dce5", "surface-container": "#171f33", "outline": "#849495",
+        "primary-container": "#00f5ff", "error": "#ffb4ab", "surface-variant": "#2d3449",
+        "tertiary-container": "#dbdaff", "on-secondary-fixed-variant": "#005236", "secondary": "#4edea3",
+        "surface": "#0b1326", "inverse-primary": "#00696e", "secondary-container": "#00a572",
+        "surface-dim": "#0b1326", "on-tertiary": "#1000a9", "tertiary-fixed": "#e1e0ff",
+        "on-surface": "#dae2fd", "on-primary-fixed": "#002021", "error-container": "#93000a",
+        "secondary-fixed": "#6ffbbe", "outline-variant": "#3a494a", "on-primary-fixed-variant": "#004f53",
+        "on-error-container": "#ffdad6", "on-tertiary-container": "#4c4ed9",
+        "buy": "#4edea3", "sell": "#f43f5e", "info-blue": "#4c4ed9", "gold": "#f0b90b"
       },
       borderRadius: { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" },
       fontFamily: {
-        "headline": ["Vazirmatn"], "body": ["Vazirmatn"], "mono": ["JetBrains Mono", "monospace"]
+        "headline": ["Vazirmatn", "Hanken Grotesk"], "body": ["Vazirmatn", "Noto Sans"], "mono": ["JetBrains Mono", "monospace"]
       }
     }
   }
@@ -41,74 +41,74 @@ tailwind.config = {
 </script>
 <style>
   html { color-scheme: dark; }
-  body { background-color: #0A0A0B; font-family: 'Vazirmatn', sans-serif; color: #e5e2e1; }
+  body { background-color: #0b1326; font-family: 'Vazirmatn', sans-serif; color: #dae2fd; }
   .glass-card {
-    background: rgba(30, 34, 45, 0.8);
+    background: rgba(23, 31, 51, 0.75);
     backdrop-filter: blur(20px);
-    border: 1px solid #2F333E;
+    border: 1px solid rgba(255, 255, 255, 0.08);
     transition: all 0.3s ease;
   }
-  .glass-card:hover { border-color: #c8c6c7; box-shadow: 0 0 15px rgba(200, 198, 199, 0.1); }
+  .glass-card:hover { border-color: #00dce555; box-shadow: 0 0 15px rgba(0, 220, 229, 0.12); }
   .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
   .pulse-active { animation: pulse 2s infinite; }
   @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
   .mono-num { font-family: 'JetBrains Mono', monospace; }
   ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: #141313; }
-  ::-webkit-scrollbar-thumb { background: #353434; border-radius: 10px; }
+  ::-webkit-scrollbar-track { background: #0b1326; }
+  ::-webkit-scrollbar-thumb { background: #2d3449; border-radius: 10px; }
   .field {
-    width: 100%; background-color: #0e0e0e !important; border: 1px solid #2F333E; color: #e5e2e1 !important;
+    width: 100%; background-color: #060e20 !important; border: 1px solid rgba(255,255,255,.08); color: #dae2fd !important;
     border-radius: 0.25rem; padding: 0.5rem 0.75rem; font-family: inherit; font-size: 0.85rem;
     color-scheme: dark;
   }
-  .field:focus { outline: none; border-color: #4d7cfe; box-shadow: 0 0 0 3px rgba(77,124,254,.15); }
-  .field option { background-color: #1c1b1b; color: #e5e2e1; }
+  .field:focus { outline: none; border-color: #00dce5; box-shadow: 0 0 0 3px rgba(0,220,229,.15); }
+  .field option { background-color: #131b2e; color: #dae2fd; }
   .field:-webkit-autofill, .field:-webkit-autofill:focus {
-    -webkit-text-fill-color: #e5e2e1;
-    -webkit-box-shadow: 0 0 0 1000px #0e0e0e inset;
+    -webkit-text-fill-color: #dae2fd;
+    -webkit-box-shadow: 0 0 0 1000px #060e20 inset;
     transition: background-color 9999s ease-out;
   }
-  .lbl { display: block; color: #919094; font-size: 0.72rem; margin-bottom: 0.3rem; }
+  .lbl { display: block; color: #849495; font-size: 0.72rem; margin-bottom: 0.3rem; }
   .btn-ghost {
-    border: 1px solid #46464a; color: #e5e2e1; border-radius: 0.25rem;
+    border: 1px solid #3a494a; color: #dae2fd; border-radius: 0.25rem;
     padding: 0.45rem 1rem; font-size: 0.8rem; transition: .2s; cursor: pointer; background: transparent;
   }
-  .btn-ghost:hover { background: rgba(200,198,199,.08); }
+  .btn-ghost:hover { background: rgba(0,220,229,.08); }
   .btn-primary-of {
-    background: #c8c6c7; color: #313031; border-radius: 0.25rem; font-weight: 700;
+    background: linear-gradient(135deg, #00dce5, #00696e); color: #002021; border-radius: 0.25rem; font-weight: 700;
     padding: 0.5rem 1.2rem; font-size: 0.8rem; transition: .2s; cursor: pointer; border: none;
   }
-  .btn-primary-of:hover { background: #e5e2e3; }
-  .btn-buy { background: #2ebd85; color: #fff; border-radius: 0.25rem; font-weight: 700; padding: 0.5rem 1.5rem; font-size: .85rem; cursor: pointer; border: none; }
-  .btn-sell { background: #f6465d; color: #fff; border-radius: 0.25rem; font-weight: 700; padding: 0.5rem 1.5rem; font-size: .85rem; cursor: pointer; border: none; }
+  .btn-primary-of:hover { box-shadow: 0 0 16px rgba(0,220,229,.4); }
+  .btn-buy { background: #4edea3; color: #002113; border-radius: 0.25rem; font-weight: 700; padding: 0.5rem 1.5rem; font-size: .85rem; cursor: pointer; border: none; }
+  .btn-sell { background: #f43f5e; color: #fff; border-radius: 0.25rem; font-weight: 700; padding: 0.5rem 1.5rem; font-size: .85rem; cursor: pointer; border: none; }
   /* سوئیچ */
-  .of-switch { position: relative; width: 40px; height: 22px; appearance: none; background: #353434; border-radius: 9999px; cursor: pointer; transition: .2s; }
-  .of-switch:checked { background: #2ebd85; }
-  .of-switch::after { content: ''; position: absolute; top: 3px; right: 3px; width: 16px; height: 16px; background: #e5e2e1; border-radius: 9999px; transition: .2s; }
+  .of-switch { position: relative; width: 40px; height: 22px; appearance: none; background: #2d3449; border-radius: 9999px; cursor: pointer; transition: .2s; }
+  .of-switch:checked { background: #4edea3; }
+  .of-switch::after { content: ''; position: absolute; top: 3px; right: 3px; width: 16px; height: 16px; background: #dae2fd; border-radius: 9999px; transition: .2s; }
   .of-switch:checked::after { transform: translateX(-18px); }
   /* مودال */
-  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(10,10,11,.7); backdrop-filter: blur(6px); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
+  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(6,14,32,.75); backdrop-filter: blur(6px); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
   .modal-bg.open { display: flex; }
   .modal-panel {
-    background: rgba(30, 34, 45, 0.92); backdrop-filter: blur(20px);
-    border: 1px solid #2F333E; border-radius: 0.75rem; padding: 1.5rem;
+    background: rgba(23, 31, 51, 0.94); backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,.08); border-radius: 0.75rem; padding: 1.5rem;
     width: 580px; max-width: 100%; max-height: 90vh; overflow-y: auto;
   }
   .modal-panel.wide { width: 920px; }
   /* toast */
   #toast {
     position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px);
-    background: #201f1f; border: 1px solid #46464a; border-radius: 0.5rem;
+    background: #131b2e; border: 1px solid #3a494a; border-radius: 0.5rem;
     padding: 10px 22px; font-size: .8rem; opacity: 0; pointer-events: none; transition: .25s; z-index: 200; max-width: 90vw;
   }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-  #toast.error { border-color: #f6465d; color: #ffb4ab; }
+  #toast.error { border-color: #f43f5e; color: #ffb4ab; }
   table.of-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
   table.of-table th {
-    position: sticky; top: 0; background: #1c1b1b; color: #919094; font-weight: 500;
-    font-size: .68rem; text-align: right; padding: 0.5rem 0.75rem; border-bottom: 1px solid #2F333E;
+    position: sticky; top: 0; background: #131b2e; color: #849495; font-weight: 500;
+    font-size: .68rem; text-align: right; padding: 0.5rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,.08);
   }
-  table.of-table td { padding: 0.55rem 0.75rem; border-bottom: 1px solid #2F333E; }
+  table.of-table td { padding: 0.55rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,.08); }
   table.of-table td.num { font-family: 'JetBrains Mono', monospace; text-align: left; direction: ltr; }
 </style>
 {% block head %}{% endblock %}
@@ -118,10 +118,10 @@ tailwind.config = {
 <!-- سایدبار راست -->
 <aside class="fixed right-0 top-0 h-full z-40 flex flex-col py-6 bg-surface-container border-l border-outline-variant/30 w-60 hidden md:flex">
   <div class="px-6 mb-8 flex flex-col items-center">
-    <div class="w-14 h-14 rounded-full mb-3 bg-primary/20 flex items-center justify-center border border-primary/30">
-      <span class="material-symbols-outlined text-primary text-3xl">smart_toy</span>
+    <div class="w-14 h-14 rounded-full mb-3 bg-primary/15 flex items-center justify-center border border-primary/30" style="box-shadow: 0 0 15px rgba(0,220,229,.25);">
+      <span class="material-symbols-outlined text-primary text-3xl">monitor_heart</span>
     </div>
-    <h1 class="font-headline text-lg font-bold text-on-surface">کریپتو بات</h1>
+    <h1 class="font-headline text-lg font-bold text-on-surface">CryptoPulse</h1>
     <p class="text-xs text-buy mt-1" id="connStatus"><span class="pulse-active">●</span> وضعیت: متصل</p>
   </div>
   <nav class="flex-grow flex flex-col gap-1.5">
@@ -159,8 +159,8 @@ tailwind.config = {
 <header class="fixed top-0 right-0 md:right-60 left-0 z-30 bg-surface-container/80 backdrop-blur-xl border-b border-outline-variant/30">
   <div class="flex items-center justify-between px-4 md:px-8 py-3">
     <div class="flex items-center gap-4">
-      <span class="font-headline text-xl font-black tracking-tight md:hidden">کریپتو بات</span>
-      <span class="hidden md:inline font-headline text-xl font-black tracking-tight">کریپتو بات <span class="text-[10px] font-normal text-on-surface-variant tracking-widest">TOOBIT FUTURES</span></span>
+      <span class="font-headline text-xl font-black tracking-tight md:hidden">CryptoPulse</span>
+      <span class="hidden md:inline font-headline text-xl font-black tracking-tight">CryptoPulse <span class="text-[10px] font-normal text-on-surface-variant tracking-widest">FUTURES TRADING</span></span>
     </div>
     <div class="flex items-center gap-2 md:gap-3">
       <button onclick="startAll()" class="btn-buy flex items-center gap-1"><span class="material-symbols-outlined text-base">play_arrow</span><span class="hidden sm:inline">شروع همه</span></button>
