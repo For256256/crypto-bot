@@ -1,27 +1,61 @@
 <!DOCTYPE html>
-<html class="dark" dir="rtl" lang="fa">
+<html dir="rtl" lang="fa">
 <head>
 <meta charset="utf-8">
 <meta content="width=device-width, initial-scale=1.0" name="viewport">
 <title>CryptoPulse — داشبورد معاملات هوشمند فیوچرز</title>
+<script>
+(function() {
+  var pref = localStorage.getItem('cb_theme');
+  if (pref === 'dark' || pref === 'light') document.documentElement.setAttribute('data-theme', pref);
+})();
+</script>
 <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100;300;400;500;700;800;900&family=Hanken+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
 <script>
 tailwind.config = { theme: { extend: { colors: {
-  "surface": "#0b1326", "surface-container-lowest": "#060e20", "surface-container-low": "#131b2e",
-  "surface-container": "#171f33", "surface-container-high": "#222a3d", "surface-container-highest": "#2d3449",
-  "on-surface": "#dae2fd", "on-surface-variant": "#b9caca", "outline": "#849495", "outline-variant": "#3a494a",
-  "primary": "#00dce5", "on-primary": "#002021", "primary-container": "#00f5ff",
-  "secondary": "#4edea3", "on-secondary": "#003824", "tertiary": "#a5a6ff",
-  "buy": "#4edea3", "sell": "#f43f5e", "gold": "#f0b90b",
+  "surface": "rgb(var(--c-surface) / <alpha-value>)", "surface-container-lowest": "rgb(var(--c-surface-container-lowest) / <alpha-value>)", "surface-container-low": "rgb(var(--c-surface-container-low) / <alpha-value>)",
+  "surface-container": "rgb(var(--c-surface-container) / <alpha-value>)", "surface-container-high": "rgb(var(--c-surface-container-high) / <alpha-value>)", "surface-container-highest": "rgb(var(--c-surface-container-highest) / <alpha-value>)",
+  "on-surface": "rgb(var(--c-on-surface) / <alpha-value>)", "on-surface-variant": "rgb(var(--c-on-surface-variant) / <alpha-value>)", "outline": "rgb(var(--c-outline) / <alpha-value>)", "outline-variant": "rgb(var(--c-outline-variant) / <alpha-value>)",
+  "primary": "rgb(var(--c-primary) / <alpha-value>)", "on-primary": "rgb(var(--c-on-primary) / <alpha-value>)", "primary-container": "rgb(var(--c-primary-container) / <alpha-value>)",
+  "secondary": "rgb(var(--c-secondary) / <alpha-value>)", "on-secondary": "rgb(var(--c-on-secondary) / <alpha-value>)", "tertiary": "rgb(var(--c-tertiary) / <alpha-value>)",
+  "buy": "rgb(var(--c-buy) / <alpha-value>)", "sell": "rgb(var(--c-sell) / <alpha-value>)", "gold": "rgb(var(--c-gold) / <alpha-value>)",
 }, fontFamily: { headline: ["Vazirmatn", "Hanken Grotesk"], body: ["Vazirmatn"], mono: ["JetBrains Mono", "monospace"] } } } }
 </script>
 <style>
-  html { color-scheme: dark; scroll-behavior: smooth; }
-  body { background-color: #0b1326; font-family: 'Vazirmatn', sans-serif; color: #dae2fd; }
-  .glass-card { background: rgba(23, 31, 51, 0.7); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,.08); transition: all .3s ease; }
-  .glass-card:hover { border-color: #00dce555; box-shadow: 0 0 20px rgba(0, 220, 229, .15); }
+  :root {
+    --c-surface: 11 19 38; --c-surface-container-lowest: 6 14 32; --c-surface-container-low: 19 27 46;
+    --c-surface-container: 23 31 51; --c-surface-container-high: 34 42 61; --c-surface-container-highest: 45 52 73;
+    --c-on-surface: 218 226 253; --c-on-surface-variant: 185 202 202; --c-outline: 132 148 149; --c-outline-variant: 58 73 74;
+    --c-primary: 0 220 229; --c-on-primary: 0 32 33; --c-primary-container: 16 51 60;
+    --c-secondary: 78 222 163; --c-on-secondary: 0 56 36; --c-tertiary: 165 166 255;
+    --c-buy: 78 222 163; --c-sell: 244 63 94; --c-gold: 240 185 11;
+    color-scheme: dark; scroll-behavior: smooth;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --c-surface: 247 249 252; --c-surface-container-lowest: 255 255 255; --c-surface-container-low: 238 241 247;
+      --c-surface-container: 232 235 243; --c-surface-container-high: 221 225 236; --c-surface-container-highest: 210 215 228;
+      --c-on-surface: 19 26 44; --c-on-surface-variant: 85 96 110; --c-outline: 140 150 163; --c-outline-variant: 199 206 217;
+      --c-primary: 0 150 158; --c-on-primary: 255 255 255; --c-primary-container: 217 246 248;
+      --c-secondary: 23 145 95; --c-on-secondary: 234 251 243; --c-tertiary: 91 91 214;
+      --c-buy: 23 145 95; --c-sell: 225 29 72; --c-gold: 161 98 7;
+      color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --c-surface: 247 249 252; --c-surface-container-lowest: 255 255 255; --c-surface-container-low: 238 241 247;
+    --c-surface-container: 232 235 243; --c-surface-container-high: 221 225 236; --c-surface-container-highest: 210 215 228;
+    --c-on-surface: 19 26 44; --c-on-surface-variant: 85 96 110; --c-outline: 140 150 163; --c-outline-variant: 199 206 217;
+    --c-primary: 0 150 158; --c-on-primary: 255 255 255; --c-primary-container: 217 246 248;
+    --c-secondary: 23 145 95; --c-on-secondary: 234 251 243; --c-tertiary: 91 91 214;
+    --c-buy: 23 145 95; --c-sell: 225 29 72; --c-gold: 161 98 7;
+    color-scheme: light;
+  }
+  body { background-color: rgb(var(--c-surface)); font-family: 'Vazirmatn', sans-serif; color: rgb(var(--c-on-surface)); }
+  .glass-card { background: rgb(var(--c-surface-container) / 0.7); backdrop-filter: blur(20px); border: 1px solid rgb(var(--c-on-surface) / 0.08); transition: all .3s ease; }
+  .glass-card:hover { border-color: rgb(var(--c-primary) / 0.33); box-shadow: 0 0 20px rgb(var(--c-primary) / 0.15); }
   .mono-num { font-family: 'JetBrains Mono', monospace; }
   .btn-gradient {
     background: linear-gradient(135deg, #00dce5, #00696e); color: #002021; border-radius: 0.6rem; font-weight: 800;
@@ -29,14 +63,14 @@ tailwind.config = { theme: { extend: { colors: {
   }
   .btn-gradient:hover { box-shadow: 0 0 22px rgba(0,220,229,.45); transform: translateY(-1px); }
   .btn-ghost-lg {
-    border: 1px solid rgba(255,255,255,.14); color: #dae2fd; border-radius: 0.6rem;
+    border: 1px solid rgb(var(--c-on-surface) / 0.14); color: rgb(var(--c-on-surface)); border-radius: 0.6rem;
     padding: 0.8rem 1.7rem; font-size: 0.9rem; transition: .2s; cursor: pointer; background: transparent;
   }
-  .btn-ghost-lg:hover { background: rgba(0,220,229,.08); border-color: #00dce555; }
+  .btn-ghost-lg:hover { background: rgb(var(--c-primary) / 0.08); border-color: rgb(var(--c-primary) / 0.33); }
   .text-gradient { background: linear-gradient(90deg, #00dce5, #4edea3); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-  .hero-glow { position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(60% 60% at 70% 20%, rgba(0,220,229,.16), transparent 70%); }
-  .bg-grid { background-size: 40px 40px; background-image: linear-gradient(to right, rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.03) 1px, transparent 1px); }
-  .neon-glow { box-shadow: 0 0 30px rgba(0,220,229,.15); }
+  .hero-glow { position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(60% 60% at 70% 20%, rgb(var(--c-primary) / 0.16), transparent 70%); }
+  .bg-grid { background-size: 40px 40px; background-image: linear-gradient(to right, rgb(var(--c-on-surface) / 0.03) 1px, transparent 1px), linear-gradient(to bottom, rgb(var(--c-on-surface) / 0.03) 1px, transparent 1px); }
+  .neon-glow { box-shadow: 0 0 30px rgb(var(--c-primary) / 0.15); }
   @keyframes floaty { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
   .animate-float { animation: floaty 4s ease-in-out infinite; }
 </style>
@@ -48,7 +82,7 @@ tailwind.config = { theme: { extend: { colors: {
 </div>
 
 <!-- نوار بالا -->
-<nav class="sticky top-0 z-30 bg-surface/80 backdrop-blur-xl border-b border-white/5 h-16 flex items-center">
+<nav class="sticky top-0 z-30 bg-surface/80 backdrop-blur-xl border-b border-on-surface/5 h-16 flex items-center">
   <div class="max-w-6xl mx-auto w-full flex items-center justify-between px-5">
     <div class="flex items-center gap-6">
       <a href="/" class="flex items-center gap-2.5">
@@ -57,7 +91,7 @@ tailwind.config = { theme: { extend: { colors: {
         </div>
         <span class="font-headline text-lg font-black">CryptoPulse</span>
       </a>
-      <div class="hidden md:flex gap-6 items-center mr-4 pr-6 border-r border-white/10">
+      <div class="hidden md:flex gap-6 items-center mr-4 pr-6 border-r border-on-surface/10">
         <a class="text-on-surface-variant text-sm hover:text-primary transition-colors" href="#features">ویژگی‌ها</a>
         <a class="text-on-surface-variant text-sm hover:text-primary transition-colors" href="/support">پشتیبانی</a>
       </div>
@@ -93,17 +127,17 @@ tailwind.config = { theme: { extend: { colors: {
           <span class="material-symbols-outlined text-lg">login</span> ورود به داشبورد
         </a>
       </div>
-      <div class="flex items-center justify-center md:justify-start gap-8 mt-4 border-t border-white/5 pt-6">
+      <div class="flex items-center justify-center md:justify-start gap-8 mt-4 border-t border-on-surface/5 pt-6">
         <div class="flex flex-col">
           <span class="font-headline text-2xl font-bold mono-num text-right" dir="ltr">4</span>
           <span class="text-[11px] text-on-surface-variant">استراتژی داخلی</span>
         </div>
-        <div class="w-px h-10 bg-white/10"></div>
+        <div class="w-px h-10 bg-on-surface/10"></div>
         <div class="flex flex-col">
           <span class="font-headline text-2xl font-bold mono-num text-right" dir="ltr">2</span>
           <span class="text-[11px] text-on-surface-variant">صرافی پشتیبانی‌شده</span>
         </div>
-        <div class="w-px h-10 bg-white/10"></div>
+        <div class="w-px h-10 bg-on-surface/10"></div>
         <div class="flex flex-col">
           <span class="font-headline text-2xl font-bold mono-num text-right" dir="ltr">0</span>
           <span class="text-[11px] text-on-surface-variant">هزینه‌ی تست کاغذی</span>
@@ -216,7 +250,7 @@ tailwind.config = { theme: { extend: { colors: {
   </section>
 </main>
 
-<footer class="border-t border-white/5 py-8 px-5 flex flex-col md:flex-row items-center justify-between gap-4 max-w-6xl mx-auto text-[11px] text-on-surface-variant">
+<footer class="border-t border-on-surface/5 py-8 px-5 flex flex-col md:flex-row items-center justify-between gap-4 max-w-6xl mx-auto text-[11px] text-on-surface-variant">
   <div class="flex items-center gap-2">
     <img src="/static/logo-icon.png?v=2" alt="CryptoPulse" class="w-5 h-5 object-contain">
     <span class="font-headline font-bold">CryptoPulse</span>
