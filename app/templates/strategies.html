@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}مدیریت استراتژی | CryptoPulse{% endblock %}
+{% block title %}{{ t("str.title") }} | CryptoPulse{% endblock %}
 
 {% block content %}
 <div class="flex justify-between items-end mb-8">
   <div>
-    <h2 class="font-headline text-2xl font-bold text-on-surface">مدیریت استراتژی</h2>
-    <p class="text-on-surface-variant text-sm mt-1">پیکربندی و نظارت بر استراتژی‌های معاملاتی + شبیه‌سازی روی داده‌ی تاریخی</p>
+    <h2 class="font-headline text-2xl font-bold text-on-surface">{{ t("str.title") }}</h2>
+    <p class="text-on-surface-variant text-sm mt-1">{{ t("str.subtitle") }}</p>
   </div>
 </div>
 
@@ -15,12 +15,12 @@
     <div class="glass-card rounded-2xl p-6">
       <div class="flex justify-between items-center mb-6 flex-wrap gap-2">
         <h3 class="font-headline text-lg font-bold flex items-center gap-2">
-          <span class="material-symbols-outlined text-primary">analytics</span> استراتژی‌های فعال روی حساب‌ها
+          <span class="material-symbols-outlined text-primary">analytics</span> {{ t("str.active_on_accounts") }}
         </h3>
         <div class="flex gap-2" id="stratCounters"></div>
       </div>
       <div class="space-y-4" id="strategyList">
-        <div class="text-center text-on-surface-variant py-8 text-sm">در حال بارگذاری…</div>
+        <div class="text-center text-on-surface-variant py-8 text-sm">{{ t("common.loading") }}</div>
       </div>
     </div>
 
@@ -28,39 +28,39 @@
     <div class="glass-card rounded-2xl p-6">
       <div class="flex justify-between items-start mb-5 flex-wrap gap-3">
         <div>
-          <h3 class="font-headline text-lg font-bold">شبیه‌ساز بازار (Backtest)</h3>
-          <p class="text-on-surface-variant text-xs mt-1">اجرای استراتژی روی کندل‌های تاریخی Toobit با همان منطق SL/TP ربات</p>
+          <h3 class="font-headline text-lg font-bold">{{ t("str.backtest") }}</h3>
+          <p class="text-on-surface-variant text-xs mt-1">{{ t("str.backtest_sub") }}</p>
         </div>
         <button id="btRunBtn" class="btn-primary-of flex items-center gap-2" onclick="runBacktest()">
-          <span class="material-symbols-outlined text-base">fast_forward</span> اجرای شبیه‌سازی
+          <span class="material-symbols-outlined text-base">fast_forward</span> {{ t("str.run_backtest") }}
         </button>
       </div>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <div class="col-span-2 md:col-span-1">
-          <label class="lbl">نماد</label>
+          <label class="lbl">{{ t("common.symbol") }}</label>
           <input id="bt_symbol" class="field mono-num" dir="ltr" placeholder="BTCUSDT" value="BTCUSDT">
         </div>
         <div>
-          <label class="lbl">تایم‌فریم</label>
+          <label class="lbl">{{ t("common.timeframe") }}</label>
           <select id="bt_timeframe" class="field">
-            <option value="15m">15 دقیقه</option><option value="30m">30 دقیقه</option>
-            <option value="1h" selected>1 ساعت</option><option value="4h">4 ساعت</option><option value="1d">روزانه</option>
+            <option value="15m">{{ t("common.tf_15m") }}</option><option value="30m">{{ t("common.tf_30m") }}</option>
+            <option value="1h" selected>{{ t("common.tf_1h") }}</option><option value="4h">{{ t("common.tf_4h") }}</option><option value="1d">{{ t("common.tf_1d") }}</option>
           </select>
         </div>
         <div>
-          <label class="lbl">تعداد کندل</label>
+          <label class="lbl">{{ t("str.candle_count") }}</label>
           <select id="bt_candles" class="field">
             <option value="300">300</option><option value="500" selected>500</option><option value="1000">1000</option>
           </select>
         </div>
         <div>
-          <label class="lbl">استراتژی</label>
+          <label class="lbl">{{ t("common.strategy") }}</label>
           <select id="bt_strategy" class="field"></select>
         </div>
       </div>
       <div id="btResult">
         <div class="text-center text-on-surface-variant text-sm py-10 border border-dashed border-outline-variant/30 rounded-xl">
-          نتیجه‌ی شبیه‌سازی اینجا نمایش داده می‌شود — استراتژی و نماد را انتخاب و اجرا کنید.
+          {{ t("str.backtest_placeholder") }}
         </div>
       </div>
     </div>
@@ -73,11 +73,11 @@
         <div class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
           <span class="material-symbols-outlined">settings_input_component</span>
         </div>
-        <h3 class="font-headline text-lg font-bold">پیکربندی پارامترها</h3>
+        <h3 class="font-headline text-lg font-bold">{{ t("str.params_config") }}</h3>
       </div>
       <div id="paramPanel" class="flex-1">
         <div class="text-on-surface-variant text-sm py-8 text-center">
-          از لیست سمت چپ، «ویرایش پارامترها» یک نماد را انتخاب کنید.
+          {{ t("str.params_placeholder") }}
         </div>
       </div>
     </div>
@@ -85,7 +85,7 @@
     <!-- راهنمای استراتژی‌ها -->
     <div class="glass-card rounded-2xl p-6">
       <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
-        <span class="material-symbols-outlined text-primary">menu_book</span> راهنمای استراتژی‌ها
+        <span class="material-symbols-outlined text-primary">menu_book</span> {{ t("str.guide") }}
       </h3>
       <div class="space-y-3 text-xs text-on-surface-variant leading-6" id="strategyGuide"></div>
     </div>
@@ -102,10 +102,10 @@ const STRAT_ICONS = {
   ma_kijun_psar: 'rocket_launch',
 };
 const STRAT_GUIDE = {
-  supertrend_ema_rsi: 'روند با SuperTrend + فیلتر EMA کند و تایید RSI. خروج با تغییر جهت SuperTrend.',
-  macd_trend: 'کراس MACD فقط در جهت EMA روند (۲۰۰). مناسب بازارهای ترنددار.',
-  bollinger_rsi: 'برگشت از باندهای بولینگر با تایید RSI اشباع. مناسب بازار رنج.',
-  ma_kijun_psar: 'ترکیب ۳ میانگین متحرک + Kijun (ایچیموکو) + Parabolic SAR برای تایید نهایی.',
+  supertrend_ema_rsi: t('str.desc_supertrend'),
+  macd_trend: t('str.desc_macd'),
+  bollinger_rsi: t('str.desc_bollinger'),
+  ma_kijun_psar: t('str.desc_ma_kijun'),
 };
 
 let strategiesCache = [];
@@ -141,12 +141,12 @@ function renderList() {
   }
   const enabledCount = items.filter(x => x.sym.enabled).length;
   document.getElementById('stratCounters').innerHTML = `
-    <div class="bg-surface-container-low px-3 py-1 rounded-full border border-outline-variant/30 text-xs text-on-surface-variant">فعال: ${enabledCount}</div>
-    <div class="bg-surface-container-low px-3 py-1 rounded-full border border-outline-variant/30 text-xs text-on-surface-variant">غیرفعال: ${items.length - enabledCount}</div>`;
+    <div class="bg-surface-container-low px-3 py-1 rounded-full border border-outline-variant/30 text-xs text-on-surface-variant">${t('str.enabled_count', {n: enabledCount})}</div>
+    <div class="bg-surface-container-low px-3 py-1 rounded-full border border-outline-variant/30 text-xs text-on-surface-variant">${t('str.disabled_count', {n: items.length - enabledCount})}</div>`;
 
   if (!items.length) {
     list.innerHTML = `<div class="text-center text-on-surface-variant py-8 text-sm">
-      هنوز نمادی با استراتژی تعریف نشده است — از <a href="/" class="text-primary">پیشخوان</a> نماد اضافه کنید.</div>`;
+      ${t('str.no_symbols')}</div>`;
     return;
   }
   list.innerHTML = items.map(({ acc, sym }) => {
@@ -156,8 +156,8 @@ function renderList() {
     const icon = STRAT_ICONS[sym.strategy] || 'query_stats';
     const isEditing = editing && editing.accountId === acc.id && editing.symbol === sym.symbol;
     const signalTxt = sig && sig.signal !== 'none'
-      ? `<span class="${sig.signal === 'buy' ? 'text-buy' : 'text-sell'} mono-num text-sm">${sig.signal === 'buy' ? 'خرید ▲' : 'فروش ▼'}</span>`
-      : '<span class="text-on-surface-variant text-sm">بدون سیگنال</span>';
+      ? `<span class="${sig.signal === 'buy' ? 'text-buy' : 'text-sell'} mono-num text-sm">${sig.signal === 'buy' ? t('str.buy_arrow') : t('str.sell_arrow')}</span>`
+      : `<span class="text-on-surface-variant text-sm">${t('dash.signal_none')}</span>`;
     return `<div class="glass-card rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap ${sym.enabled ? '' : 'opacity-60'} ${isEditing ? '!border-primary' : ''}">
       <div class="flex items-center gap-4">
         <div class="w-12 h-12 rounded-lg bg-primary-container flex items-center justify-center text-primary border border-primary/20">
@@ -165,19 +165,19 @@ function renderList() {
         </div>
         <div>
           <h4 class="font-bold text-on-surface">${strat ? strat.label : sym.strategy}</h4>
-          <p class="text-xs text-on-surface-variant mt-0.5">${sym.symbol} | تایم‌فریم: ${sym.timeframe} | حساب: ${acc.name}</p>
+          <p class="text-xs text-on-surface-variant mt-0.5">${t('str.symbol_meta', {symbol: sym.symbol, tf: sym.timeframe, acc: acc.name})}</p>
         </div>
       </div>
       <div class="flex items-center gap-6">
         <div class="text-center">
-          <p class="text-[10px] text-on-surface-variant mb-1">آخرین سیگنال</p>
+          <p class="text-[10px] text-on-surface-variant mb-1">${t('str.last_signal')}</p>
           ${signalTxt}
         </div>
         <div class="flex flex-col items-center gap-2">
           <input type="checkbox" class="of-switch" ${sym.enabled ? 'checked' : ''} onchange="toggleSym('${acc.id}','${sym.symbol}',this.checked)">
           <button class="text-xs flex items-center gap-1 ${isEditing ? 'text-primary font-bold' : 'text-on-surface-variant hover:text-primary'} transition-colors"
                   onclick="openParamEditor('${acc.id}','${sym.symbol}')">
-            <span class="material-symbols-outlined text-sm">edit_note</span> ویرایش پارامترها
+            <span class="material-symbols-outlined text-sm">edit_note</span> ${t('str.edit_params')}
           </button>
         </div>
       </div>
@@ -189,7 +189,7 @@ async function toggleSym(accId, symbol, enabled) {
   try {
     await callApi(`/api/accounts/${accId}/symbols/${encodeURIComponent(symbol)}/toggle?enabled=${enabled}`, 'POST');
     loadData();
-  } catch (e) { toast('خطا: ' + e.message, true); loadData(); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); loadData(); }
 }
 
 function openParamEditor(accId, symbol) {
@@ -210,12 +210,12 @@ function openParamEditor(accId, symbol) {
   panel.innerHTML = `
     <div class="mb-4 pb-4 border-b border-outline-variant/20">
       <div class="font-bold">${sym.symbol} <span class="text-xs text-on-surface-variant font-normal">(${sym.timeframe})</span></div>
-      <div class="text-xs text-on-surface-variant mt-1">${strat ? strat.label : sym.strategy} — حساب ${acc.name}</div>
+      <div class="text-xs text-on-surface-variant mt-1">${t('str.on_account', {label: strat ? strat.label : sym.strategy, acc: acc.name})}</div>
     </div>
     <div class="space-y-4">${fields}</div>
     <div class="mt-6 pt-4 border-t border-outline-variant/20">
-      <button class="w-full btn-primary-of" onclick="saveParams()">ذخیره و به‌روزرسانی بات</button>
-      <button class="w-full text-on-surface-variant py-2 mt-2 text-sm hover:text-sell transition-colors" onclick="resetParams()">بازگشت به پیش‌فرض</button>
+      <button class="w-full btn-primary-of" onclick="saveParams()">${t('str.save_update')}</button>
+      <button class="w-full text-on-surface-variant py-2 mt-2 text-sm hover:text-sell transition-colors" onclick="resetParams()">${t('str.reset_default')}</button>
     </div>`;
   renderList();
 }
@@ -245,9 +245,9 @@ async function saveParams() {
   delete payload.id;
   try {
     await callApi(`/api/accounts/${editing.accountId}/symbols/${encodeURIComponent(editing.symbol)}`, 'PUT', payload);
-    toast('پارامترها ذخیره شد');
+    toast(t('str.params_saved'));
     loadData();
-  } catch (e) { toast('خطا: ' + e.message, true); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 // ---------- بک‌تست ----------
@@ -255,10 +255,10 @@ function btStatsHtml(s) {
   const pnlCls = (s.total_pnl || 0) >= 0 ? 'text-buy' : 'text-sell';
   const pf = s.profit_factor === null || s.profit_factor === undefined ? '∞' : fmt(s.profit_factor);
   return `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-    <div class="bg-surface-container-low rounded-lg p-3 text-center"><div class="text-[10px] text-on-surface-variant mb-1">بازده کل</div><div class="mono-num text-lg font-bold ${pnlCls}" dir="ltr">${s.return_pct >= 0 ? '+' : ''}${fmt(s.return_pct)}٪</div></div>
-    <div class="bg-surface-container-low rounded-lg p-3 text-center"><div class="text-[10px] text-on-surface-variant mb-1">نرخ برد</div><div class="mono-num text-lg font-bold text-primary" dir="ltr">${fmt(s.win_rate, 1)}٪</div></div>
-    <div class="bg-surface-container-low rounded-lg p-3 text-center"><div class="text-[10px] text-on-surface-variant mb-1">معاملات (W/L)</div><div class="mono-num text-lg font-bold" dir="ltr">${s.trades} <span class="text-xs text-on-surface-variant">(${s.wins}/${s.losses})</span></div></div>
-    <div class="bg-surface-container-low rounded-lg p-3 text-center"><div class="text-[10px] text-on-surface-variant mb-1">PF / ماکس DD</div><div class="mono-num text-lg font-bold" dir="ltr">${pf} <span class="text-xs text-sell">/ ${fmt(s.max_drawdown_pct, 1)}٪</span></div></div>
+    <div class="bg-surface-container-low rounded-lg p-3 text-center"><div class="text-[10px] text-on-surface-variant mb-1">${t('str.total_return')}</div><div class="mono-num text-lg font-bold ${pnlCls}" dir="ltr">${s.return_pct >= 0 ? '+' : ''}${fmt(s.return_pct)}${t('common.pct')}</div></div>
+    <div class="bg-surface-container-low rounded-lg p-3 text-center"><div class="text-[10px] text-on-surface-variant mb-1">${t('common.win_rate')}</div><div class="mono-num text-lg font-bold text-primary" dir="ltr">${fmt(s.win_rate, 1)}${t('common.pct')}</div></div>
+    <div class="bg-surface-container-low rounded-lg p-3 text-center"><div class="text-[10px] text-on-surface-variant mb-1">${t('str.trades_wl')}</div><div class="mono-num text-lg font-bold" dir="ltr">${s.trades} <span class="text-xs text-on-surface-variant">(${s.wins}/${s.losses})</span></div></div>
+    <div class="bg-surface-container-low rounded-lg p-3 text-center"><div class="text-[10px] text-on-surface-variant mb-1">${t('str.pf_maxdd')}</div><div class="mono-num text-lg font-bold" dir="ltr">${pf} <span class="text-xs text-sell">/ ${fmt(s.max_drawdown_pct, 1)}${t('common.pct')}</span></div></div>
   </div>`;
 }
 
@@ -293,18 +293,18 @@ async function runBacktest() {
     strategy_params: {},
   };
   btn.disabled = true;
-  box.innerHTML = '<div class="text-center text-on-surface-variant text-sm py-10">در حال دریافت کندل‌ها و اجرای شبیه‌سازی…</div>';
+  box.innerHTML = `<div class="text-center text-on-surface-variant text-sm py-10">${t('str.running_backtest')}</div>`;
   try {
     const r = await callApi('/api/backtest', 'POST', payload);
     box.innerHTML = btStatsHtml(r.summary) +
       `<div class="bg-primary-container rounded-xl p-3">${btChartSvg(r.equity_curve)}</div>
-       <div class="text-[10px] text-on-surface-variant mt-2">منحنی اکوییتی (شروع: ${fmt(r.summary.start_equity)} USDT، ریسک ۱٪ هر معامله، SL/TP از ATR)</div>`;
+       <div class="text-[10px] text-on-surface-variant mt-2">${t('str.equity_note', {start: fmt(r.summary.start_equity)})}</div>`;
   } catch (e) {
-    box.innerHTML = `<div class="text-center text-sell text-sm py-10 border border-sell/30 rounded-xl">خطا: ${e.message}</div>`;
+    box.innerHTML = `<div class="text-center text-sell text-sm py-10 border border-sell/30 rounded-xl">${t('common.error_prefix')}${e.message}</div>`;
   } finally { btn.disabled = false; }
 }
 
-loadData().catch(e => toast('خطا: ' + e.message, true));
+loadData().catch(e => toast(t('common.error_prefix') + e.message, true));
 setInterval(loadData, 15000);
 </script>
 {% endblock %}

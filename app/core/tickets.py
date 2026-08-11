@@ -12,8 +12,22 @@ _DEFAULT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.
 TICKETS_PATH = os.getenv("TICKETS_PATH") or os.path.abspath(_DEFAULT_PATH)
 
 _lock = threading.Lock()
-UNITS = ("فنی", "استراتژی", "مالی", "عمومی")
+# کلیدهای پایدار واحدها — رابط کاربری آن‌ها را به زبان کاربر ترجمه می‌کند.
+# برچسب فارسی فقط برای سازگاری با تیکت‌های قدیمی (که unit متنی داشتند) نگه داشته شده است.
+UNIT_KEYS = ("technical", "strategy", "billing", "general")
+UNIT_LABELS_FA = {"technical": "فنی", "strategy": "استراتژی", "billing": "مالی", "general": "عمومی"}
+UNITS = tuple(UNIT_LABELS_FA.values())
 STATUSES = {"open": "در حال بررسی", "answered": "پاسخ داده شده", "closed": "بسته شده"}
+
+
+def normalize_unit(unit: str) -> str:
+    """هم کلید پایدار ('billing') و هم برچسب قدیمی فارسی ('مالی') را می‌پذیرد."""
+    if unit in UNIT_KEYS:
+        return unit
+    for key, label in UNIT_LABELS_FA.items():
+        if unit == label or unit == f"واحد {label}":
+            return key
+    return "general"
 
 
 def _now_iso() -> str:
@@ -59,8 +73,7 @@ def create_ticket(subject: str, body: str, unit: str, user_id: str, username: st
     body = (body or "").strip()
     if not subject or not body:
         raise ValueError("موضوع و متن تیکت الزامی است.")
-    if unit not in UNITS:
-        unit = "عمومی"
+    unit_key = normalize_unit(unit)
     with _lock:
         tickets = _load()
         next_num = max((t.get("number", 8400) for t in tickets), default=8400) + 1
@@ -71,7 +84,9 @@ def create_ticket(subject: str, body: str, unit: str, user_id: str, username: st
             "username": username,
             "subject": subject,
             "body": body,
-            "unit": f"واحد {unit}",
+            "unit_key": unit_key,
+            # برچسب فارسی برای سازگاری عقب‌رو با هر مصرف‌کننده‌ی قدیمی
+            "unit": f"واحد {UNIT_LABELS_FA[unit_key]}",
             "status": "open",
             "status_label": STATUSES["open"],
             "created": _now_iso(),

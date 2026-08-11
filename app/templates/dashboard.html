@@ -55,7 +55,7 @@
           <span>{{ t("dash.margin_cap") }}</span>
           <span id="f_margin_cap_val" class="mono-num text-primary font-bold">25{{ t('common.pct') }}</span>
         </label>
-        <input id="f_max_margin_per_trade_pct" type="range" min="1" max="100" step="1" value="25" dir="rtl"
+        <input id="f_max_margin_per_trade_pct" type="range" min="1" max="100" step="1" value="25" dir="{{ lang_dir }}"
           class="w-full accent-gold" style="accent-color:#f0b90b"
           oninput="document.getElementById('f_margin_cap_val').textContent = this.value + t('common.pct')">
         <p class="text-[10px] text-on-surface-variant mt-1 leading-5">{{ t("dash.margin_cap_hint") }}</p>
@@ -561,37 +561,37 @@ function renderAccountBar() {
   const oPctCls = oPct === null ? '' : (oPct >= 0 ? 'text-buy' : 'text-sell');
   box.innerHTML = `<div class="glass-card rounded-2xl p-6 flex flex-col lg:flex-row-reverse justify-between items-start lg:items-center gap-6">
     <div class="flex flex-wrap items-center gap-6 lg:gap-8">
-      <div class="text-right">
+      <div class="text-start">
         <p class="text-on-surface-variant text-xs mb-1">${t('dash.bot_name')}</p>
         <h2 class="font-headline text-xl font-bold">${acc.name}</h2>
       </div>
       <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
-      <div class="text-right">
+      <div class="text-start">
         <p class="text-on-surface-variant text-xs mb-1">${t('dash.initial_amount')}</p>
         <p class="mono-num text-sm" dir="ltr">${stats ? fmt(stats.initial_balance) : '—'}</p>
       </div>
       <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
-      <div class="text-right">
+      <div class="text-start">
         <p class="text-on-surface-variant text-xs mb-1">${t('dash.equity')}</p>
         <p class="mono-num text-primary text-xl" dir="ltr">${info ? fmt(info.equity) : '—'}</p>
       </div>
       <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
-      <div class="text-right">
+      <div class="text-start">
         <p class="text-on-surface-variant text-xs mb-1">${t('dash.daily_pnl')}</p>
         <p class="mono-num text-sm ${dPnlCls}" dir="ltr">${dPnl === null ? '—' : (dPnl >= 0 ? '+' : '') + fmt(dPnl)}</p>
       </div>
       <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
-      <div class="text-right">
+      <div class="text-start">
         <p class="text-on-surface-variant text-xs mb-1">${t('dash.overall_pct')}</p>
         <p class="mono-num text-sm ${oPctCls}" dir="ltr">${oPct === null ? '—' : (oPct >= 0 ? '+' : '') + fmt(oPct) + t('common.pct')}</p>
       </div>
       <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
-      <div class="text-right">
+      <div class="text-start">
         <p class="text-on-surface-variant text-xs mb-1">${t('dash.free_position')}</p>
         <p class="mono-num text-sm" dir="ltr">${info ? fmt(info.free_margin) : '—'} <span class="text-on-surface-variant">|</span> ${posCount}/${acc.max_open_positions}</p>
       </div>
       <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
-      <div class="text-right">
+      <div class="text-start">
         <p class="text-on-surface-variant text-xs mb-1">${t('common.status')}</p>
         <div class="flex items-center gap-2">
           <span class="w-2 h-2 rounded-full ${running ? 'bg-buy pulse-active' : 'bg-outline'}"></span>

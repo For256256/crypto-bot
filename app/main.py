@@ -288,7 +288,7 @@ async def run_backtest_api(payload: BacktestIn, _: dict = Depends(auth.require_u
 class TicketIn(BaseModel):
     subject: str
     body: str
-    unit: str = "عمومی"
+    unit: str = "general"   # کلید پایدار؛ برچسب قدیمی فارسی هم پذیرفته می‌شود
 
 
 class ReplyIn(BaseModel):
@@ -430,7 +430,7 @@ async def submit_deposit(payload: DepositSubmitIn, user: dict = Depends(auth.req
     subject = f"درخواست فعال‌سازی توکن — {payload.plan_days} روزه ({payload.plan_price} USDT)"
     body = (payload.note or "").strip() or "اطلاعات واریز پیوست نشده — لطفاً رسید/هش تراکنش را از طریق پاسخ تیکت ارسال کنید."
     try:
-        ticket = tickets.create_ticket(subject, body, "مالی", user["id"], user["username"])
+        ticket = tickets.create_ticket(subject, body, "billing", user["id"], user["username"])
     except ValueError as e:
         raise HTTPException(400, str(e))
     asyncio.create_task(telegram.notify_admin(

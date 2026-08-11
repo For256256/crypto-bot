@@ -1,16 +1,16 @@
 {% extends "base.html" %}
-{% block title %}پنل مدیریت | CryptoPulse{% endblock %}
+{% block title %}{{ t("adm.title") }} | CryptoPulse{% endblock %}
 
 {% block content %}
 <div class="mb-6">
-  <h2 class="font-headline text-2xl font-bold text-on-surface">پنل مدیریت</h2>
-  <p class="text-on-surface-variant text-sm mt-1">کاربران، توکن‌های فعال‌سازی، تیکت‌های پشتیبانی و پیش‌فرض‌های پیشنهادی</p>
+  <h2 class="font-headline text-2xl font-bold text-on-surface">{{ t("adm.title") }}</h2>
+  <p class="text-on-surface-variant text-sm mt-1">{{ t("adm.subtitle") }}</p>
 </div>
 
 <div class="flex gap-2 mb-6 border-b border-outline-variant/20 overflow-x-auto">
-  <button class="tab-btn" data-tab="users" onclick="switchTab('users')">کاربران</button>
-  <button class="tab-btn" data-tab="tickets" onclick="switchTab('tickets')">تیکت‌های پشتیبانی</button>
-  <button class="tab-btn" data-tab="presets" onclick="switchTab('presets')">پیش‌فرض‌های پیشنهادی</button>
+  <button class="tab-btn" data-tab="users" onclick="switchTab('users')">{{ t("adm.tab_users") }}</button>
+  <button class="tab-btn" data-tab="tickets" onclick="switchTab('tickets')">{{ t("adm.tab_tickets") }}</button>
+  <button class="tab-btn" data-tab="presets" onclick="switchTab('presets')">{{ t("adm.tab_presets") }}</button>
 </div>
 
 <!-- تب کاربران -->
@@ -18,7 +18,7 @@
   <div class="glass-card rounded-2xl overflow-hidden">
     <div class="overflow-x-auto"><table class="of-table">
       <thead><tr>
-        <th>کاربر</th><th>نقش</th><th>تعداد حساب</th><th>توکن فعال</th><th>وضعیت</th><th>تاریخ ثبت‌نام</th><th></th>
+        <th>{{ t("adm.th_user") }}</th><th>{{ t("adm.th_role") }}</th><th>{{ t("adm.th_accounts") }}</th><th>{{ t("adm.th_token") }}</th><th>{{ t("common.status") }}</th><th>{{ t("adm.th_joined") }}</th><th></th>
       </tr></thead>
       <tbody id="usersTbody"></tbody>
     </table></div>
@@ -34,7 +34,7 @@
 <div id="tab-presets" class="tab-pane hidden">
   <div class="flex justify-end mb-4">
     <button class="btn-primary-of !py-2 flex items-center gap-1" onclick="openPresetModal()">
-      <span class="material-symbols-outlined text-base">add</span> پیش‌فرض جدید
+      <span class="material-symbols-outlined text-base">add</span> {{ t("adm.new_preset") }}
     </button>
   </div>
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="presetsGrid"></div>
@@ -43,15 +43,15 @@
 <!-- مودال صدور توکن -->
 <div class="modal-bg" id="tokenModalBg">
   <div class="modal-panel">
-    <h3 class="font-headline text-lg font-bold mb-4">صدور توکن فعال‌سازی</h3>
-    <p class="text-xs text-on-surface-variant mb-4">برای کاربر <b id="tk_username" class="text-on-surface"></b></p>
+    <h3 class="font-headline text-lg font-bold mb-4">{{ t("adm.issue_token_title") }}</h3>
+    <p class="text-xs text-on-surface-variant mb-4">{{ t("adm.for_user") }} <b id="tk_username" class="text-on-surface"></b></p>
     <div class="space-y-3">
-      <div><label class="lbl">مدت‌زمان (روز)</label><input id="tk_days" class="field mono-num" dir="ltr" type="number" value="30" min="1"></div>
-      <div><label class="lbl">یادداشت (اختیاری)</label><input id="tk_note" class="field" placeholder="مثلاً: پرداخت کریپتو ۵ آبان"></div>
+      <div><label class="lbl">{{ t("adm.duration_days") }}</label><input id="tk_days" class="field mono-num" dir="ltr" type="number" value="30" min="1"></div>
+      <div><label class="lbl">{{ t("adm.note_optional") }}</label><input id="tk_note" class="field" placeholder="{{ t('adm.note_ph') }}"></div>
     </div>
     <div class="flex justify-end gap-2 mt-5">
-      <button class="btn-ghost" onclick="closeModal('tokenModalBg')">انصراف</button>
-      <button class="btn-primary-of" onclick="submitIssueToken()">صدور توکن</button>
+      <button class="btn-ghost" onclick="closeModal('tokenModalBg')">{{ t("common.cancel") }}</button>
+      <button class="btn-primary-of" onclick="submitIssueToken()">{{ t("adm.issue_token") }}</button>
     </div>
   </div>
 </div>
@@ -59,23 +59,23 @@
 <!-- مودال پیش‌فرض -->
 <div class="modal-bg" id="presetModalBg">
   <div class="modal-panel">
-    <h3 id="presetModalTitle" class="font-headline text-lg font-bold mb-4">پیش‌فرض جدید</h3>
+    <h3 id="presetModalTitle" class="font-headline text-lg font-bold mb-4">{{ t("adm.new_preset") }}</h3>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <div class="sm:col-span-2"><label class="lbl">نام</label><input id="p_name" class="field" placeholder="مثلاً: تنظیم محافظه‌کارانه"></div>
-      <div class="sm:col-span-2"><label class="lbl">توضیح</label><input id="p_description" class="field" placeholder="یک خط توضیح برای کاربر"></div>
-      <div><label class="lbl">استراتژی</label><select id="p_strategy" class="field"></select></div>
-      <div><label class="lbl">تایم‌فریم</label><select id="p_timeframe" class="field">
-        <option value="1m">1 دقیقه</option><option value="5m">5 دقیقه</option><option value="15m">15 دقیقه</option>
-        <option value="30m">30 دقیقه</option><option value="1h" selected>1 ساعت</option><option value="4h">4 ساعت</option>
-        <option value="1d">روزانه</option>
+      <div class="sm:col-span-2"><label class="lbl">{{ t("common.name") }}</label><input id="p_name" class="field" placeholder="{{ t('adm.preset_name_ph') }}"></div>
+      <div class="sm:col-span-2"><label class="lbl">{{ t("common.description") }}</label><input id="p_description" class="field" placeholder="{{ t('adm.preset_desc_ph') }}"></div>
+      <div><label class="lbl">{{ t("common.strategy") }}</label><select id="p_strategy" class="field"></select></div>
+      <div><label class="lbl">{{ t("common.timeframe") }}</label><select id="p_timeframe" class="field">
+        <option value="1m">{{ t("common.tf_1m") }}</option><option value="5m">{{ t("common.tf_5m") }}</option><option value="15m">{{ t("common.tf_15m") }}</option>
+        <option value="30m">{{ t("common.tf_30m") }}</option><option value="1h" selected>{{ t("common.tf_1h") }}</option><option value="4h">{{ t("common.tf_4h") }}</option>
+        <option value="1d">{{ t("common.tf_1d") }}</option>
       </select></div>
-      <div><label class="lbl">اهرم (اختیاری)</label><input id="p_leverage" class="field mono-num" dir="ltr" type="number" placeholder="پیش‌فرض حساب"></div>
-      <div><label class="lbl">ریسک ٪ (اختیاری)</label><input id="p_risk_percent" class="field mono-num" dir="ltr" type="number" step="0.1" placeholder="پیش‌فرض حساب"></div>
-      <div class="sm:col-span-2"><label class="lbl">ضریب ATR برای SL/TP (اختیاری)</label><input id="p_sl_tp_atr_mult" class="field mono-num" dir="ltr" type="number" step="0.1" placeholder="پیش‌فرض حساب"></div>
+      <div><label class="lbl">{{ t("adm.leverage_optional") }}</label><input id="p_leverage" class="field mono-num" dir="ltr" type="number" placeholder="{{ t('common.account_default') }}"></div>
+      <div><label class="lbl">{{ t("adm.risk_optional") }}</label><input id="p_risk_percent" class="field mono-num" dir="ltr" type="number" step="0.1" placeholder="{{ t('common.account_default') }}"></div>
+      <div class="sm:col-span-2"><label class="lbl">{{ t("adm.atr_optional") }}</label><input id="p_sl_tp_atr_mult" class="field mono-num" dir="ltr" type="number" step="0.1" placeholder="{{ t('common.account_default') }}"></div>
     </div>
     <div class="flex justify-end gap-2 mt-5">
-      <button class="btn-ghost" onclick="closeModal('presetModalBg')">انصراف</button>
-      <button class="btn-primary-of" onclick="savePreset()">ذخیره</button>
+      <button class="btn-ghost" onclick="closeModal('presetModalBg')">{{ t("common.cancel") }}</button>
+      <button class="btn-primary-of" onclick="savePreset()">{{ t("common.save") }}</button>
     </div>
   </div>
 </div>
@@ -100,18 +100,10 @@ let strategiesCache = [];
 let issuingUserId = null;
 let editingPresetId = null;
 const STATUS_STYLES = {
-  'در حال بررسی': 'bg-gold/15 text-gold border-gold/30',
-  'پاسخ داده شده': 'bg-buy/15 text-buy border-buy/30',
-  'بسته شده': 'bg-outline-variant/30 text-on-surface-variant border-outline-variant/40',
+  open: 'bg-gold/15 text-gold border-gold/30',
+  answered: 'bg-buy/15 text-buy border-buy/30',
+  closed: 'bg-outline-variant/30 text-on-surface-variant border-outline-variant/40',
 };
-
-function faDate(iso) {
-  if (!iso) return '—';
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString('fa-IR') + ' ' + d.toLocaleTimeString('fa-IR', {hour: '2-digit', minute: '2-digit'});
-  } catch (e) { return String(iso).slice(0, 16).replace('T', ' '); }
-}
 
 function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
@@ -124,37 +116,37 @@ async function loadUsers() {
   document.getElementById('usersTbody').innerHTML = usersCache.map(u => `
     <tr class="hover:bg-surface-variant/20 transition-colors">
       <td class="font-bold">${u.username}</td>
-      <td><span class="text-[10px] px-2 py-0.5 rounded ${u.role === 'admin' ? 'bg-gold/15 text-gold' : 'bg-surface-variant text-on-surface-variant'}">${u.role === 'admin' ? 'ادمین' : 'کاربر'}</span></td>
+      <td><span class="text-[10px] px-2 py-0.5 rounded ${u.role === 'admin' ? 'bg-gold/15 text-gold' : 'bg-surface-variant text-on-surface-variant'}">${u.role === 'admin' ? t('adm.role_admin') : t('adm.role_user')}</span></td>
       <td class="num">${u.accounts_count}</td>
-      <td>${u.has_active_token ? '<span class="text-buy text-xs">فعال</span>' : '<span class="text-on-surface-variant text-xs">—</span>'}</td>
-      <td>${u.enabled ? '<span class="text-buy text-xs">فعال</span>' : '<span class="text-sell text-xs">غیرفعال</span>'}</td>
-      <td class="text-[11px] text-on-surface-variant">${faDate(u.created_at)}</td>
+      <td>${u.has_active_token ? `<span class="text-buy text-xs">${t('common.active')}</span>` : '<span class="text-on-surface-variant text-xs">—</span>'}</td>
+      <td>${u.enabled ? `<span class="text-buy text-xs">${t('common.active')}</span>` : `<span class="text-sell text-xs">${t('common.inactive')}</span>`}</td>
+      <td class="text-[11px] text-on-surface-variant">${fmtDateTime(u.created_at)}</td>
       <td>
         ${u.role !== 'admin' ? `
         <div class="flex items-center gap-1.5 flex-wrap">
-          <button class="btn-ghost !py-1 !px-2 text-[11px]" onclick="openTokenModal('${u.id}','${u.username}')">صدور توکن</button>
-          <button class="btn-ghost !py-1 !px-2 text-[11px]" onclick="resetPassword('${u.id}','${u.username}')">ریست رمز</button>
+          <button class="btn-ghost !py-1 !px-2 text-[11px]" onclick="openTokenModal('${u.id}','${u.username}')">${t('adm.issue_token')}</button>
+          <button class="btn-ghost !py-1 !px-2 text-[11px]" onclick="resetPassword('${u.id}','${u.username}')">${t('adm.reset_password')}</button>
           <button class="btn-ghost !py-1 !px-2 text-[11px] ${u.enabled ? '!text-sell !border-sell/40' : '!text-buy !border-buy/40'}"
-            onclick="toggleUserEnabled('${u.id}', ${!u.enabled})">${u.enabled ? 'غیرفعال کردن' : 'فعال کردن'}</button>
+            onclick="toggleUserEnabled('${u.id}', ${!u.enabled})">${u.enabled ? t('common.disable') : t('common.enable')}</button>
         </div>` : ''}
       </td>
-    </tr>`).join('') || '<tr><td colspan="7" class="text-center text-on-surface-variant py-8">کاربری یافت نشد</td></tr>';
+    </tr>`).join('') || `<tr><td colspan="7" class="text-center text-on-surface-variant py-8">${t('adm.no_users')}</td></tr>`;
 }
 
 async function toggleUserEnabled(userId, enabled) {
   try {
     await callApi(`/api/admin/users/${userId}/enable?enabled=${enabled}`, 'POST');
-    toast(enabled ? 'کاربر فعال شد' : 'کاربر غیرفعال شد');
+    toast(enabled ? t('adm.user_enabled') : t('adm.user_disabled'));
     loadUsers();
-  } catch (e) { toast('خطا: ' + e.message, true); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function resetPassword(userId, username) {
-  if (!askConfirm(`رمز عبور «${username}» ریست شود؟`)) return;
+  if (!askConfirm(t('adm.reset_confirm', {name: username}))) return;
   try {
     const r = await callApi(`/api/admin/users/${userId}/reset-password`, 'POST', {});
-    prompt('رمز جدید (فقط همین یک‌بار نمایش داده می‌شود) — کپی و به کاربر اطلاع دهید:', r.new_password);
-  } catch (e) { toast('خطا: ' + e.message, true); }
+    prompt(t('adm.new_password_prompt'), r.new_password);
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 function openTokenModal(userId, username) {
@@ -168,13 +160,13 @@ function openTokenModal(userId, username) {
 async function submitIssueToken() {
   const days = parseInt(document.getElementById('tk_days').value) || 0;
   const note = document.getElementById('tk_note').value.trim();
-  if (days <= 0) { toast('مدت‌زمان نامعتبر است', true); return; }
+  if (days <= 0) { toast(t('adm.invalid_duration'), true); return; }
   try {
     await callApi('/api/admin/tokens', 'POST', { user_id: issuingUserId, duration_days: days, note });
-    toast('توکن صادر شد');
+    toast(t('adm.token_issued'));
     closeModal('tokenModalBg');
     loadUsers();
-  } catch (e) { toast('خطا: ' + e.message, true); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 // ---------- تیکت‌ها ----------
@@ -182,34 +174,36 @@ async function loadAdminTickets() {
   ticketsCache = await callApi('/api/tickets');
   const box = document.getElementById('adminTicketList');
   if (!ticketsCache.length) {
-    box.innerHTML = '<div class="glass-card rounded-xl p-8 text-center text-on-surface-variant text-sm">تیکتی ثبت نشده است.</div>';
+    box.innerHTML = `<div class="glass-card rounded-xl p-8 text-center text-on-surface-variant text-sm">${t('adm.no_tickets')}</div>`;
     return;
   }
-  box.innerHTML = ticketsCache.map(t => {
-    const replies = (t.replies || []).map(r => `
-      <div class="flex gap-2 ${r.by_role === 'admin' ? 'flex-row-reverse text-left' : ''}">
+  // متغیر حلقه عمداً tk است نه t، تا تابع سراسری ترجمه t() سایه‌گذاری نشود.
+  box.innerHTML = ticketsCache.map(tk => {
+    const replies = (tk.replies || []).map(r => `
+      <div class="flex gap-2 ${r.by_role === 'admin' ? 'flex-row-reverse text-end' : ''}">
         <div class="max-w-[85%] rounded-lg px-3 py-2 text-xs ${r.by_role === 'admin' ? 'bg-primary/15 border border-primary/25' : 'bg-surface-container-highest'}">
-          <div class="text-[10px] text-on-surface-variant mb-1">${r.by_role === 'admin' ? 'پشتیبانی' : r.by_username} · ${faDate(r.time)}</div>
+          <div class="text-[10px] text-on-surface-variant mb-1">${r.by_role === 'admin' ? t('sup.support_role') : r.by_username} · ${fmtDateTime(r.time)}</div>
           <div class="leading-6">${r.message}</div>
         </div>
       </div>`).join('');
-    const closed = t.status === 'closed';
+    const closed = tk.status === 'closed';
+    const unitLabel = tk.unit_key ? t('unit.' + tk.unit_key) : (tk.unit || '');
     return `<div class="glass-card rounded-xl p-4">
       <div class="flex justify-between items-center mb-2 flex-wrap gap-2">
         <div class="flex items-center gap-2">
-          <span class="text-[10px] px-2 py-0.5 rounded-full border ${STATUS_STYLES[t.status_label] || STATUS_STYLES['در حال بررسی']}">${t.status_label}</span>
-          <span class="text-xs font-bold">${t.username || ''}</span>
-          <span class="text-[10px] text-on-surface-variant">${t.unit || ''}</span>
+          <span class="text-[10px] px-2 py-0.5 rounded-full border ${STATUS_STYLES[tk.status] || STATUS_STYLES.open}">${t('status.' + (tk.status || 'open'))}</span>
+          <span class="text-xs font-bold">${tk.username || ''}</span>
+          <span class="text-[10px] text-on-surface-variant">${unitLabel}</span>
         </div>
-        <span class="mono-num text-xs text-on-surface-variant" dir="ltr">#${t.id}</span>
+        <span class="mono-num text-xs text-on-surface-variant" dir="ltr">#${tk.id}</span>
       </div>
-      <div class="text-sm font-bold mb-1">${t.subject}</div>
-      <div class="text-xs text-on-surface-variant leading-5">${t.body}</div>
+      <div class="text-sm font-bold mb-1">${tk.subject}</div>
+      <div class="text-xs text-on-surface-variant leading-5">${tk.body}</div>
       ${replies ? `<div class="space-y-2 mt-3 pt-3 border-t border-outline-variant/20">${replies}</div>` : ''}
       ${!closed ? `<div class="flex items-center gap-2 mt-3">
-        <input class="field !py-1.5 text-xs" placeholder="پاسخ ادمین…" id="areply_${t.id}" onkeydown="if(event.key==='Enter') submitAdminReply('${t.id}')">
-        <button class="btn-ghost !py-1.5 !px-3 text-xs" onclick="submitAdminReply('${t.id}')">ارسال</button>
-        <button class="btn-ghost !py-1.5 !px-3 text-xs !text-sell !border-sell/40" onclick="closeTicket('${t.id}')">بستن تیکت</button>
+        <input class="field !py-1.5 text-xs" placeholder="${t('adm.admin_reply_ph')}" id="areply_${tk.id}" onkeydown="if(event.key==='Enter') submitAdminReply('${tk.id}')">
+        <button class="btn-ghost !py-1.5 !px-3 text-xs" onclick="submitAdminReply('${tk.id}')">${t('common.send')}</button>
+        <button class="btn-ghost !py-1.5 !px-3 text-xs !text-sell !border-sell/40" onclick="closeTicket('${tk.id}')">${t('adm.close_ticket')}</button>
       </div>` : ''}
     </div>`;
   }).join('');
@@ -223,15 +217,15 @@ async function submitAdminReply(ticketId) {
     await callApi(`/api/tickets/${ticketId}/reply`, 'POST', { message });
     input.value = '';
     loadAdminTickets();
-  } catch (e) { toast('خطا: ' + e.message, true); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function closeTicket(ticketId) {
-  if (!askConfirm('این تیکت بسته شود؟')) return;
+  if (!askConfirm(t('adm.close_ticket_confirm'))) return;
   try {
     await callApi(`/api/admin/tickets/${ticketId}/close`, 'POST');
     loadAdminTickets();
-  } catch (e) { toast('خطا: ' + e.message, true); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 // ---------- پیش‌فرض‌های پیشنهادی ----------
@@ -243,23 +237,23 @@ async function loadPresets() {
       <div class="flex justify-between items-start mb-2">
         <h4 class="font-bold text-sm">${p.name}</h4>
         <div class="flex gap-1">
-          <button class="btn-ghost !py-1 !px-2 text-[11px]" onclick="openPresetModal('${p.id}')">ویرایش</button>
-          <button class="btn-ghost !py-1 !px-2 text-[11px] !text-sell !border-sell/40" onclick="deletePreset('${p.id}')">حذف</button>
+          <button class="btn-ghost !py-1 !px-2 text-[11px]" onclick="openPresetModal('${p.id}')">${t('common.edit')}</button>
+          <button class="btn-ghost !py-1 !px-2 text-[11px] !text-sell !border-sell/40" onclick="deletePreset('${p.id}')">${t('common.delete')}</button>
         </div>
       </div>
       <p class="text-[11px] text-on-surface-variant mb-3">${p.description || '—'}</p>
       <div class="text-[11px] text-on-surface-variant space-y-1">
-        <div>استراتژی: <span class="text-on-surface">${(strategiesCache.find(s => s.key === p.strategy) || {}).label || p.strategy}</span></div>
-        <div>تایم‌فریم: <span class="text-on-surface mono-num" dir="ltr">${p.timeframe}</span></div>
-        ${p.leverage != null ? `<div>اهرم: <span class="text-on-surface mono-num" dir="ltr">${p.leverage}x</span></div>` : ''}
+        <div>${t('common.strategy')}: <span class="text-on-surface">${(strategiesCache.find(s => s.key === p.strategy) || {}).label || p.strategy}</span></div>
+        <div>${t('common.timeframe')}: <span class="text-on-surface mono-num" dir="ltr">${p.timeframe}</span></div>
+        ${p.leverage != null ? `<div>${t('common.leverage')}: <span class="text-on-surface mono-num" dir="ltr">${p.leverage}x</span></div>` : ''}
       </div>
-    </div>`).join('') || '<div class="text-center text-on-surface-variant text-sm py-8 col-span-full">پیش‌فرضی ثبت نشده است.</div>';
+    </div>`).join('') || `<div class="text-center text-on-surface-variant text-sm py-8 col-span-full">${t('adm.no_presets')}</div>`;
 }
 
 function openPresetModal(id) {
   editingPresetId = id || null;
   const p = id ? presetsCache.find(x => x.id === id) : null;
-  document.getElementById('presetModalTitle').textContent = p ? ('ویرایش: ' + p.name) : 'پیش‌فرض جدید';
+  document.getElementById('presetModalTitle').textContent = p ? t('adm.edit_preset', {name: p.name}) : t('adm.new_preset');
   const g = k => document.getElementById(k);
   g('p_name').value = p ? p.name : '';
   g('p_description').value = p ? (p.description || '') : '';
@@ -285,22 +279,22 @@ async function savePreset() {
     risk_percent: numOrNull(g('p_risk_percent')),
     sl_tp_atr_mult: numOrNull(g('p_sl_tp_atr_mult')),
   };
-  if (!payload.name) { toast('نام پیش‌فرض را وارد کنید', true); return; }
+  if (!payload.name) { toast(t('adm.preset_name_required'), true); return; }
   try {
     if (editingPresetId) await callApi('/api/admin/presets/' + editingPresetId, 'PUT', payload);
     else await callApi('/api/admin/presets', 'POST', payload);
     closeModal('presetModalBg');
-    toast('ذخیره شد');
+    toast(t('common.saved'));
     loadPresets();
-  } catch (e) { toast('خطا: ' + e.message, true); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function deletePreset(id) {
-  if (!askConfirm('این پیش‌فرض حذف شود؟')) return;
+  if (!askConfirm(t('adm.delete_preset_confirm'))) return;
   try {
     await callApi('/api/admin/presets/' + id, 'DELETE');
     loadPresets();
-  } catch (e) { toast('خطا: ' + e.message, true); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function init() {
@@ -309,6 +303,6 @@ async function init() {
   strategiesCache = st;
   await Promise.all([loadUsers(), loadAdminTickets(), loadPresets()]);
 }
-init().catch(e => toast('خطا: ' + e.message, true));
+init().catch(e => toast(t('common.error_prefix') + e.message, true));
 </script>
 {% endblock %}
