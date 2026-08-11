@@ -18,6 +18,9 @@ _lock = threading.Lock()
 
 ACCOUNT_DEFAULTS = {
     "owner_id": None,
+    # ادمین می‌تواند حساب خودش را «پیشنهادی» کند تا کاربران روند کلی و تنظیمات
+    # آن را ببینند و با یک کلیک حساب مشابهی برای خودشان بسازند.
+    "is_suggested": False,
     "exchange": "toobit",
     "trading_mode": "paper",
     "api_key": "",
@@ -112,6 +115,57 @@ def update_account(account_id: str, data: dict) -> dict:
                 _save(store)
                 return a
         raise KeyError("حساب پیدا نشد")
+
+
+def set_suggested(account_id: str, is_suggested: bool) -> dict:
+    with _lock:
+        store = _load()
+        for a in store["accounts"]:
+            if a["id"] == account_id:
+                a["is_suggested"] = bool(is_suggested)
+                _save(store)
+                return a
+        raise KeyError("حساب پیدا نشد")
+
+
+def list_suggested() -> list:
+    with _lock:
+        return [a for a in _load()["accounts"] if a.get("is_suggested")]
+
+
+def clone_for_user(account_id: str, owner_id: str) -> dict:
+    """از یک حساب پیشنهادی، حساب مشابهی برای کاربر دیگر می‌سازد.
+
+    عمداً کلیدهای API کپی نمی‌شوند و حالت روی paper برمی‌گردد: کاربر باید
+    کلیدهای خودش را وارد کند و برای معامله‌ی واقعی توکن فعال داشته باشد.
+    نماد و استراتژی‌ها کپی می‌شوند، چون کل ارزش «حساب مشابه» همان‌هاست.
+    """
+    with _lock:
+        store = _load()
+        src = next((a for a in store["accounts"] if a["id"] == account_id), None)
+        if src is None:
+            raise KeyError("حساب پیدا نشد")
+        clone = copy.deepcopy(src)
+        clone.update({
+            "id": uuid.uuid4().hex[:12],
+            "owner_id": owner_id,
+            "webhook_token": secrets.token_hex(24),
+            "is_suggested": False,     # کپیِ کاربر خودش پیشنهادی نیست
+            "trading_mode": "paper",
+            "api_key": "",
+            "api_secret": "",
+            "enabled": True,
+        })
+        existing = {a["name"] for a in store["accounts"]}
+        base = src.get("name", "account")
+        name, n = base, 2
+        while name in existing:
+            name = f"{base} ({n})"
+            n += 1
+        clone["name"] = name
+        store["accounts"].append(clone)
+        _save(store)
+        return clone
 
 
 def rotate_webhook_token(account_id: str) -> str:

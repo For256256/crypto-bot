@@ -11,6 +11,9 @@
 <!-- تب‌های حساب‌ها -->
 <div id="accountTabs" class="flex flex-wrap gap-2 mb-6"></div>
 
+<!-- حساب‌های پیشنهادی ادمین (فقط برای کاربران عادی) -->
+<div id="suggestedBox" class="mb-6"></div>
+
 <!-- پوزیشن‌های باز -->
 <div id="positionsBox" class="mb-2"></div>
 
@@ -161,6 +164,7 @@
 
 {% block scripts %}
 <script>
+const IS_ADMIN = {{ 'true' if user and user.role == 'admin' else 'false' }};
 let strategiesCache = [];
 let editingAccountId = null;
 let symbolAccountId = null;
@@ -474,6 +478,102 @@ function sparklineSvg(spark, signal, uid) {
   </svg>`;
 }
 
+// وضعیت موتور از بک‌اند با کلید پایدار می‌آید؛ اگر کلید ناشناخته بود همان
+// رشته‌ی خام نمایش داده می‌شود تا چیزی از قلم نیفتد.
+function engineStatusLabel(st) {
+  if (!st) return '';
+  if (st.status_key) {
+    const key = 'engine_status.' + st.status_key;
+    const label = t(key);
+    if (label !== key) return label;
+  }
+  return st.status || '';
+}
+
+// ---------- حساب‌های پیشنهادی ----------
+let suggestedCache = [];
+
+function trendSvg(curve, uid) {
+  const pts = (curve || []).map(p => Number(p.equity)).filter(v => !isNaN(v));
+  if (pts.length < 2) {
+    return `<div class="h-16 flex items-center justify-center text-[10px] text-on-surface-variant">${t('sugg.no_trend')}</div>`;
+  }
+  const min = Math.min(...pts), max = Math.max(...pts), span = (max - min) || 1;
+  const up = pts[pts.length - 1] >= pts[0];
+  const color = up ? '#4edea3' : '#f43f5e';
+  const coords = pts.map((v, i) => `${(i / (pts.length - 1) * 100).toFixed(1)},${(28 - ((v - min) / span) * 24).toFixed(1)}`);
+  const gid = 'tg' + uid;
+  return `<svg class="w-full h-16" preserveAspectRatio="none" viewBox="0 0 100 32">
+    <defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity="0.28"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <polygon points="0,32 ${coords.join(' ')} 100,32" fill="url(#${gid})"/>
+    <polyline points="${coords.join(' ')}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+async function loadSuggested() {
+  const box = document.getElementById('suggestedBox');
+  if (!box || IS_ADMIN) { if (box) box.innerHTML = ''; return; }
+  try {
+    suggestedCache = await callApi('/api/suggested-accounts');
+  } catch (e) { box.innerHTML = ''; return; }
+  if (!suggestedCache.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `
+    <div class="glass-card rounded-2xl p-5">
+      <h3 class="font-headline font-bold flex items-center gap-2 mb-1">
+        <span class="material-symbols-outlined text-primary">recommend</span> ${t('sugg.title')}
+      </h3>
+      <p class="text-[11px] text-on-surface-variant mb-4">${t('sugg.subtitle')}</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        ${suggestedCache.map((a, i) => {
+          const tr = a.trend || {}, st = a.settings || {};
+          const pnlCls = (tr.net_pnl ?? 0) >= 0 ? 'text-buy' : 'text-sell';
+          return `<div class="bg-surface-container-low rounded-xl p-4 border border-outline-variant/30">
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <span class="font-bold text-sm">${a.name}</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-primary/15 text-primary">${t('sugg.badge')}</span>
+            </div>
+            <div class="text-[10px] text-on-surface-variant mb-2">${t('sugg.symbols_count', {n: a.symbols.length})} · ${a.exchange}</div>
+            <div class="text-[10px] text-on-surface-variant">${t('sugg.trend_30d')}</div>
+            ${trendSvg(tr.equity_curve, i)}
+            <div class="grid grid-cols-3 gap-2 text-center my-3">
+              <div><div class="text-[9px] text-on-surface-variant">${t('common.net_pnl')}</div>
+                <div class="mono-num text-xs font-bold ${pnlCls}" dir="ltr">${tr.net_pnl == null ? '—' : (tr.net_pnl >= 0 ? '+' : '') + niceNum(tr.net_pnl)}</div></div>
+              <div><div class="text-[9px] text-on-surface-variant">${t('common.win_rate')}</div>
+                <div class="mono-num text-xs font-bold text-primary" dir="ltr">${tr.win_rate == null ? '—' : fmt(tr.win_rate, 1) + t('common.pct')}</div></div>
+              <div><div class="text-[9px] text-on-surface-variant">${t('common.trades')}</div>
+                <div class="mono-num text-xs font-bold" dir="ltr">${tr.trades ?? 0}</div></div>
+            </div>
+            <div class="text-[10px] text-on-surface-variant leading-5 border-t border-outline-variant/20 pt-2 mb-3" dir="ltr">
+              ${t('dash.risk_percent')}: ${st.risk_percent}${t('common.pct')} · ${t('common.leverage')}: ${st.default_leverage}x · SL/TP: ${st.sl_tp_atr_mult}×ATR
+            </div>
+            <button class="btn-primary-of w-full !py-2 text-xs" onclick="cloneSuggested('${a.id}')">${t('sugg.create_similar')}</button>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+async function cloneSuggested(id) {
+  const src = suggestedCache.find(a => a.id === id);
+  if (!src) return;
+  if (!askConfirm(t('sugg.clone_confirm', {name: src.name}))) return;
+  try {
+    const acc = await callApi(`/api/suggested-accounts/${id}/clone`, 'POST');
+    toast(t('sugg.created', {name: acc.name}));
+    refresh();
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
+}
+
+async function toggleSuggested(accId, next) {
+  try {
+    await callApi(`/api/admin/accounts/${accId}/suggested?is_suggested=${next}`, 'POST');
+    toast(next ? t('sugg.marked') : t('sugg.unmarked'));
+    refresh();
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
+}
+
 function signalBadge(sig) {
   const s = sig ? sig.signal : null;
   if (s === 'buy') return `<span class="px-2 py-0.5 rounded text-[10px] bg-buy/20 text-buy">${t('dash.signal_buy')}</span>`;
@@ -599,7 +699,7 @@ function renderAccountBar() {
           <span class="text-[10px] px-1.5 py-0.5 rounded ${acc.trading_mode === 'live' ? 'bg-sell/20 text-sell' : 'bg-info-blue/20 text-secondary-fixed-dim'}">${acc.trading_mode === 'live' ? 'LIVE' : 'PAPER'}</span>
         </div>
       </div>
-      <div class="text-on-surface-variant text-[11px]">${st.status || ''}</div>
+      <div class="text-on-surface-variant text-[11px]">${engineStatusLabel(st)}</div>
     </div>
     <div class="flex flex-wrap gap-2">
       <button class="flex items-center gap-1 px-3 py-2 rounded-lg border border-outline-variant/50 hover:bg-surface-variant transition-colors text-sm" onclick="duplicateAccount('${acc.id}','${acc.name}')">
@@ -620,6 +720,11 @@ function renderAccountBar() {
       <a href="/reports?acc=${acc.id}" class="flex items-center gap-1 px-3 py-2 rounded-lg border border-outline-variant/50 hover:bg-surface-variant transition-colors text-sm">
         <span class="material-symbols-outlined text-sm">monitoring</span> ${t('dash.report')}
       </a>
+      ${IS_ADMIN ? `<button class="flex items-center gap-1 px-3 py-2 rounded-lg border text-sm transition-colors
+        ${acc.is_suggested ? 'border-primary text-primary bg-primary/10' : 'border-outline-variant/50 hover:bg-surface-variant'}"
+        onclick="toggleSuggested('${acc.id}', ${!acc.is_suggested})">
+        <span class="material-symbols-outlined text-sm">recommend</span> ${acc.is_suggested ? t('sugg.unmark') : t('sugg.mark')}
+      </button>` : ''}
       <button class="flex items-center gap-1 px-3 py-2 rounded-lg border border-sell/30 text-sell hover:bg-sell/10 transition-colors text-sm" onclick="deleteAccount('${acc.id}','${acc.name}')">
         <span class="material-symbols-outlined text-sm">delete</span>
       </button>
@@ -782,6 +887,7 @@ async function refresh() {
       selectedAccountId = accountsCache.length ? accountsCache[0].id : null;
     }
     renderAll();
+    loadSuggested();
   } catch (e) {
     document.getElementById('accountBar').innerHTML =
       `<div class="glass-card rounded-2xl p-8 text-center text-sell">${t('dash.status_error', {msg: e.message})}</div>`;
