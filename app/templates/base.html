@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html dir="rtl" lang="fa">
+<html dir="{{ lang_dir }}" lang="{{ lang }}">
 <head>
 <meta charset="utf-8">
 <meta content="width=device-width, initial-scale=1.0" name="viewport">
@@ -12,7 +12,8 @@
 })();
 </script>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100;300;400;500;700;900&family=Hanken+Grotesk:wght@400;600;700&family=Noto+Sans:wght@400;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100;300;400;500;700;900&family=Hanken+Grotesk:wght@400;600;700&family=Noto+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+{% if lang == 'zh' %}<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">{% endif %}
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
 <script id="tailwind-config">
 tailwind.config = {
@@ -39,7 +40,9 @@ tailwind.config = {
       },
       borderRadius: { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" },
       fontFamily: {
-        "headline": ["Vazirmatn", "Hanken Grotesk"], "body": ["Vazirmatn", "Noto Sans"], "mono": ["JetBrains Mono", "monospace"]
+        "headline": ["Vazirmatn", "Hanken Grotesk", "Noto Sans SC", "Noto Sans"],
+        "body": ["Vazirmatn", "Noto Sans SC", "Noto Sans"],
+        "mono": ["JetBrains Mono", "monospace"]
       }
     }
   }
@@ -108,7 +111,7 @@ tailwind.config = {
     --c-buy: 23 145 95; --c-sell: 225 29 72; --c-info-blue: 67 56 202; --c-gold: 161 98 7;
     color-scheme: light;
   }
-  body { background-color: rgb(var(--c-surface)); font-family: 'Vazirmatn', sans-serif; color: rgb(var(--c-on-surface)); }
+  body { background-color: rgb(var(--c-surface)); font-family: 'Vazirmatn', 'Noto Sans SC', 'Noto Sans', sans-serif; color: rgb(var(--c-on-surface)); }
   .glass-card {
     background: rgb(var(--c-surface-container) / 0.75);
     backdrop-filter: blur(20px);
@@ -150,8 +153,8 @@ tailwind.config = {
   /* سوئیچ */
   .of-switch { position: relative; width: 40px; height: 22px; appearance: none; background: rgb(var(--c-surface-variant)); border-radius: 9999px; cursor: pointer; transition: .2s; }
   .of-switch:checked { background: rgb(var(--c-buy)); }
-  .of-switch::after { content: ''; position: absolute; top: 3px; right: 3px; width: 16px; height: 16px; background: rgb(var(--c-on-surface)); border-radius: 9999px; transition: .2s; }
-  .of-switch:checked::after { transform: translateX(-18px); }
+  .of-switch::after { content: ''; position: absolute; top: 3px; inset-inline-start: 3px; width: 16px; height: 16px; background: rgb(var(--c-on-surface)); border-radius: 9999px; transition: .2s; }
+  .of-switch:checked::after { inset-inline-start: 21px; }
   /* مودال */
   .modal-bg { display: none; position: fixed; inset: 0; background: rgba(6,14,32,.75); backdrop-filter: blur(6px); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
   .modal-bg.open { display: flex; }
@@ -173,7 +176,7 @@ tailwind.config = {
   table.of-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
   table.of-table th {
     position: sticky; top: 0; background: rgb(var(--c-surface-container-low)); color: rgb(var(--c-outline)); font-weight: 500;
-    font-size: .68rem; text-align: right; padding: 0.5rem 0.75rem; border-bottom: 1px solid rgb(var(--c-on-surface) / 0.08);
+    font-size: .68rem; text-align: start; padding: 0.5rem 0.75rem; border-bottom: 1px solid rgb(var(--c-on-surface) / 0.08);
   }
   table.of-table td { padding: 0.55rem 0.75rem; border-bottom: 1px solid rgb(var(--c-on-surface) / 0.08); }
   table.of-table td.num { font-family: 'JetBrains Mono', monospace; text-align: left; direction: ltr; }
@@ -182,26 +185,26 @@ tailwind.config = {
 </head>
 <body class="overflow-x-hidden min-h-screen">
 
-<!-- سایدبار راست -->
-<aside class="fixed right-0 top-0 h-full z-40 flex flex-col py-6 bg-surface-container border-l border-outline-variant/30 w-60 hidden md:flex">
+<!-- سایدبار (سمت شروعِ خط، بسته به جهت زبان) -->
+<aside class="fixed start-0 top-0 h-full z-40 flex flex-col py-6 bg-surface-container border-e border-outline-variant/30 w-60 hidden md:flex">
   <div class="px-4 mb-8 flex flex-col items-center">
     <img src="/static/logo-full.png?v=3" alt="CryptoPulse" class="w-full max-w-[190px] h-auto">
-    <p class="text-xs text-buy mt-2" id="connStatus"><span class="pulse-active">●</span> وضعیت: متصل</p>
+    <p class="text-xs text-buy mt-2" id="connStatus"><span class="pulse-active">●</span> {{ t('sidebar.status_connected') }}</p>
   </div>
   <nav class="flex-grow flex flex-col gap-1.5">
     {% set nav = [
-      ('dashboard', '/', 'dashboard', 'پیشخوان'),
-      ('strategies', '/strategies', 'strategy', 'استراتژی‌ها'),
-      ('reports', '/reports', 'monitoring', 'گزارشات'),
-      ('logs', '/logs', 'receipt_long', 'لاگ‌ها'),
-      ('settings', '/settings', 'tune', 'تنظیمات'),
+      ('dashboard', '/', 'dashboard', t('nav.dashboard')),
+      ('strategies', '/strategies', 'strategy', t('nav.strategies')),
+      ('reports', '/reports', 'monitoring', t('nav.reports')),
+      ('logs', '/logs', 'receipt_long', t('nav.logs')),
+      ('settings', '/settings', 'tune', t('nav.settings')),
     ] %}
     {% if user and user.role != 'admin' %}
-      {% set nav = nav + [('billing', '/billing', 'payments', 'خرید توکن')] %}
+      {% set nav = nav + [('billing', '/billing', 'payments', t('nav.billing'))] %}
     {% endif %}
-    {% set nav = nav + [('support', '/support', 'support_agent', 'پشتیبانی')] %}
+    {% set nav = nav + [('support', '/support', 'support_agent', t('nav.support'))] %}
     {% if user and user.role == 'admin' %}
-      {% set nav = nav + [('admin', '/admin', 'admin_panel_settings', 'مدیریت')] %}
+      {% set nav = nav + [('admin', '/admin', 'admin_panel_settings', t('nav.admin'))] %}
     {% endif %}
     {% for key, href, icon, label in nav %}
     <a href="{{ href }}" class="flex items-center gap-3 rounded-lg p-3 mx-3 transition-all duration-200 text-sm
@@ -215,33 +218,51 @@ tailwind.config = {
     <div class="glass-card rounded-lg p-3 flex items-center gap-2">
       <span class="material-symbols-outlined text-buy text-lg">terminal</span>
       <div>
-        <p class="text-xs text-on-surface-variant">وضعیت سیستم معاملاتی</p>
-        <p class="text-xs text-buy" id="sysStatus">در حال بررسی…</p>
+        <p class="text-xs text-on-surface-variant">{{ t('sidebar.system_status') }}</p>
+        <p class="text-xs text-buy" id="sysStatus">{{ t('sidebar.checking') }}</p>
       </div>
     </div>
   </div>
 </aside>
 
 <!-- تاپ‌بار -->
-<header class="fixed top-0 right-0 md:right-60 left-0 z-30 bg-surface-container/80 backdrop-blur-xl border-b border-outline-variant/30">
+<header class="fixed top-0 start-0 md:start-60 end-0 z-30 bg-surface-container/80 backdrop-blur-xl border-b border-outline-variant/30">
   <div class="flex items-center justify-between px-4 md:px-8 py-3">
     <div class="flex items-center gap-4 min-w-0">
       <img src="/static/logo-full.png?v=3" alt="CryptoPulse" class="h-8 w-auto md:hidden shrink-0">
       <span class="hidden md:inline text-[10px] font-normal text-on-surface-variant tracking-widest">FUTURES TRADING</span>
     </div>
     <div class="flex items-center gap-1.5 sm:gap-2 md:gap-3 shrink-0">
-      <button onclick="startAll()" class="btn-buy flex items-center gap-1 !px-3 sm:!px-6"><span class="material-symbols-outlined text-base">play_arrow</span><span class="hidden sm:inline">شروع همه</span></button>
-      <button onclick="stopAll()" class="btn-sell flex items-center gap-1 !px-3 sm:!px-6"><span class="material-symbols-outlined text-base">stop</span><span class="hidden sm:inline">توقف همه</span></button>
-      <button onclick="cycleTheme()" id="themeBtn" title="تغییر تم" class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center hover:bg-surface-bright transition-colors shrink-0">
+      <button onclick="startAll()" class="btn-buy flex items-center gap-1 !px-3 sm:!px-6"><span class="material-symbols-outlined text-base">play_arrow</span><span class="hidden sm:inline">{{ t('topbar.start_all') }}</span></button>
+      <button onclick="stopAll()" class="btn-sell flex items-center gap-1 !px-3 sm:!px-6"><span class="material-symbols-outlined text-base">stop</span><span class="hidden sm:inline">{{ t('topbar.stop_all') }}</span></button>
+      <div class="relative shrink-0">
+        <button onclick="toggleLangMenu(event)" id="langBtn" title="{{ t('lang.change') }}"
+          class="h-9 px-2 rounded-full bg-surface-container-high flex items-center gap-1 hover:bg-surface-bright transition-colors">
+          <span class="material-symbols-outlined text-on-surface-variant text-xl">language</span>
+          <span class="text-[11px] uppercase text-on-surface-variant">{{ lang }}</span>
+        </button>
+        <div id="langMenu" class="hidden absolute top-11 end-0 z-50 min-w-[160px] rounded-xl overflow-hidden
+             bg-surface-container-high border border-outline-variant/40 shadow-xl">
+          {% for l in languages %}
+          <button onclick="setLanguage('{{ l.code }}')"
+            class="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-start transition-colors
+            {{ 'bg-primary/15 text-primary' if l.code == lang else 'text-on-surface hover:bg-surface-bright' }}">
+            <span>{{ l.flag }}</span><span class="flex-1 text-start">{{ l.native_name }}</span>
+            {% if l.code == lang %}<span class="material-symbols-outlined text-base">check</span>{% endif %}
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+      <button onclick="cycleTheme()" id="themeBtn" title="{{ t('topbar.change_theme') }}" class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center hover:bg-surface-bright transition-colors shrink-0">
         <span class="material-symbols-outlined text-on-surface-variant text-xl" id="themeIcon">brightness_auto</span>
       </button>
       {# روی موبایل «تنظیمات» از نوار پایین در دسترس است، پس آیکون تکراری بالا پنهان می‌شود تا لوگو جا بگیرد #}
-      <a href="/settings" class="w-9 h-9 rounded-full bg-surface-container-high hidden md:flex items-center justify-center hover:bg-surface-bright transition-colors shrink-0">
+      <a href="/settings" title="{{ t('topbar.settings') }}" class="w-9 h-9 rounded-full bg-surface-container-high hidden md:flex items-center justify-center hover:bg-surface-bright transition-colors shrink-0">
         <span class="material-symbols-outlined text-on-surface-variant text-xl">settings</span>
       </a>
       {% if user %}
       <span class="hidden sm:inline text-xs text-on-surface-variant mono-num">{{ user.username }}</span>
-      <button onclick="logoutUser()" title="خروج" class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center hover:bg-sell/20 transition-colors shrink-0">
+      <button onclick="logoutUser()" title="{{ t('topbar.logout') }}" class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center hover:bg-sell/20 transition-colors shrink-0">
         <span class="material-symbols-outlined text-on-surface-variant text-xl">logout</span>
       </button>
       {% endif %}
@@ -250,12 +271,12 @@ tailwind.config = {
 </header>
 
 <!-- محتوای اصلی -->
-<main class="md:mr-60 pt-20 px-4 md:px-8 pb-24 md:pb-10 min-h-screen">
+<main class="md:ms-60 pt-20 px-4 md:px-8 pb-24 md:pb-10 min-h-screen">
   {% block content %}{% endblock %}
 </main>
 
 <!-- ناوبری موبایل (پایین) -->
-<nav class="md:hidden fixed bottom-0 right-0 left-0 z-40 bg-surface-container border-t border-outline-variant/30 flex justify-around py-2">
+<nav class="md:hidden fixed bottom-0 start-0 end-0 z-40 bg-surface-container border-t border-outline-variant/30 flex justify-around py-2">
   {% for key, href, icon, label in nav %}
   <a href="{{ href }}" class="flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg {{ 'text-secondary-fixed-dim' if active == key else 'text-on-surface-variant' }}">
     <span class="material-symbols-outlined text-xl">{{ icon }}</span>
@@ -267,6 +288,44 @@ tailwind.config = {
 <div id="toast"></div>
 
 <script>
+// ---------- i18n سمت کلاینت ----------
+// کاتالوگ همان زبان فعال، از سرور تزریق می‌شود تا رشته‌های تولیدشده با JS هم ترجمه شوند.
+window.I18N = {{ catalog | tojson }};
+window.LANG = {{ lang | tojson }};
+window.LANG_DIR = {{ lang_dir | tojson }};
+window.DATE_LOCALE = {{ lang_meta.date_locale | tojson }};
+function t(key, params) {
+  var s = window.I18N[key];
+  if (s === undefined) return key;
+  if (params) for (var k in params) s = s.split('{' + k + '}').join(params[k]);
+  return s;
+}
+// تاریخ/ساعت با تقویم و ارقام همان زبان
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  try {
+    var d = new Date(iso);
+    return d.toLocaleDateString(window.DATE_LOCALE) + ' ' +
+           d.toLocaleTimeString(window.DATE_LOCALE, {hour: '2-digit', minute: '2-digit'});
+  } catch (e) { return String(iso).slice(0, 16).replace('T', ' '); }
+}
+
+function toggleLangMenu(ev) {
+  ev.stopPropagation();
+  document.getElementById('langMenu').classList.toggle('hidden');
+}
+document.addEventListener('click', function() {
+  var m = document.getElementById('langMenu');
+  if (m) m.classList.add('hidden');
+});
+
+async function setLanguage(code) {
+  try {
+    await fetch('/api/language/' + code, { method: 'POST' });
+    location.reload();
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
+}
+
 // ---------- ابزار مشترک ----------
 function toast(msg, isErr) {
   const t = document.getElementById('toast');
@@ -280,7 +339,7 @@ async function callApi(url, method = 'GET', body = null) {
   const opt = { method, headers: {} };
   if (body) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
   const r = await fetch(url, opt);
-  if (r.status === 401) { location.href = '/login'; throw new Error('نیاز به ورود مجدد'); }
+  if (r.status === 401) { location.href = '/login'; throw new Error(t('error.reauth')); }
   let data = null;
   try { data = await r.json(); } catch (e) {}
   if (!r.ok) throw new Error((data && (data.detail || data.message)) || ('HTTP ' + r.status));
@@ -306,12 +365,12 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function askConfirm(msg) { return window.confirm(msg); }
 
-async function startAll() { try { await callApi('/api/start-all', 'POST'); toast('همه شروع شدند'); } catch (e) { toast('خطا: ' + e.message, true); } if (typeof refresh === 'function') refresh(); }
-async function stopAll() { try { await callApi('/api/stop-all', 'POST'); toast('همه متوقف شدند'); } catch (e) { toast('خطا: ' + e.message, true); } if (typeof refresh === 'function') refresh(); }
+async function startAll() { try { await callApi('/api/start-all', 'POST'); toast(t('toast.all_started')); } catch (e) { toast(t('common.error_prefix') + e.message, true); } if (typeof refresh === 'function') refresh(); }
+async function stopAll() { try { await callApi('/api/stop-all', 'POST'); toast(t('toast.all_stopped')); } catch (e) { toast(t('common.error_prefix') + e.message, true); } if (typeof refresh === 'function') refresh(); }
 
 // ---------- تم (تاریک/روشن/خودکار) ----------
 const THEME_ICONS = { dark: 'dark_mode', light: 'light_mode', system: 'brightness_auto' };
-const THEME_LABELS = { dark: 'تاریک', light: 'روشن', system: 'خودکار (بر اساس دستگاه)' };
+const THEME_LABELS = { dark: t('theme.dark'), light: t('theme.light'), system: t('theme.system') };
 
 function applyTheme(pref) {
   if (pref === 'dark' || pref === 'light') document.documentElement.setAttribute('data-theme', pref);
@@ -319,7 +378,7 @@ function applyTheme(pref) {
   const icon = document.getElementById('themeIcon');
   if (icon) icon.textContent = THEME_ICONS[pref] || THEME_ICONS.system;
   const btn = document.getElementById('themeBtn');
-  if (btn) btn.title = 'تم: ' + (THEME_LABELS[pref] || THEME_LABELS.system);
+  if (btn) btn.title = t('theme.current', {name: THEME_LABELS[pref] || THEME_LABELS.system});
 }
 
 function setTheme(pref) {
@@ -331,7 +390,7 @@ function cycleTheme() {
   const cur = localStorage.getItem('cb_theme') || 'system';
   const next = cur === 'dark' ? 'light' : (cur === 'light' ? 'system' : 'dark');
   setTheme(next);
-  toast('تم: ' + THEME_LABELS[next]);
+  toast(t('theme.current', {name: THEME_LABELS[next]}));
 }
 
 applyTheme(localStorage.getItem('cb_theme') || 'system');
@@ -344,12 +403,12 @@ async function pollSystemStatus() {
     const active = runners.filter(r => r.running).length;
     const el = document.getElementById('sysStatus');
     if (el) {
-      el.textContent = active > 0 ? `${active} ربات فعال` : 'همه موتورها متوقف‌اند';
+      el.textContent = active > 0 ? t('sidebar.bots_active', {count: active}) : t('sidebar.all_stopped');
       el.className = 'text-xs ' + (active > 0 ? 'text-buy' : 'text-on-surface-variant');
     }
   } catch (e) {
     const cs = document.getElementById('connStatus');
-    if (cs) cs.innerHTML = '<span class="text-sell">●</span> وضعیت: قطع';
+    if (cs) cs.innerHTML = '<span class="text-sell">●</span> ' + t('sidebar.status_disconnected');
   }
 }
 pollSystemStatus();

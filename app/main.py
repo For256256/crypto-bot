@@ -3,7 +3,7 @@ import json
 import secrets
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
@@ -22,6 +22,7 @@ from app.core import tokens
 from app.core import presets
 from app.core import telegram
 from app.core import mailer
+from app.core import i18n
 from app.core.exchanges.toobit import normalize_symbol
 
 app = FastAPI(title="CryptoPulse — Toobit / Tabdeal Futures")
@@ -40,6 +41,25 @@ app.add_middleware(SessionMiddleware, secret_key=_session_secret, session_cookie
 @app.exception_handler(auth.NotAuthenticated)
 async def _not_authenticated_handler(request: Request, exc: auth.NotAuthenticated):
     return RedirectResponse(f"/login?next={request.url.path}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+def render(request: Request, template: str, user: dict | None = None, **ctx):
+    """تنها نقطه‌ی رندر تمپلیت‌ها — زبان، جهت (rtl/ltr) و تابع t() را یک‌جا تزریق
+    می‌کند تا هیچ صفحه‌ای بدون i18n از قلم نیفتد."""
+    lang = i18n.resolve(request, user)
+    meta = i18n.LANGUAGES[lang]
+    context = {
+        "request": request,
+        "user": user,
+        "lang": lang,
+        "lang_dir": meta["dir"],
+        "lang_meta": meta,
+        "languages": i18n.language_options(),
+        "catalog": i18n.get_catalog(lang),
+        "t": lambda key, **params: i18n.translate(lang, key, **params),
+        **ctx,
+    }
+    return templates.TemplateResponse(template, context)
 
 
 @app.on_event("startup")
@@ -101,7 +121,7 @@ class RegisterIn(BaseModel):
 async def login_page(request: Request):
     if auth.get_current_user(request) is not None:
         return RedirectResponse("/")
-    return templates.TemplateResponse("login.html", {"request": request})
+    return render(request, "login.html")
 
 
 @app.post("/login")
@@ -123,7 +143,7 @@ async def logout_submit(request: Request):
 async def register_page(request: Request):
     if auth.get_current_user(request) is not None:
         return RedirectResponse("/")
-    return templates.TemplateResponse("register.html", {"request": request})
+    return render(request, "register.html")
 
 
 @app.post("/register")
@@ -135,6 +155,28 @@ async def register_submit(request: Request, payload: RegisterIn):
     request.session["user_id"] = user["id"]
     asyncio.create_task(telegram.notify_admin(f"👤 کاربر جدید ثبت‌نام کرد: {user['username']}"))
     return {"ok": True}
+
+
+# ---------- زبان ----------
+@app.get("/api/languages")
+async def list_languages(request: Request):
+    user = auth.get_current_user(request)
+    return {"current": i18n.resolve(request, user), "languages": i18n.language_options()}
+
+
+@app.post("/api/language/{lang}")
+async def set_language(lang: str, request: Request):
+    """زبان را هم در کوکی می‌گذارد (برای مهمان‌ها و صفحه‌ی ورود) و هم — اگر
+    کاربر لاگین باشد — روی حسابش ذخیره می‌کند تا روی هر دستگاهی یکسان بماند."""
+    if not i18n.is_supported(lang):
+        raise HTTPException(400, "Unsupported language")
+    user = auth.get_current_user(request)
+    if user is not None:
+        users.set_lang(user["id"], lang)
+    resp = JSONResponse({"ok": True, "lang": lang})
+    resp.set_cookie(i18n.COOKIE_NAME, lang, max_age=i18n.COOKIE_MAX_AGE,
+                    samesite="lax", httponly=False)
+    return resp
 
 
 # ---------- پروفایل کاربری ----------
@@ -171,43 +213,43 @@ async def update_own_profile(payload: ProfileUpdateIn, user: dict = Depends(auth
 async def dashboard(request: Request):
     user = auth.get_current_user(request)
     if user is None:
-        return templates.TemplateResponse("landing.html", {"request": request})
-    return templates.TemplateResponse("dashboard.html", {"request": request, "active": "dashboard", "user": user})
+        return render(request, "landing.html")
+    return render(request, "dashboard.html", user, active="dashboard")
 
 
 @app.get("/strategies", response_class=HTMLResponse)
 async def strategies_page(request: Request, user: dict = Depends(auth.require_user_page)):
-    return templates.TemplateResponse("strategies.html", {"request": request, "active": "strategies", "user": user})
+    return render(request, "strategies.html", user, active="strategies")
 
 
 @app.get("/reports", response_class=HTMLResponse)
 async def reports_page(request: Request, user: dict = Depends(auth.require_user_page)):
-    return templates.TemplateResponse("reports.html", {"request": request, "active": "reports", "user": user})
+    return render(request, "reports.html", user, active="reports")
 
 
 @app.get("/logs", response_class=HTMLResponse)
 async def logs_page(request: Request, user: dict = Depends(auth.require_user_page)):
-    return templates.TemplateResponse("logs.html", {"request": request, "active": "logs", "user": user})
+    return render(request, "logs.html", user, active="logs")
 
 
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, user: dict = Depends(auth.require_user_page)):
-    return templates.TemplateResponse("settings.html", {"request": request, "active": "settings", "user": user})
+    return render(request, "settings.html", user, active="settings")
 
 
 @app.get("/support", response_class=HTMLResponse)
 async def support_page(request: Request, user: dict = Depends(auth.require_user_page)):
-    return templates.TemplateResponse("support.html", {"request": request, "active": "support", "user": user})
+    return render(request, "support.html", user, active="support")
 
 
 @app.get("/billing", response_class=HTMLResponse)
 async def billing_page(request: Request, user: dict = Depends(auth.require_user_page)):
-    return templates.TemplateResponse("billing.html", {"request": request, "active": "billing", "user": user})
+    return render(request, "billing.html", user, active="billing")
 
 
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_page(request: Request, user: dict = Depends(auth.require_admin_page)):
-    return templates.TemplateResponse("admin.html", {"request": request, "active": "admin", "user": user})
+    return render(request, "admin.html", user, active="admin")
 
 
 # ---------- بک‌تست استراتژی ----------

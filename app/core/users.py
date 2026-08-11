@@ -27,6 +27,7 @@ USER_DEFAULTS = {
     "role": "user",              # "admin" | "user"
     "enabled": True,
     "email": None,
+    "lang": None,                # None = هنوز انتخاب نکرده؛ از کوکی/مرورگر تشخیص داده می‌شود
     "telegram_chat_id": None,
     "telegram_link_code": None,
     "telegram_link_code_expires": None,
@@ -153,6 +154,10 @@ def _update(user_id: str, patch: dict) -> dict | None:
 
 def set_password(user_id: str, new_password: str) -> dict | None:
     return _update(user_id, {"password_hash": _hash_password(new_password)})
+
+
+def set_lang(user_id: str, lang: str) -> dict | None:
+    return _update(user_id, {"lang": lang})
 
 
 def set_email(user_id: str, email: str) -> dict | None:
