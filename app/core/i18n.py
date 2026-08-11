@@ -84,6 +84,45 @@ def translate(lang: str, key: str, **params) -> str:
     return text
 
 
+def translate_or(lang: str, key: str, default: str, **params) -> str:
+    """مثل translate اما اگر کلید در هیچ کاتالوگی نبود، به‌جای خود کلید متن
+    default برمی‌گرداند — برای مواردی که یک برچسب فارسی از قبل در کد وجود دارد."""
+    lang = lang if lang in LANGUAGES else DEFAULT_LANG
+    text = get_catalog(lang).get(key)
+    if text is None and lang != "en":
+        text = get_catalog("en").get(key)
+    if text is None:
+        text = default
+    if params:
+        try:
+            return text.format(**params)
+        except (KeyError, IndexError, ValueError):
+            return text
+    return text
+
+
+def user_lang(user: dict | None) -> str:
+    """زبان ذخیره‌شده‌ی یک کاربر — برای پیام‌هایی که خارج از چرخه‌ی درخواست
+    ساخته می‌شوند (اعلان تلگرام/ایمیل) و request در دسترس نیست."""
+    if user and is_supported(user.get("lang")):
+        return user["lang"]
+    return DEFAULT_LANG
+
+
+def for_user(user_id: str | None) -> str:
+    from app.core import users
+    if not user_id:
+        return DEFAULT_LANG
+    return user_lang(users.get_user(user_id))
+
+
+def for_admin() -> str:
+    """زبان اولین ادمین — اعلان‌های سیستمی تلگرام به همان زبان ارسال می‌شوند."""
+    from app.core import users
+    admin = next((u for u in users.list_users() if u.get("role") == "admin"), None)
+    return user_lang(admin)
+
+
 def _from_accept_language(header: str | None) -> str | None:
     """ساده‌ترین پارس ممکن از Accept-Language: اولین زبانِ پشتیبانی‌شده به ترتیب q."""
     if not header:

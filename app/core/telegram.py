@@ -18,7 +18,7 @@ import re
 
 import httpx
 
-from app.core import app_settings, users
+from app.core import app_settings, i18n, users
 
 API_BASE = "https://api.telegram.org/bot{token}"
 POLL_TIMEOUT_SECONDS = 25
@@ -107,10 +107,10 @@ async def _handle_update(update: dict):
     code = m.group(1)
     user = users.find_by_link_code(code)
     if user is None:
-        await send_message(str(chat_id), "کد نامعتبر یا منقضی‌شده است — یک کد جدید از صفحه‌ی تنظیمات بگیرید.")
+        await send_message(str(chat_id), i18n.translate(i18n.DEFAULT_LANG, "notify.link_code_invalid"))
         return
     users.set_telegram_chat_id(user["id"], str(chat_id))
-    welcome = f"✅ حساب تلگرام شما به کاربر «{user['username']}» در CryptoPulse متصل شد.\nاز این پس اعلان معاملات و هشدارهای حسابتان همین‌جا ارسال می‌شود."
+    welcome = i18n.translate(i18n.user_lang(user), "notify.telegram_linked", username=user["username"])
     if not await send_photo(str(chat_id), LOGO_PATH, caption=welcome):
         await send_message(str(chat_id), welcome)
 

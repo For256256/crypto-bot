@@ -23,6 +23,7 @@ from app.core import presets
 from app.core import telegram
 from app.core import mailer
 from app.core import i18n
+from app.core.errors import ApiError
 from app.core.exchanges.toobit import normalize_symbol
 
 app = FastAPI(title="CryptoPulse — Toobit / Tabdeal Futures")
@@ -36,6 +37,26 @@ if not settings.SESSION_SECRET_KEY:
           "SESSION_SECRET_KEY را در .env تنظیم کنید.")
 app.add_middleware(SessionMiddleware, secret_key=_session_secret, session_cookie="cbot_session",
                    same_site="lax", max_age=2592000)
+
+
+# پیام‌های ValueError لایه‌ی ذخیره‌سازی (که خودشان فارسی‌اند) به کلید ترجمه نگاشت
+# می‌شوند؛ هر پیام ناشناخته همان متن اصلی را نگه می‌دارد.
+_VALUE_ERROR_KEYS = {
+    "نام کاربری باید حداقل ۳ کاراکتر باشد.": "err.username_short",
+    "رمز عبور باید حداقل ۶ کاراکتر باشد.": "err.password_min",
+    "ایمیل معتبر نیست.": "err.email_invalid",
+    "این نام کاربری قبلاً ثبت شده است.": "err.username_taken",
+    "موضوع و متن تیکت الزامی است.": "err.ticket_required",
+    "متن پاسخ نمی‌تواند خالی باشد.": "err.reply_empty",
+    "مدت‌زمان توکن باید بزرگ‌تر از صفر باشد.": "err.token_duration",
+}
+
+
+@app.exception_handler(ApiError)
+async def _api_error_handler(request: Request, exc: ApiError):
+    lang = i18n.resolve(request, auth.get_current_user(request))
+    return JSONResponse({"detail": i18n.translate_or(lang, exc.key, exc.default, **exc.params)},
+                        status_code=exc.status_code)
 
 
 @app.exception_handler(auth.NotAuthenticated)
@@ -128,7 +149,7 @@ async def login_page(request: Request):
 async def login_submit(request: Request, payload: LoginIn):
     user = users.verify_login(payload.username, payload.password)
     if user is None:
-        raise HTTPException(401, "نام کاربری یا رمز عبور اشتباه است")
+        raise ApiError(401, "err.bad_credentials", "نام کاربری یا رمز عبور اشتباه است")
     request.session["user_id"] = user["id"]
     return {"ok": True}
 
@@ -151,9 +172,10 @@ async def register_submit(request: Request, payload: RegisterIn):
     try:
         user = users.create_user(payload.username, payload.password, email=payload.email, role="user")
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise ApiError(400, _VALUE_ERROR_KEYS.get(str(e), ""), str(e))
     request.session["user_id"] = user["id"]
-    asyncio.create_task(telegram.notify_admin(f"👤 کاربر جدید ثبت‌نام کرد: {user['username']}"))
+    asyncio.create_task(telegram.notify_admin(
+        i18n.translate(i18n.for_admin(), "notify.new_user", username=user["username"])))
     return {"ok": True}
 
 
@@ -169,7 +191,7 @@ async def set_language(lang: str, request: Request):
     """زبان را هم در کوکی می‌گذارد (برای مهمان‌ها و صفحه‌ی ورود) و هم — اگر
     کاربر لاگین باشد — روی حسابش ذخیره می‌کند تا روی هر دستگاهی یکسان بماند."""
     if not i18n.is_supported(lang):
-        raise HTTPException(400, "Unsupported language")
+        raise ApiError(400, "err.unsupported_language", "Unsupported language")
     user = auth.get_current_user(request)
     if user is not None:
         users.set_lang(user["id"], lang)
@@ -192,9 +214,9 @@ class ProfileUpdateIn(BaseModel):
 @app.post("/api/profile/change-password")
 async def change_own_password(payload: ChangePasswordIn, user: dict = Depends(auth.require_user)):
     if users.verify_login(user["username"], payload.current_password) is None:
-        raise HTTPException(400, "رمز عبور فعلی اشتباه است")
+        raise ApiError(400, "err.current_password_wrong", "رمز عبور فعلی اشتباه است")
     if not payload.new_password or len(payload.new_password) < 6:
-        raise HTTPException(400, "رمز عبور جدید باید حداقل ۶ کاراکتر باشد.")
+        raise ApiError(400, "err.password_too_short", "رمز عبور جدید باید حداقل ۶ کاراکتر باشد.")
     users.set_password(user["id"], payload.new_password)
     return {"ok": True}
 
@@ -204,7 +226,7 @@ async def update_own_profile(payload: ProfileUpdateIn, user: dict = Depends(auth
     try:
         updated = users.set_email(user["id"], payload.email)
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise ApiError(400, _VALUE_ERROR_KEYS.get(str(e), ""), str(e))
     return users.public_view(updated)
 
 
@@ -269,7 +291,7 @@ async def run_backtest_api(payload: BacktestIn, _: dict = Depends(auth.require_u
     from app.core.strategies.registry import STRATEGIES
 
     if payload.strategy not in STRATEGIES:
-        raise HTTPException(400, "استراتژی ناشناخته است")
+        raise ApiError(400, "err.unknown_strategy", "استراتژی ناشناخته است")
     driver = ToobitDriver(api_key="", api_secret="", base_url=settings.TOOBIT_BASE_URL)
     try:
         df = await driver.get_candles(normalize_symbol(payload.symbol), payload.timeframe,
@@ -277,11 +299,11 @@ async def run_backtest_api(payload: BacktestIn, _: dict = Depends(auth.require_u
         await driver.close()
     except ExchangeError as e:
         await driver.close()
-        raise HTTPException(502, f"دریافت کندل از Toobit ناموفق: {e}")
+        raise ApiError(502, "err.candles_failed", f"دریافت کندل از Toobit ناموفق: {e}", msg=str(e))
     try:
         return run_backtest(df, payload.strategy, payload.strategy_params)
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise ApiError(400, _VALUE_ERROR_KEYS.get(str(e), ""), str(e))
 
 
 # ---------- تیکت‌های پشتیبانی ----------
@@ -305,10 +327,12 @@ async def create_ticket(payload: TicketIn, user: dict = Depends(auth.require_use
     try:
         ticket = tickets.create_ticket(payload.subject, payload.body, payload.unit, user["id"], user["username"])
     except ValueError as e:
-        raise HTTPException(400, str(e))
-    asyncio.create_task(telegram.notify_admin(
-        f"🎫 تیکت جدید ({ticket['unit']}) از {user['username']}: {ticket['subject']}"
-    ))
+        raise ApiError(400, _VALUE_ERROR_KEYS.get(str(e), ""), str(e))
+    admin_lang = i18n.for_admin()
+    asyncio.create_task(telegram.notify_admin(i18n.translate(
+        admin_lang, "notify.new_ticket",
+        unit=i18n.translate(admin_lang, f"unit.{ticket.get('unit_key', 'general')}"),
+        username=user["username"], subject=ticket["subject"])))
     return ticket
 
 
@@ -317,22 +341,22 @@ async def reply_ticket_as_user(ticket_id: str, payload: ReplyIn, user: dict = De
     """ادامه دادن گفتگوی یک تیکت — هم صاحب تیکت و هم ادمین می‌توانند پاسخ اضافه کنند."""
     ticket = tickets.get_ticket(ticket_id)
     if ticket is None:
-        raise HTTPException(404, "تیکت پیدا نشد")
+        raise ApiError(404, "err.ticket_not_found", "تیکت پیدا نشد")
     is_admin = user["role"] == "admin"
     if not is_admin and ticket.get("user_id") != user["id"]:
-        raise HTTPException(403, "این تیکت متعلق به شما نیست")
+        raise ApiError(403, "err.ticket_not_yours", "این تیکت متعلق به شما نیست")
     try:
         return tickets.add_reply(ticket_id, payload.message, user["id"], user["username"],
                                  "admin" if is_admin else "user")
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise ApiError(400, _VALUE_ERROR_KEYS.get(str(e), ""), str(e))
 
 
 @app.post("/api/admin/tickets/{ticket_id}/close")
 async def close_ticket_api(ticket_id: str, _: dict = Depends(auth.require_admin)):
     ticket = tickets.close_ticket(ticket_id)
     if ticket is None:
-        raise HTTPException(404, "تیکت پیدا نشد")
+        raise ApiError(404, "err.ticket_not_found", "تیکت پیدا نشد")
     return ticket
 
 
@@ -364,14 +388,16 @@ async def admin_list_tokens(_: dict = Depends(auth.require_admin)):
 @app.post("/api/admin/tokens")
 async def admin_issue_token(payload: TokenIssueIn, user: dict = Depends(auth.require_admin)):
     if users.get_user(payload.user_id) is None:
-        raise HTTPException(404, "کاربر پیدا نشد")
+        raise ApiError(404, "err.user_not_found", "کاربر پیدا نشد")
     try:
         token = tokens.issue_token(payload.user_id, payload.duration_days, payload.note, user["id"])
     except ValueError as e:
-        raise HTTPException(400, str(e))
-    msg = f"✅ پرداخت شما تأیید و توکن معاملات واقعی فعال شد — {payload.duration_days} روز اعتبار دارد."
+        raise ApiError(400, _VALUE_ERROR_KEYS.get(str(e), ""), str(e))
+    target_lang = i18n.for_user(payload.user_id)
+    msg = i18n.translate(target_lang, "notify.token_issued", days=payload.duration_days)
+    subject = i18n.translate(target_lang, "notify.token_issued_subject")
     asyncio.create_task(telegram.notify_user(payload.user_id, msg))
-    asyncio.create_task(mailer.notify_user_email(payload.user_id, "تأیید پرداخت و فعال‌سازی توکن — CryptoPulse", msg))
+    asyncio.create_task(mailer.notify_user_email(payload.user_id, subject, msg))
     return token
 
 
@@ -379,7 +405,7 @@ async def admin_issue_token(payload: TokenIssueIn, user: dict = Depends(auth.req
 async def admin_revoke_token(token_id: str, _: dict = Depends(auth.require_admin)):
     token = tokens.revoke_token(token_id)
     if token is None:
-        raise HTTPException(404, "توکن پیدا نشد")
+        raise ApiError(404, "err.token_not_found", "توکن پیدا نشد")
     return token
 
 
@@ -408,9 +434,9 @@ async def get_payment_settings(_: dict = Depends(auth.require_admin)):
 @app.put("/api/admin/payment-settings")
 async def put_payment_settings(payload: PaymentSettingsIn, _: dict = Depends(auth.require_admin)):
     if not payload.wallet_address.strip():
-        raise HTTPException(400, "آدرس ولت الزامی است.")
+        raise ApiError(400, "err.wallet_required", "آدرس ولت الزامی است.")
     if not payload.plans:
-        raise HTTPException(400, "حداقل یک پلن لازم است.")
+        raise ApiError(400, "err.plan_required", "حداقل یک پلن لازم است.")
     app_settings.update_settings({"payment": {
         "wallet_address": payload.wallet_address.strip(),
         "wallet_network": payload.wallet_network.strip() or "USDT (TRC20)",
@@ -432,18 +458,16 @@ async def submit_deposit(payload: DepositSubmitIn, user: dict = Depends(auth.req
     try:
         ticket = tickets.create_ticket(subject, body, "billing", user["id"], user["username"])
     except ValueError as e:
-        raise HTTPException(400, str(e))
-    asyncio.create_task(telegram.notify_admin(
-        f"💰 درخواست خرید توکن جدید از {user['username']} — {payload.plan_days} روزه ({payload.plan_price} USDT). تیکت #{ticket['id']}"
-    ))
-    receipt = (
-        f"🧾 درخواست خرید توکن شما ثبت شد.\n"
-        f"پلن: {payload.plan_days} روزه — {payload.plan_price} USDT\n"
-        f"شماره تیکت: {ticket['id']}\n"
-        f"پس از تأیید واریز توسط واحد مالی، توکن فعال‌سازی برای شما صادر و اطلاع‌رسانی می‌شود."
-    )
+        raise ApiError(400, _VALUE_ERROR_KEYS.get(str(e), ""), str(e))
+    asyncio.create_task(telegram.notify_admin(i18n.translate(
+        i18n.for_admin(), "notify.new_deposit_admin", username=user["username"],
+        days=payload.plan_days, price=payload.plan_price, ticket=ticket["id"])))
+    user_lang = i18n.user_lang(user)
+    receipt = i18n.translate(user_lang, "notify.deposit_receipt",
+                             days=payload.plan_days, price=payload.plan_price, ticket=ticket["id"])
     asyncio.create_task(telegram.notify_user(user["id"], receipt))
-    asyncio.create_task(mailer.notify_user_email(user["id"], "رسید درخواست خرید توکن — CryptoPulse", receipt))
+    asyncio.create_task(mailer.notify_user_email(
+        user["id"], i18n.translate(user_lang, "notify.deposit_receipt_subject"), receipt))
     return ticket
 
 
@@ -473,7 +497,7 @@ async def admin_list_users(_: dict = Depends(auth.require_admin)):
 async def admin_set_user_enabled(user_id: str, enabled: bool, _: dict = Depends(auth.require_admin)):
     user = users.set_enabled(user_id, enabled)
     if user is None:
-        raise HTTPException(404, "کاربر پیدا نشد")
+        raise ApiError(404, "err.user_not_found", "کاربر پیدا نشد")
     return users.public_view(user)
 
 
@@ -482,10 +506,10 @@ async def admin_reset_password(user_id: str, payload: ResetPasswordIn, _: dict =
     """چون فعلاً ایمیل/فراموشی‌رمز نداریم، این تنها راه بازیابی رمز کاربر است."""
     new_password = payload.new_password.strip() or secrets.token_urlsafe(9)
     if len(new_password) < 6:
-        raise HTTPException(400, "رمز عبور باید حداقل ۶ کاراکتر باشد.")
+        raise ApiError(400, "err.password_min", "رمز عبور باید حداقل ۶ کاراکتر باشد.")
     user = users.set_password(user_id, new_password)
     if user is None:
-        raise HTTPException(404, "کاربر پیدا نشد")
+        raise ApiError(404, "err.user_not_found", "کاربر پیدا نشد")
     return {"user_id": user_id, "new_password": new_password}
 
 
@@ -511,21 +535,21 @@ async def create_preset_api(payload: PresetIn, user: dict = Depends(auth.require
     try:
         return presets.create_preset(payload.dict(), user["id"])
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise ApiError(400, _VALUE_ERROR_KEYS.get(str(e), ""), str(e))
 
 
 @app.put("/api/admin/presets/{preset_id}")
 async def update_preset_api(preset_id: str, payload: PresetIn, _: dict = Depends(auth.require_admin)):
     preset = presets.update_preset(preset_id, payload.dict())
     if preset is None:
-        raise HTTPException(404, "پیش‌فرض پیدا نشد")
+        raise ApiError(404, "err.preset_not_found", "پیش‌فرض پیدا نشد")
     return preset
 
 
 @app.delete("/api/admin/presets/{preset_id}")
 async def delete_preset_api(preset_id: str, _: dict = Depends(auth.require_admin)):
     if not presets.delete_preset(preset_id):
-        raise HTTPException(404, "پیش‌فرض پیدا نشد")
+        raise ApiError(404, "err.preset_not_found", "پیش‌فرض پیدا نشد")
     return {"deleted": preset_id}
 
 
@@ -558,7 +582,7 @@ async def put_telegram_settings(payload: TelegramSettingsIn, _: dict = Depends(a
     bot_token = payload.bot_token.strip()
     me = await telegram.get_me(bot_token)
     if me is None:
-        raise HTTPException(400, "توکن ربات نامعتبر است — از BotFather یک توکن معتبر بگیرید.")
+        raise ApiError(400, "err.bot_token_invalid", "توکن ربات نامعتبر است — از BotFather یک توکن معتبر بگیرید.")
     app_settings.update_settings({"telegram": {
         "bot_token": bot_token, "bot_username": me.get("username", ""),
         "admin_chat_id": payload.admin_chat_id.strip(),
@@ -591,7 +615,7 @@ async def put_email_settings(payload: EmailSettingsIn, _: dict = Depends(auth.re
         # اگر رمز خالی فرستاده شده، رمز قبلی حفظ می‌شود (برای جلوگیری از پاک‌شدن با ذخیره‌ی مجدد)
         cfg["smtp_password"] = (app_settings.get_settings().get("email") or {}).get("smtp_password", "")
     if not await mailer.test_connection(cfg):
-        raise HTTPException(400, "اتصال به سرور SMTP ناموفق بود — تنظیمات را بررسی کنید.")
+        raise ApiError(400, "err.smtp_failed", "اتصال به سرور SMTP ناموفق بود — تنظیمات را بررسی کنید.")
     app_settings.update_settings({"email": cfg})
     return {"ok": True}
 
@@ -600,7 +624,7 @@ async def put_email_settings(payload: EmailSettingsIn, _: dict = Depends(auth.re
 async def telegram_link_code(user: dict = Depends(auth.require_user)):
     bot_username = (app_settings.get_settings().get("telegram") or {}).get("bot_username", "")
     if not bot_username:
-        raise HTTPException(503, "ربات تلگرام هنوز توسط ادمین تنظیم نشده است.")
+        raise ApiError(503, "err.telegram_not_configured", "ربات تلگرام هنوز توسط ادمین تنظیم نشده است.")
     code = users.set_link_code(user["id"])
     return {"code": code, "bot_username": bot_username, "ttl_minutes": users.LINK_CODE_TTL_MINUTES}
 
@@ -639,9 +663,22 @@ async def health():
 
 
 @app.get("/api/strategies")
-async def get_strategies(_: dict = Depends(auth.require_user)):
+async def get_strategies(request: Request, user: dict = Depends(auth.require_user)):
+    """برچسب استراتژی‌ها و پارامترها به زبان همان درخواست ترجمه می‌شوند. کلیدها
+    (strategy key / param key) پایدارند، پس رجیستری دست‌نخورده می‌ماند و برچسب
+    فارسی موجود به‌عنوان fallback عمل می‌کند."""
     from app.core.strategies.registry import list_strategies
-    return list_strategies()
+    lang = i18n.resolve(request, user)
+    out = []
+    for st in list_strategies():
+        item = dict(st)
+        item["label"] = i18n.translate_or(lang, f"strategy.{st['key']}.label", st.get("label", st["key"]))
+        item["params_schema"] = [
+            {**p, "label": i18n.translate_or(lang, f"strategy.param.{p['key']}", p.get("label", p["key"]))}
+            for p in st.get("params_schema", [])
+        ]
+        out.append(item)
+    return out
 
 
 # کش لیست نمادهای فیوچرز، به تفکیک صرافی (یک ساعت)
@@ -669,7 +706,7 @@ async def futures_symbols(exchange: str = "toobit", force: bool = False, _: dict
         driver = ToobitDriver(api_key="", api_secret="", base_url=settings.TOOBIT_BASE_URL)
         label = "Toobit"
     else:
-        raise HTTPException(400, f"صرافی پشتیبانی‌نشده: {exchange}")
+        raise ApiError(400, "err.unsupported_exchange", f"صرافی پشتیبانی‌نشده: {exchange}", exchange=exchange)
 
     try:
         symbols = await driver.list_symbols()
@@ -679,12 +716,12 @@ async def futures_symbols(exchange: str = "toobit", force: bool = False, _: dict
         # اگر صرافی در دسترس نبود، کش قبلی (حتی قدیمی) را برگردان تا داشبورد از کار نیفتد
         if cache["data"]:
             return {"symbols": cache["data"], "cached": True, "warning": str(e)}
-        raise HTTPException(502, f"دریافت لیست نمادها از {label} ناموفق: {e}")
+        raise ApiError(502, "err.symbols_failed", f"دریافت لیست نمادها از {label} ناموفق: {e}", label=label, msg=str(e))
     except Exception as e:
         await driver.close()
         if cache["data"]:
             return {"symbols": cache["data"], "cached": True, "warning": str(e)}
-        raise HTTPException(502, f"خطای غیرمنتظره در دریافت لیست نمادها: {e}")
+        raise ApiError(502, "err.symbols_unexpected", f"خطای غیرمنتظره در دریافت لیست نمادها: {e}", msg=str(e))
 
     cache["data"] = symbols
     cache["time"] = now
@@ -696,7 +733,7 @@ def _parse_webhook_payload(raw: bytes) -> dict:
     try:
         return json.loads(raw.decode("utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError):
-        raise HTTPException(400, "بدنه‌ی درخواست JSON معتبر نیست. پیام Alert را دقیقاً مطابق نمونه‌ی صفحه‌ی تنظیمات تنظیم کنید.")
+        raise ApiError(400, "err.bad_json", "بدنه‌ی درخواست JSON معتبر نیست. پیام Alert را دقیقاً مطابق نمونه‌ی صفحه‌ی تنظیمات تنظیم کنید.")
 
 
 def _to_float(v):
@@ -722,16 +759,16 @@ async def tradingview_webhook_account(account_id: str, request: Request):
     حساب اعمال می‌شود و به حساب‌های سایر کاربران نشتی ندارد."""
     account = config_store.get_account(account_id)
     if account is None:
-        raise HTTPException(404, "حساب پیدا نشد")
+        raise ApiError(404, "err.account_not_found", "حساب پیدا نشد")
     payload = _parse_webhook_payload(await request.body())
     token = account.get("webhook_token") or ""
     if not token or not secrets.compare_digest(str(payload.get("token", "")), token):
-        raise HTTPException(401, "توکن وبهوک اشتباه است.")
+        raise ApiError(401, "err.webhook_token_wrong", "توکن وبهوک اشتباه است.")
 
     symbol_raw = str(payload.get("symbol", "")).strip()
     signal = _normalize_signal(str(payload.get("signal", "")))
     if not symbol_raw or signal not in ("buy", "sell", "close"):
-        raise HTTPException(400, "فیلدهای symbol و signal (buy/sell/close) الزامی هستند.")
+        raise ApiError(400, "err.webhook_fields", "فیلدهای symbol و signal (buy/sell/close) الزامی هستند.")
 
     return await bot_manager.handle_webhook_signal(
         symbol_raw=symbol_raw,
@@ -755,14 +792,14 @@ async def tradingview_webhook(request: Request):
     payload = _parse_webhook_payload(await request.body())
 
     if not settings.WEBHOOK_TOKEN:
-        raise HTTPException(503, "WEBHOOK_TOKEN در فایل .env تنظیم نشده است؛ وبهوک غیرفعال است.")
+        raise ApiError(503, "err.webhook_token_unset", "WEBHOOK_TOKEN در فایل .env تنظیم نشده است؛ وبهوک غیرفعال است.")
     if not secrets.compare_digest(str(payload.get("token", "")), settings.WEBHOOK_TOKEN):
-        raise HTTPException(401, "توکن وبهوک اشتباه است.")
+        raise ApiError(401, "err.webhook_token_wrong", "توکن وبهوک اشتباه است.")
 
     symbol_raw = str(payload.get("symbol", "")).strip()
     signal = _normalize_signal(str(payload.get("signal", "")))
     if not symbol_raw or signal not in ("buy", "sell", "close"):
-        raise HTTPException(400, "فیلدهای symbol و signal (buy/sell/close) الزامی هستند.")
+        raise ApiError(400, "err.webhook_fields", "فیلدهای symbol و signal (buy/sell/close) الزامی هستند.")
 
     return await bot_manager.handle_webhook_signal(
         symbol_raw=symbol_raw,
@@ -779,9 +816,9 @@ def _owned_account(account_id: str, user: dict) -> dict:
     """حساب را برمی‌گرداند؛ 404 اگر نبود، 403 اگر متعلق به این کاربر نباشد (ادمین همه را می‌بیند)."""
     account = config_store.get_account(account_id)
     if account is None:
-        raise HTTPException(404, "حساب پیدا نشد")
+        raise ApiError(404, "err.account_not_found", "حساب پیدا نشد")
     if user.get("role") != "admin" and account.get("owner_id") != user["id"]:
-        raise HTTPException(403, "این حساب متعلق به شما نیست")
+        raise ApiError(403, "err.account_not_yours", "این حساب متعلق به شما نیست")
     return account
 
 
@@ -790,8 +827,8 @@ def _assert_can_go_live(user: dict):
     if user.get("role") == "admin":
         return
     if not tokens.has_active_token(user["id"]):
-        raise HTTPException(
-            403,
+        raise ApiError(
+            403, "err.live_needs_token",
             "برای معامله‌ی واقعی (live) نیاز به توکن فعال‌سازی دارید — "
             "از صفحه‌ی پشتیبانی (واحد مالی) درخواست خرید توکن کنید.",
         )
@@ -844,7 +881,7 @@ async def set_trading_mode(account_id: str, mode: str, user: dict = Depends(auth
     """سوییچ paper/live از داشبورد. برای اعمال، حساب باید متوقف و دوباره شروع شود."""
     _owned_account(account_id, user)
     if mode not in ("paper", "live"):
-        raise HTTPException(400, "حالت باید paper یا live باشد")
+        raise ApiError(400, "err.mode_paper_live", "حالت باید paper یا live باشد")
     if mode == "live":
         _assert_can_go_live(user)
     try:
@@ -894,7 +931,7 @@ async def start_account(account_id: str, user: dict = Depends(auth.require_user)
     except ValueError as e:
         raise HTTPException(404, str(e))
     except Exception as e:
-        raise HTTPException(400, f"شروع ربات ناموفق: {e}")
+        raise ApiError(400, "err.start_failed", f"شروع ربات ناموفق: {e}", msg=str(e))
     return (await bot_manager.get_status())["accounts"].get(account_id)
 
 
@@ -925,7 +962,7 @@ async def close_position(account_id: str, payload: dict, user: dict = Depends(au
     _owned_account(account_id, user)
     result = await bot_manager.close_position_manual(account_id, payload)
     if not result.get("ok"):
-        raise HTTPException(400, result.get("detail", "بستن پوزیشن ناموفق بود"))
+        raise ApiError(400, "err.close_failed", result.get("detail", "بستن پوزیشن ناموفق بود"))
     return result
 
 
@@ -935,7 +972,7 @@ async def account_report(account_id: str, days: int = 30, mode: str | None = Non
                          user: dict = Depends(auth.require_user)):
     account = _owned_account(account_id, user)
     if mode not in (None, "paper", "live"):
-        raise HTTPException(400, "mode باید paper یا live باشد")
+        raise ApiError(400, "err.mode_paper_live", "mode باید paper یا live باشد")
     report = history.get_report(account_id, days=days, mode=mode)
     # آمار «تعداد معاملات/نرخ برد/کل سود» فقط معاملات بسته‌شده را می‌شمارد؛
     # وقتی هنوز هیچ معامله‌ای بسته نشده (فقط پوزیشن باز دارد) این اعداد صفرند
@@ -1007,7 +1044,7 @@ async def bulk_update_symbols(account_id: str, payload: dict, user: dict = Depen
     except KeyError as e:
         raise HTTPException(404, str(e))
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise ApiError(400, _VALUE_ERROR_KEYS.get(str(e), ""), str(e))
     bot_manager.sync_from_config()
     return {"updated": count}
 
@@ -1032,7 +1069,7 @@ async def edit_symbol(account_id: str, symbol: str, payload: SymbolIn, user: dic
     data["symbol"] = normalize_symbol_for(account.get("exchange", "toobit"), data["symbol"])
     updated = config_store.update_symbol(account_id, symbol, data)
     if updated is None:
-        raise HTTPException(404, "حساب یا نماد پیدا نشد")
+        raise ApiError(404, "err.account_or_symbol_not_found", "حساب یا نماد پیدا نشد")
     bot_manager.refresh_symbols(account_id)
     return updated
 
