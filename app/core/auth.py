@@ -2,10 +2,11 @@
 احراز هویت مبتنی بر سشن کوکی (جایگزین HTTPBasic قدیمی). هر route فقط یکی
 از این Dependency ها را می‌گیرد — منطق تشخیص کاربر یک‌جا همین‌جاست.
 """
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, status
 from starlette.requests import Request
 
 from app.core import users
+from app.core.errors import ApiError
 
 
 class NotAuthenticated(Exception):
@@ -26,7 +27,7 @@ def require_user(request: Request) -> dict:
     """برای /api/* — نبود سشن معتبر یعنی ۴۰۱."""
     user = get_current_user(request)
     if user is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "لطفاً وارد شوید.")
+        raise ApiError(status.HTTP_401_UNAUTHORIZED, "err.please_login", "لطفاً وارد شوید.")
     return user
 
 
@@ -40,11 +41,11 @@ def require_user_page(request: Request) -> dict:
 
 def require_admin(user: dict = Depends(require_user)) -> dict:
     if user.get("role") != "admin":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "این بخش فقط برای ادمین است.")
+        raise ApiError(status.HTTP_403_FORBIDDEN, "err.admin_only", "این بخش فقط برای ادمین است.")
     return user
 
 
 def require_admin_page(user: dict = Depends(require_user_page)) -> dict:
     if user.get("role") != "admin":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "این بخش فقط برای ادمین است.")
+        raise ApiError(status.HTTP_403_FORBIDDEN, "err.admin_only", "این بخش فقط برای ادمین است.")
     return user
