@@ -1,32 +1,32 @@
 {% extends "base.html" %}
-{% block title %}گزارشات و تاریخچه معاملات | CryptoPulse{% endblock %}
+{% block title %}{{ t("rep.title") }} | CryptoPulse{% endblock %}
 
 {% block content %}
 <!-- هدر + فیلترها -->
 <div class="flex flex-col md:flex-row-reverse justify-between items-start md:items-center gap-6 mb-8">
   <div>
-    <h2 class="font-headline text-2xl font-bold text-on-surface">گزارشات و تاریخچه معاملات</h2>
-    <p class="text-on-surface-variant text-sm mt-1">مرور دقیق عملکرد معاملات و تحلیل سود و زیان</p>
+    <h2 class="font-headline text-2xl font-bold text-on-surface">{{ t("rep.title") }}</h2>
+    <p class="text-on-surface-variant text-sm mt-1">{{ t("rep.subtitle") }}</p>
   </div>
   <div class="flex flex-wrap gap-3 bg-surface-container-low p-2 rounded-xl border border-outline-variant/20">
     <select id="f_account" class="field !w-auto min-w-[150px]" onchange="loadReport()"></select>
     <select id="f_days" class="field !w-auto" onchange="loadReport()">
-      <option value="7">۷ روز</option><option value="30" selected>۳۰ روز</option>
-      <option value="90">۹۰ روز</option><option value="0">همه</option>
+      <option value="7">{{ t("rep.days", n=7) }}</option><option value="30" selected>{{ t("rep.days", n=30) }}</option>
+      <option value="90">{{ t("rep.days", n=90) }}</option><option value="0">{{ t("common.all") }}</option>
     </select>
     <select id="f_mode" class="field !w-auto" onchange="loadReport()">
-      <option value="">همه حالت‌ها</option><option value="paper">Paper</option><option value="live">Live</option>
+      <option value="">{{ t("rep.all_modes") }}</option><option value="paper">Paper</option><option value="live">Live</option>
     </select>
-    <button onclick="resetReport()" title="پاکسازی و ریست کامل گزارش این حساب"
+    <button onclick="resetReport()" title="{{ t('rep.reset_title') }}"
       class="py-1.5 px-3 rounded-lg border border-sell/30 text-sell text-[11px] hover:bg-sell/10 transition-colors flex items-center gap-1">
-      <span class="material-symbols-outlined text-sm">delete_sweep</span> پاکسازی / ریست کامل
+      <span class="material-symbols-outlined text-sm">delete_sweep</span> {{ t("rep.reset_btn") }}
     </button>
   </div>
 </div>
 
-<div id="reportRoot"><div class="text-center text-on-surface-variant py-16 text-sm">در حال بارگذاری…</div></div>
+<div id="reportRoot"><div class="text-center text-on-surface-variant py-16 text-sm">{{ t("common.loading") }}</div></div>
 
-<button onclick="window.print()" title="چاپ گزارش"
+<button onclick="window.print()" title="{{ t('rep.print') }}"
   class="fixed bottom-20 md:bottom-8 left-6 w-14 h-14 bg-primary text-on-primary rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50">
   <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">print</span>
 </button>
@@ -34,7 +34,7 @@
 
 {% block scripts %}
 <script>
-const CLOSED_BY_LABELS = { SL: 'حد ضرر', TP: 'حد سود', manual: 'دستی', exchange: 'صرافی', reversal: 'تغییر جهت' };
+const CLOSED_BY_LABELS = { SL: t('closed_by.SL'), TP: t('closed_by.TP'), manual: t('closed_by.manual'), exchange: t('closed_by.exchange'), reversal: t('closed_by.reversal') };
 let reportData = null;
 let tradePage = 1;
 const PAGE_SIZE = 10;
@@ -45,7 +45,7 @@ async function init() {
   const sel = document.getElementById('f_account');
   if (!accounts.length) {
     document.getElementById('reportRoot').innerHTML =
-      '<div class="glass-card rounded-2xl p-10 text-center text-on-surface-variant">ابتدا از پیشخوان یک حساب بسازید.</div>';
+      `<div class="glass-card rounded-2xl p-10 text-center text-on-surface-variant">${t('rep.no_account')}</div>`;
     return;
   }
   sel.innerHTML = accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
@@ -60,7 +60,7 @@ async function loadReport() {
   const days = document.getElementById('f_days').value;
   const mode = document.getElementById('f_mode').value;
   const root = document.getElementById('reportRoot');
-  root.innerHTML = '<div class="text-center text-on-surface-variant py-16 text-sm">در حال دریافت گزارش…</div>';
+  root.innerHTML = `<div class="text-center text-on-surface-variant py-16 text-sm">${t('rep.loading_report')}</div>`;
   try {
     let url = `/api/accounts/${accId}/report?days=${days}`;
     if (mode) url += `&mode=${mode}`;
@@ -75,14 +75,14 @@ async function loadReport() {
     tradePage = 1;
     renderReport();
   } catch (e) {
-    root.innerHTML = `<div class="glass-card rounded-2xl p-10 text-center text-sell">خطا در دریافت گزارش: ${e.message}</div>`;
+    root.innerHTML = `<div class="glass-card rounded-2xl p-10 text-center text-sell">${t('rep.load_error', {msg: e.message})}</div>`;
   }
 }
 
 function svgEquityChart(points) {
   const W = 1000, H = 300, padL = 62, padR = 14, padT = 14, padB = 30;
   if (!points || points.length < 2) {
-    return '<div class="text-center text-on-surface-variant text-sm py-16">هنوز داده‌ی اکوییتی ثبت نشده — پس از فعال شدن ربات هر ۵ دقیقه یک نقطه ذخیره می‌شود.</div>';
+    return `<div class="text-center text-on-surface-variant text-sm py-16">${t('rep.no_equity')}</div>`;
   }
   const vals = points.map(p => Number(p.equity));
   let vMin = Math.min(...vals), vMax = Math.max(...vals);
@@ -157,7 +157,7 @@ function eqLeave() {
 function svgDailyPnl(daily) {
   const W = 1000, H = 180, padL = 62, padR = 14, padT = 12, padB = 26;
   if (!daily || !daily.length) {
-    return '<div class="text-center text-on-surface-variant text-sm py-10">در این بازه معامله‌ی بسته‌شده‌ای ثبت نشده است.</div>';
+    return `<div class="text-center text-on-surface-variant text-sm py-10">${t('rep.no_closed')}</div>`;
   }
   const vals = daily.map(d => Number(d.pnl));
   let vMax = Math.max(0, ...vals), vMin = Math.min(0, ...vals);
@@ -175,7 +175,7 @@ function svgDailyPnl(daily) {
     const y1 = Math.min(zeroY, Y(v)), h = Math.max(1.5, Math.abs(Y(v) - zeroY));
     const c = v >= 0 ? '#2ebd85' : '#f6465d';
     bars += `<rect x="${(cx - bw / 2).toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${c}" opacity="0.85">
-      <title>${d.date} | PnL: ${niceNum(v)} USDT | ${d.trades} معامله</title></rect>`;
+      <title>${d.date} | PnL: ${niceNum(v)} USDT | ${d.trades} ${t('rep.trades_word')}</title></rect>`;
     if (n <= 16 || i % Math.ceil(n / 12) === 0) {
       labels += `<text x="${cx}" y="${H - 8}" text-anchor="middle" font-size="9" fill="#919094" font-family="JetBrains Mono">${String(d.date).slice(5)}</text>`;
     }
@@ -208,7 +208,7 @@ function renderTradesTable() {
     const est = t.estimated ? ' <span class="text-gold">≈</span>' : '';
     const fee = t.fee != null ? fmtNum(t.fee) : '—';
     return `<tr class="hover:bg-surface-variant/20 transition-colors">
-      <td class="num !text-right text-on-surface-variant text-[11px]" dir="ltr">${String(t.close_time || '').slice(0, 16).replace('T', ' ')}</td>
+      <td class="num !text-start text-on-surface-variant text-[11px]" dir="ltr">${String(t.close_time || '').slice(0, 16).replace('T', ' ')}</td>
       <td class="font-bold">${t.symbol || ''}</td><td>${side}</td>
       <td class="num">${fmtNum(t.qty)}</td>
       <td class="num">${fmtNum(t.entry_price)}</td><td class="num">${fmtNum(t.close_price)}</td>
@@ -231,11 +231,11 @@ function renderTradesTable() {
     prev = p;
   }
   return `<div class="overflow-x-auto"><table class="of-table">
-      <thead><tr><th>زمان</th><th>نماد</th><th>نوع</th><th>حجم</th><th>قیمت ورود</th><th>قیمت خروج</th><th>نحوه بستن</th><th>کارمزد</th><th>سود/ضرر خالص (USDT)</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="9" class="text-center text-on-surface-variant py-8">معامله‌ای یافت نشد</td></tr>'}</tbody>
+      <thead><tr><th>${t('rep.th_time')}</th><th>${t('common.symbol')}</th><th>${t('rep.th_type')}</th><th>${t('dash.th_qty')}</th><th>${t('rep.th_entry_price')}</th><th>${t('rep.th_exit_price')}</th><th>${t('rep.th_closed_by')}</th><th>${t('common.fees')}</th><th>${t('rep.th_net_usdt')}</th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="9" class="text-center text-on-surface-variant py-8">${t('rep.no_trades')}</td></tr>`}</tbody>
     </table></div>
     <div class="px-5 py-4 flex flex-row-reverse justify-between items-center bg-surface-container-low border-t border-outline-variant/20">
-      <span class="text-xs text-on-surface-variant">نمایش ${start} تا ${end} از ${total} معامله</span>
+      <span class="text-xs text-on-surface-variant">${t('rep.showing', {start: start, end: end, total: total})}</span>
       <div class="flex gap-1">
         <button onclick="gotoPage(${tradePage - 1})" class="w-8 h-8 flex items-center justify-center rounded border border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant"><span class="material-symbols-outlined text-base">chevron_right</span></button>
         ${pageBtns}
@@ -248,13 +248,13 @@ async function resetReport() {
   const accId = document.getElementById('f_account').value;
   if (!accId) return;
   const accName = document.getElementById('f_account').selectedOptions[0]?.textContent || '';
-  if (!askConfirm(`تمام تاریخچه‌ی معاملات و منحنی اکوییتی حساب «${accName}» برای همیشه پاک شود؟ از این لحظه گزارش‌ها مثل یک حساب خام از نو ثبت می‌شوند. این عمل غیرقابل بازگشت است.`)) return;
+  if (!askConfirm(t('rep.reset_confirm', {name: accName}))) return;
   try {
     await callApi(`/api/accounts/${accId}/report/reset`, 'POST');
-    toast('گزارش این حساب پاکسازی و ریست شد');
+    toast(t('rep.reset_done'));
     loadReport();
   } catch (e) {
-    toast('خطا: ' + e.message, true);
+    toast(t('common.error_prefix') + e.message, true);
   }
 }
 
@@ -282,40 +282,40 @@ function renderAccountDetails() {
   const symbolRows = bySymbol.map(b => `<tr class="hover:bg-surface-variant/20 transition-colors">
       <td class="font-bold">${b.symbol}</td>
       <td class="num">${b.trades}</td>
-      <td class="num">${b.trades ? fmt(b.wins / b.trades * 100, 1) : '0.0'}٪</td>
+      <td class="num">${b.trades ? fmt(b.wins / b.trades * 100, 1) : '0.0'}${t('common.pct')}</td>
       <td class="num text-on-surface-variant text-[11px]">${niceNum(b.fees)}</td>
       <td class="num ${b.pnl >= 0 ? 'text-buy' : 'text-sell'} font-bold">${b.pnl >= 0 ? '+' : ''}${niceNum(b.pnl)}</td>
     </tr>`).join('');
   return `<div class="glass-card p-5 rounded-2xl mb-6">
     <h3 class="font-headline font-bold mb-3 flex items-center gap-2">
-      <span class="material-symbols-outlined text-primary">summarize</span> ریز جزئیات حساب
+      <span class="material-symbols-outlined text-primary">summarize</span> ${t('rep.details')}
     </h3>
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8">
       <div>
-        ${hasStats ? row('موجودی اولیه', niceNum(st.initial_balance) + ' USDT') : ''}
-        ${hasStats ? row('بالانس فعلی', niceNum(st.current_balance) + ' USDT') : ''}
-        ${hasStats ? row('اکوییتی فعلی', niceNum(st.current_equity) + ' USDT') : ''}
-        ${hasStats ? row('سود/زیان روزانه', (st.daily_pnl >= 0 ? '+' : '') + niceNum(st.daily_pnl) + ` (${fmt(st.daily_pnl_pct, 2)}٪)`, st.daily_pnl >= 0 ? 'text-buy' : 'text-sell') : ''}
-        ${hasStats ? row('درصد سود کلی', (st.overall_profit_pct >= 0 ? '+' : '') + fmt(st.overall_profit_pct, 2) + '٪', st.overall_profit_pct >= 0 ? 'text-buy' : 'text-sell') : ''}
-        ${!hasStats ? '<div class="text-[11px] text-on-surface-variant py-2">ربات این حساب فعلاً اجرا نمی‌شود؛ وضعیت لحظه‌ای در دسترس نیست.</div>' : ''}
+        ${hasStats ? row(t('rep.initial_balance'), niceNum(st.initial_balance) + ' USDT') : ''}
+        ${hasStats ? row(t('rep.current_balance'), niceNum(st.current_balance) + ' USDT') : ''}
+        ${hasStats ? row(t('rep.current_equity'), niceNum(st.current_equity) + ' USDT') : ''}
+        ${hasStats ? row(t('dash.daily_pnl'), (st.daily_pnl >= 0 ? '+' : '') + niceNum(st.daily_pnl) + ` (${fmt(st.daily_pnl_pct, 2)}${t('common.pct')})`, st.daily_pnl >= 0 ? 'text-buy' : 'text-sell') : ''}
+        ${hasStats ? row(t('dash.overall_pct'), (st.overall_profit_pct >= 0 ? '+' : '') + fmt(st.overall_profit_pct, 2) + t('common.pct'), st.overall_profit_pct >= 0 ? 'text-buy' : 'text-sell') : ''}
+        ${!hasStats ? `<div class="text-[11px] text-on-surface-variant py-2">${t('rep.not_running')}</div>` : ''}
       </div>
       <div>
-        ${row('مارجین درگیر', niceNum(ai.margin) + ' USDT')}
-        ${row('مارجین آزاد', niceNum(ai.free_margin) + ' USDT')}
-        ${row('پوزیشن‌های باز', s.open_positions || 0)}
-        ${row('سود/زیان باز (Unrealized)', (s.unrealized_pnl >= 0 ? '+' : '') + niceNum(s.unrealized_pnl), s.unrealized_pnl >= 0 ? 'text-buy' : 'text-sell')}
-        ${row('مجموع کارمزد (این بازه)', niceNum(s.total_fees) + ' USDT', 'text-gold')}
+        ${row(t('rep.margin_used'), niceNum(ai.margin) + ' USDT')}
+        ${row(t('rep.margin_free'), niceNum(ai.free_margin) + ' USDT')}
+        ${row(t('rep.open_positions'), s.open_positions || 0)}
+        ${row(t('rep.unrealized'), (s.unrealized_pnl >= 0 ? '+' : '') + niceNum(s.unrealized_pnl), s.unrealized_pnl >= 0 ? 'text-buy' : 'text-sell')}
+        ${row(t('rep.total_fees_period'), niceNum(s.total_fees) + ' USDT', 'text-gold')}
       </div>
       <div>
-        ${row('سود ناخالص (Gross Profit)', '+' + niceNum(s.gross_profit), 'text-buy')}
-        ${row('زیان ناخالص (Gross Loss)', '-' + niceNum(s.gross_loss), 'text-sell')}
-        ${row('میانگین برد', '+' + niceNum(s.avg_win), 'text-buy')}
-        ${row('میانگین باخت', niceNum(s.avg_loss), 'text-sell')}
-        ${row('بهترین / بدترین معامله', niceNum(s.best) + ' / ' + niceNum(s.worst))}
+        ${row(t('rep.gross_profit'), '+' + niceNum(s.gross_profit), 'text-buy')}
+        ${row(t('rep.gross_loss'), '-' + niceNum(s.gross_loss), 'text-sell')}
+        ${row(t('rep.avg_win'), '+' + niceNum(s.avg_win), 'text-buy')}
+        ${row(t('rep.avg_loss'), niceNum(s.avg_loss), 'text-sell')}
+        ${row(t('rep.best_worst'), niceNum(s.best) + ' / ' + niceNum(s.worst))}
       </div>
     </div>
     ${bySymbol.length ? `<div class="overflow-x-auto mt-4 pt-4 border-t border-outline-variant/10"><table class="of-table">
-      <thead><tr><th>نماد</th><th>معاملات</th><th>نرخ برد</th><th>کارمزد</th><th>سود/ضرر خالص</th></tr></thead>
+      <thead><tr><th>${t('common.symbol')}</th><th>${t('common.trades')}</th><th>${t('common.win_rate')}</th><th>${t('common.fees')}</th><th>${t('common.net_pnl')}</th></tr></thead>
       <tbody>${symbolRows}</tbody>
     </table></div>` : ''}
   </div>`;
@@ -331,38 +331,38 @@ function renderReport() {
   root.innerHTML = `
   <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
     <div class="glass-card p-5 rounded-2xl flex flex-col items-center text-center">
-      <span class="text-on-surface-variant text-xs mb-2">کل سود / ضرر</span>
+      <span class="text-on-surface-variant text-xs mb-2">${t('rep.total_pnl')}</span>
       <span class="mono-num text-2xl font-bold ${pnlCls}" dir="ltr">${totalWithOpen >= 0 ? '+' : ''}${niceNum(totalWithOpen)}</span>
-      <span class="text-[11px] text-on-surface-variant mt-1">USDT${hasUnrealized ? ` (شامل ${s.unrealized_pnl >= 0 ? '+' : ''}${niceNum(s.unrealized_pnl)} از ${s.open_positions} پوزیشن باز)` : ''}</span>
+      <span class="text-[11px] text-on-surface-variant mt-1">USDT${hasUnrealized ? t('rep.incl_unrealized', {v: (s.unrealized_pnl >= 0 ? '+' : '') + niceNum(s.unrealized_pnl), n: s.open_positions}) : ''}</span>
     </div>
     <div class="glass-card p-5 rounded-2xl flex flex-col items-center text-center">
-      <span class="text-on-surface-variant text-xs mb-2">نرخ برد (Win Rate)</span>
-      <span class="mono-num text-2xl font-bold text-primary" dir="ltr">${fmt(s.win_rate, 1)}٪</span>
+      <span class="text-on-surface-variant text-xs mb-2">${t('rep.win_rate_label')}</span>
+      <span class="mono-num text-2xl font-bold text-primary" dir="ltr">${fmt(s.win_rate, 1)}${t('common.pct')}</span>
       <div class="w-full bg-surface-container-highest h-1.5 rounded-full mt-3 overflow-hidden">
         <div class="bg-primary h-full" style="width:${Math.min(100, s.win_rate || 0)}%"></div>
       </div>
     </div>
     <div class="glass-card p-5 rounded-2xl flex flex-col items-center text-center">
-      <span class="text-on-surface-variant text-xs mb-2">تعداد معاملات</span>
+      <span class="text-on-surface-variant text-xs mb-2">${t('rep.trade_count')}</span>
       <span class="mono-num text-2xl font-bold" dir="ltr">${s.trades || 0}</span>
-      <span class="text-[11px] text-on-surface-variant mt-1">${s.wins || 0} برد / ${s.losses || 0} باخت</span>
+      <span class="text-[11px] text-on-surface-variant mt-1">${t('rep.wins_losses', {w: s.wins || 0, l: s.losses || 0})}</span>
     </div>
     <div class="glass-card p-5 rounded-2xl flex flex-col items-center text-center">
-      <span class="text-on-surface-variant text-xs mb-2">PF / ماکس دراوداون</span>
+      <span class="text-on-surface-variant text-xs mb-2">${t('rep.pf_dd')}</span>
       <span class="mono-num text-2xl font-bold text-secondary-fixed-dim" dir="ltr">${s.trades ? pf : '—'}</span>
-      <span class="text-[11px] text-sell mt-1" dir="ltr">${fmt(s.max_drawdown_pct, 2)}٪ DD</span>
+      <span class="text-[11px] text-sell mt-1" dir="ltr">${fmt(s.max_drawdown_pct, 2)}${t('common.pct')} DD</span>
     </div>
     <div class="glass-card p-5 rounded-2xl flex flex-col items-center text-center">
-      <span class="text-on-surface-variant text-xs mb-2">مجموع کارمزد</span>
+      <span class="text-on-surface-variant text-xs mb-2">${t('rep.total_fees')}</span>
       <span class="mono-num text-2xl font-bold text-gold" dir="ltr">${niceNum(s.total_fees)}</span>
-      <span class="text-[11px] text-on-surface-variant mt-1">USDT (این بازه)</span>
+      <span class="text-[11px] text-on-surface-variant mt-1">${t('rep.this_period')}</span>
     </div>
   </div>
 
   <div class="glass-card p-5 rounded-2xl mb-6">
     <div class="flex justify-between items-center mb-4">
       <h3 class="font-headline font-bold flex items-center gap-2">
-        <span class="material-symbols-outlined text-primary">timeline</span> نمودار رشد سرمایه (Equity Curve)
+        <span class="material-symbols-outlined text-primary">timeline</span> ${t('rep.equity_curve')}
       </h3>
       <span class="mono-num text-xs text-on-surface-variant" dir="ltr">USDT</span>
     </div>
@@ -371,7 +371,7 @@ function renderReport() {
 
   <div class="glass-card p-5 rounded-2xl mb-6">
     <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
-      <span class="material-symbols-outlined text-primary">bar_chart</span> سود/زیان روزانه
+      <span class="material-symbols-outlined text-primary">bar_chart</span> ${t('rep.daily_pnl_chart')}
     </h3>
     ${svgDailyPnl(reportData.daily)}
   </div>
@@ -380,14 +380,14 @@ function renderReport() {
 
   <div class="glass-card rounded-2xl overflow-hidden">
     <div class="px-5 py-4 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-low flex-wrap gap-3">
-      <h3 class="font-headline font-bold">تاریخچه معاملات</h3>
-      <input class="field !w-56" placeholder="جستجوی نماد (BTC…)" dir="ltr" oninput="onTradeSearch(this.value)">
+      <h3 class="font-headline font-bold">${t('rep.trade_history')}</h3>
+      <input class="field !w-56" placeholder="${t('rep.search_symbol')}" dir="ltr" oninput="onTradeSearch(this.value)">
     </div>
     <div id="tradesWrap">${renderTradesTable()}</div>
   </div>
-  ${s.has_estimated ? '<div class="text-[11px] text-gold mt-3">≈ مقادیر علامت‌دار تقریبی‌اند: پوزیشن در سمت صرافی (live) بسته شده و آخرین سود شناخته‌شده ثبت شده است.</div>' : ''}`;
+  ${s.has_estimated ? `<div class="text-[11px] text-gold mt-3">${t('rep.estimated_note')}</div>` : ''}`;
 }
 
-init().catch(e => toast('خطا: ' + e.message, true));
+init().catch(e => toast(t('common.error_prefix') + e.message, true));
 </script>
 {% endblock %}
