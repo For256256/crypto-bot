@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html dir="rtl" lang="fa">
+<html dir="{{ lang_dir }}" lang="{{ lang }}">
 <head>
 <meta charset="utf-8">
 <meta content="width=device-width, initial-scale=1.0" name="viewport">
 <link rel="icon" type="image/png" href="/static/logo-icon.png?v=3">
-<title>ثبت‌نام | CryptoPulse</title>
+<title>{{ t("auth.register_title") }} | CryptoPulse</title>
 <script>
 (function() {
   var pref = localStorage.getItem('cb_theme');
@@ -13,6 +13,7 @@
 </script>
 <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100;300;400;500;700;900&family=Hanken+Grotesk:wght@700&display=swap" rel="stylesheet">
+{% if lang == 'zh' %}<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">{% endif %}
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
 <script>
 tailwind.config = { theme: { extend: { colors: {
@@ -42,7 +43,7 @@ tailwind.config = { theme: { extend: { colors: {
     --c-primary: 0 150 158; --c-on-primary: 255 255 255; --c-sell: 225 29 72; --c-buy: 23 145 95; --c-gold: 161 98 7;
     color-scheme: light;
   }
-  body { background-color: rgb(var(--c-surface)); font-family: 'Vazirmatn', sans-serif; color: rgb(var(--c-on-surface)); }
+  body { background-color: rgb(var(--c-surface)); font-family: 'Vazirmatn', 'Noto Sans SC', 'Noto Sans', sans-serif; color: rgb(var(--c-on-surface)); }
   .glass-card { background: rgb(var(--c-surface-container-low) / 0.75); backdrop-filter: blur(20px); border: 1px solid rgb(var(--c-on-surface) / 0.08); }
   .field {
     width: 100%; background-color: rgb(var(--c-surface-container-lowest)) !important; border: 1px solid rgb(var(--c-on-surface) / 0.08); color: rgb(var(--c-on-surface)) !important;
@@ -57,42 +58,63 @@ tailwind.config = { theme: { extend: { colors: {
   .btn-primary-of:disabled { opacity: .6; cursor: default; }
 </style>
 </head>
+<script>
+window.I18N = {{ catalog | tojson }};
+function t(key, params) {
+  var s = window.I18N[key];
+  if (s === undefined) return key;
+  if (params) for (var k in params) s = s.split('{' + k + '}').join(params[k]);
+  return s;
+}
+async function setLanguage(code) {
+  try { await fetch('/api/language/' + code, { method: 'POST' }); location.reload(); } catch (e) {}
+}
+</script>
 <body class="min-h-screen flex items-center justify-center px-4 py-10">
   <div class="w-full max-w-sm">
     <div class="flex flex-col items-center mb-8">
       <img src="/static/logo-full.png?v=3" alt="CryptoPulse" class="w-full max-w-[260px] h-auto">
-      <p class="text-xs text-on-surface-variant mt-2">داشبورد معاملات هوشمند فیوچرز</p>
+      <p class="text-xs text-on-surface-variant mt-2">{{ t("app.tagline") }}</p>
     </div>
     <div class="glass-card rounded-2xl p-6">
-      <h2 class="font-headline text-lg font-bold mb-2 text-center">ساخت حساب جدید</h2>
+      <h2 class="font-headline text-lg font-bold mb-2 text-center">{{ t("auth.register_heading") }}</h2>
       <p class="text-[11px] text-on-surface-variant text-center mb-5">
-        حساب جدید فقط با حالت کاغذی (paper) قابل استفاده است — برای معامله‌ی واقعی باید از پشتیبانی توکن فعال‌سازی بگیرید.
+        {{ t("auth.register_note") }}
       </p>
       <div id="err" class="hidden text-sell text-xs bg-sell/10 border border-sell/30 rounded-lg p-2.5 mb-4 text-center"></div>
       <form id="regForm" class="space-y-4">
         <div>
-          <label class="block text-xs text-on-surface-variant mb-1.5">نام کاربری</label>
+          <label class="block text-xs text-on-surface-variant mb-1.5">{{ t("auth.username") }}</label>
           <input id="username" class="field" autocomplete="username" minlength="3" required>
         </div>
         <div>
-          <label class="block text-xs text-on-surface-variant mb-1.5">ایمیل</label>
+          <label class="block text-xs text-on-surface-variant mb-1.5">{{ t("auth.email") }}</label>
           <input id="email" type="email" class="field" dir="ltr" autocomplete="email" required>
-          <p class="text-[10px] text-on-surface-variant mt-1">سوابق خرید و پیام‌های مهم حساب به این ایمیل ارسال می‌شود.</p>
+          <p class="text-[10px] text-on-surface-variant mt-1">{{ t("auth.email_hint") }}</p>
         </div>
         <div>
-          <label class="block text-xs text-on-surface-variant mb-1.5">رمز عبور (حداقل ۶ کاراکتر)</label>
+          <label class="block text-xs text-on-surface-variant mb-1.5">{{ t("auth.password_min") }}</label>
           <input id="password" type="password" class="field" autocomplete="new-password" minlength="6" required>
         </div>
         <div>
-          <label class="block text-xs text-on-surface-variant mb-1.5">تکرار رمز عبور</label>
+          <label class="block text-xs text-on-surface-variant mb-1.5">{{ t("auth.password_repeat") }}</label>
           <input id="password2" type="password" class="field" autocomplete="new-password" minlength="6" required>
         </div>
-        <button id="submitBtn" type="submit" class="btn-primary-of">ثبت‌نام</button>
+        <button id="submitBtn" type="submit" class="btn-primary-of">{{ t("auth.register_button") }}</button>
       </form>
       <p class="text-center text-xs text-on-surface-variant mt-5">
-        حساب دارید؟ <a href="/login" class="text-primary hover:underline">وارد شوید</a>
+        {{ t("auth.have_account") }} <a href="/login" class="text-primary hover:underline">{{ t("auth.login_link") }}</a>
       </p>
     </div>
+  <div class="flex justify-center gap-1.5 mt-6 flex-wrap">
+    {% for l in languages %}
+    <button onclick="setLanguage('{{ l.code }}')" title="{{ l.native_name }}"
+      class="px-2.5 py-1 rounded-full text-[11px] border transition-colors
+      {{ 'border-primary text-primary' if l.code == lang else 'border-outline-variant text-on-surface-variant hover:border-primary/50' }}">
+      {{ l.flag }} {{ l.native_name }}
+    </button>
+    {% endfor %}
+  </div>
   </div>
 <script>
 document.getElementById('regForm').addEventListener('submit', async (e) => {
@@ -103,7 +125,7 @@ document.getElementById('regForm').addEventListener('submit', async (e) => {
   const password = document.getElementById('password').value;
   const password2 = document.getElementById('password2').value;
   if (password !== password2) {
-    err.textContent = 'رمز عبور و تکرار آن یکسان نیستند';
+    err.textContent = t('auth.password_mismatch');
     err.classList.remove('hidden');
     return;
   }
@@ -118,7 +140,7 @@ document.getElementById('regForm').addEventListener('submit', async (e) => {
       }),
     });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.detail || 'ثبت‌نام ناموفق بود');
+    if (!r.ok) throw new Error(data.detail || t('auth.register_failed'));
     location.href = '/';
   } catch (ex) {
     err.textContent = ex.message;
