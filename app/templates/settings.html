@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}تنظیمات API و حساب کاربری | CryptoPulse{% endblock %}
+{% block title %}{{ t("set.title") }} | CryptoPulse{% endblock %}
 
 {% block content %}
 <div class="mb-8">
-  <h2 class="font-headline text-2xl font-bold text-on-surface">تنظیمات API و حساب کاربری</h2>
-  <p class="text-on-surface-variant text-sm mt-1">پیکربندی اتصال به صرافی Toobit، وبهوک TradingView و اعلان‌ها</p>
+  <h2 class="font-headline text-2xl font-bold text-on-surface">{{ t("set.title") }}</h2>
+  <p class="text-on-surface-variant text-sm mt-1">{{ t("set.subtitle") }}</p>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -13,15 +13,14 @@
     <div class="glass-card rounded-2xl p-6">
       <div class="flex justify-between items-center mb-5 flex-wrap gap-2">
         <h3 class="font-headline text-lg font-bold flex items-center gap-2">
-          <span class="material-symbols-outlined text-primary">key</span> مدیریت کلیدهای API
+          <span class="material-symbols-outlined text-primary">key</span> {{ t("set.api_keys") }}
         </h3>
         <button class="btn-primary-of !py-2 flex items-center gap-1" onclick="openKeyModal()">
-          <span class="material-symbols-outlined text-base">add</span> حساب جدید
+          <span class="material-symbols-outlined text-base">add</span> {{ t("dash.account_new") }}
         </button>
       </div>
       <p class="text-xs text-on-surface-variant mb-5 leading-6">
-        برای اتصال به صرافی، کلیدهای API خود را از پنل Toobit بسازید و با دقت وارد کنید.
-        کلیدها فقط روی همین سرور (<span class="mono-num" dir="ltr">config/accounts.json</span>) ذخیره می‌شوند.
+        {{ t("set.api_hint") | safe }}
       </p>
       <div class="space-y-4" id="accountsList"></div>
     </div>
@@ -30,38 +29,37 @@
     <div class="glass-card rounded-2xl p-6">
       <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
         <h3 class="font-headline text-lg font-bold flex items-center gap-2">
-          <span class="material-symbols-outlined text-primary">webhook</span> وبهوک TradingView
+          <span class="material-symbols-outlined text-primary">webhook</span> {{ t("set.webhook") }}
         </h3>
         <div class="flex items-center gap-2">
           <select id="wh_account" class="field !w-auto !py-1.5 text-xs" onchange="loadWebhookInfo()"></select>
           <button class="btn-ghost !py-2 flex items-center gap-1 text-xs" onclick="rotateToken()">
-            <span class="material-symbols-outlined text-base">refresh</span> تولید توکن جدید
+            <span class="material-symbols-outlined text-base">refresh</span> {{ t("set.rotate_token") }}
           </button>
         </div>
       </div>
       <div class="bg-primary-container rounded-xl p-4 space-y-3">
         <div>
-          <div class="text-[11px] text-on-surface-variant mb-1">آدرس وبهوک اختصاصی همین حساب (در آلرت TradingView قرار دهید)</div>
+          <div class="text-[11px] text-on-surface-variant mb-1">{{ t("set.webhook_url_label") }}</div>
           <div class="flex items-center gap-2">
             <code class="mono-num text-buy text-xs flex-1 break-all" dir="ltr" id="wh_url">…</code>
-            <button class="btn-ghost !py-1 !px-2 text-xs" onclick="copyEl('wh_url')">کپی</button>
+            <button class="btn-ghost !py-1 !px-2 text-xs" onclick="copyEl('wh_url')">{{ t("common.copy") }}</button>
           </div>
         </div>
         <div>
-          <div class="text-[11px] text-on-surface-variant mb-1">توکن امن</div>
+          <div class="text-[11px] text-on-surface-variant mb-1">{{ t("set.secure_token") }}</div>
           <div class="flex items-center gap-2">
             <code class="mono-num text-on-surface-variant text-xs flex-1 break-all" dir="ltr" id="wh_token">…</code>
-            <button class="btn-ghost !py-1 !px-2 text-xs" onclick="copyEl('wh_token')">کپی</button>
+            <button class="btn-ghost !py-1 !px-2 text-xs" onclick="copyEl('wh_token')">{{ t("common.copy") }}</button>
           </div>
         </div>
         <div>
-          <div class="text-[11px] text-on-surface-variant mb-1">نمونه پیام آلرت (JSON)</div>
+          <div class="text-[11px] text-on-surface-variant mb-1">{{ t("set.sample_alert") }}</div>
           <pre class="mono-num text-[10px] text-on-surface-variant bg-surface-container rounded-lg p-3 overflow-x-auto" dir="ltr" id="wh_msg"></pre>
         </div>
       </div>
       <div class="text-[11px] text-on-surface-variant mt-3">
-        فرمت نماد هرچه باشد (BTCUSDT، BTCUSDT.P، BTC/USDT) به‌صورت خودکار به فرمت صرافی همین حساب تبدیل می‌شود.
-        هر حساب آدرس/توکن وبهوک اختصاصی خودش را دارد؛ سیگنال فقط روی همان حساب اعمال می‌شود.
+        {{ t("set.webhook_note") }}
       </div>
     </div>
   </div>
@@ -71,60 +69,76 @@
     <!-- ظاهر و تم -->
     <div class="glass-card rounded-2xl p-6">
       <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
-        <span class="material-symbols-outlined text-primary">palette</span> ظاهر برنامه
+        <span class="material-symbols-outlined text-primary">palette</span> {{ t("set.appearance") }}
       </h3>
       <div class="grid grid-cols-3 gap-2" id="themeSwitcher">
         <button class="btn-ghost !py-2.5 flex flex-col items-center gap-1 text-[11px]" data-theme-opt="dark" onclick="setTheme('dark'); syncThemeSwitcher();">
-          <span class="material-symbols-outlined text-lg">dark_mode</span> تاریک
+          <span class="material-symbols-outlined text-lg">dark_mode</span> {{ t("theme.dark") }}
         </button>
         <button class="btn-ghost !py-2.5 flex flex-col items-center gap-1 text-[11px]" data-theme-opt="light" onclick="setTheme('light'); syncThemeSwitcher();">
-          <span class="material-symbols-outlined text-lg">light_mode</span> روشن
+          <span class="material-symbols-outlined text-lg">light_mode</span> {{ t("theme.light") }}
         </button>
         <button class="btn-ghost !py-2.5 flex flex-col items-center gap-1 text-[11px]" data-theme-opt="system" onclick="setTheme('system'); syncThemeSwitcher();">
-          <span class="material-symbols-outlined text-lg">brightness_auto</span> خودکار
+          <span class="material-symbols-outlined text-lg">brightness_auto</span> {{ t("common.auto") }}
         </button>
       </div>
-      <p class="text-[10px] text-on-surface-variant mt-3">حالت «خودکار» تم را از تنظیمات دستگاه/مرورگر شما می‌گیرد.</p>
+      <p class="text-[10px] text-on-surface-variant mt-3">{{ t("set.theme_hint") }}</p>
+
+      <div class="border-t border-outline-variant/20 mt-4 pt-4">
+        <h4 class="text-xs font-bold text-on-surface-variant mb-2 flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-base">language</span> {{ t("set.language") }}
+        </h4>
+        <div class="grid grid-cols-2 gap-2">
+          {% for l in languages %}
+          <button onclick="setLanguage('{{ l.code }}')"
+            class="btn-ghost !py-2 flex items-center justify-center gap-1.5 text-[11px]
+            {{ '!border-primary !text-primary' if l.code == lang else '' }}">
+            <span>{{ l.flag }}</span> {{ l.native_name }}
+          </button>
+          {% endfor %}
+        </div>
+        <p class="text-[10px] text-on-surface-variant mt-3">{{ t("set.language_hint") }}</p>
+      </div>
     </div>
 
     <!-- پروفایل کاربری -->
     <div class="glass-card rounded-2xl p-6">
       <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
-        <span class="material-symbols-outlined text-primary">account_circle</span> پروفایل کاربری
+        <span class="material-symbols-outlined text-primary">account_circle</span> {{ t("set.profile") }}
       </h3>
       <div class="space-y-3">
-        <div><label class="lbl">نام کاربری</label><div class="field !bg-surface-container-high text-on-surface-variant mono-num" dir="ltr">{{ user.username }}</div></div>
-        <div><label class="lbl">تاریخ عضویت</label><div class="field !bg-surface-container-high text-on-surface-variant mono-num text-xs" dir="ltr" id="p_joined">—</div></div>
-        <div><label class="lbl">ایمیل (برای سوابق خرید و اعلان‌ها)</label><input id="p_email" type="email" class="field mono-num" dir="ltr" value="{{ user.email or '' }}"></div>
-        <button class="btn-ghost w-full !py-2 text-xs" onclick="saveProfileEmail()">ذخیره ایمیل</button>
+        <div><label class="lbl">{{ t("auth.username") }}</label><div class="field !bg-surface-container-high text-on-surface-variant mono-num" dir="ltr">{{ user.username }}</div></div>
+        <div><label class="lbl">{{ t("set.joined") }}</label><div class="field !bg-surface-container-high text-on-surface-variant mono-num text-xs" dir="ltr" id="p_joined">—</div></div>
+        <div><label class="lbl">{{ t("set.email_label") }}</label><input id="p_email" type="email" class="field mono-num" dir="ltr" value="{{ user.email or '' }}"></div>
+        <button class="btn-ghost w-full !py-2 text-xs" onclick="saveProfileEmail()">{{ t("set.save_email") }}</button>
       </div>
       <div class="border-t border-outline-variant/20 mt-4 pt-4 space-y-3">
-        <h4 class="text-xs font-bold text-on-surface-variant mb-1">تغییر رمز عبور</h4>
-        <div><label class="lbl">رمز عبور فعلی</label><input id="p_cur_pw" type="password" class="field" autocomplete="current-password"></div>
-        <div><label class="lbl">رمز عبور جدید (حداقل ۶ کاراکتر)</label><input id="p_new_pw" type="password" class="field" autocomplete="new-password"></div>
-        <div><label class="lbl">تکرار رمز عبور جدید</label><input id="p_new_pw2" type="password" class="field" autocomplete="new-password"></div>
-        <button class="btn-primary-of w-full !py-2 text-xs" onclick="changePassword()">تغییر رمز عبور</button>
+        <h4 class="text-xs font-bold text-on-surface-variant mb-1">{{ t("set.change_password") }}</h4>
+        <div><label class="lbl">{{ t("set.current_password") }}</label><input id="p_cur_pw" type="password" class="field" autocomplete="current-password"></div>
+        <div><label class="lbl">{{ t("set.new_password") }}</label><input id="p_new_pw" type="password" class="field" autocomplete="new-password"></div>
+        <div><label class="lbl">{{ t("set.repeat_new_password") }}</label><input id="p_new_pw2" type="password" class="field" autocomplete="new-password"></div>
+        <button class="btn-primary-of w-full !py-2 text-xs" onclick="changePassword()">{{ t("set.change_password") }}</button>
       </div>
     </div>
 
     <!-- اتصال تلگرام شخصی -->
     <div class="glass-card rounded-2xl p-6">
       <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
-        <span class="material-symbols-outlined text-primary">send</span> اتصال تلگرام
+        <span class="material-symbols-outlined text-primary">send</span> {{ t("set.telegram_link") }}
       </h3>
-      <div id="tgStatusBox" class="text-xs text-on-surface-variant">در حال بارگذاری…</div>
+      <div id="tgStatusBox" class="text-xs text-on-surface-variant">{{ t("common.loading") }}</div>
     </div>
 
     {% if user.role == 'admin' %}
     <!-- تنظیمات ربات تلگرام (فقط ادمین) -->
     <div class="glass-card rounded-2xl p-6">
       <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
-        <span class="material-symbols-outlined text-gold">smart_toy</span> تنظیمات ربات تلگرام (ادمین)
+        <span class="material-symbols-outlined text-gold">smart_toy</span> {{ t("set.telegram_admin") }}
       </h3>
       <div class="space-y-3">
-        <div><label class="lbl">Bot Token (از BotFather)</label><input id="tg_bot_token" class="field mono-num" dir="ltr" type="password" placeholder="123456:ABC-DEF..."></div>
-        <div><label class="lbl">Chat ID ادمین (برای اعلان‌های سیستمی)</label><input id="tg_admin_chat_id" class="field mono-num" dir="ltr" placeholder="بعد از اتصال شخصی خودتان پر می‌شود"></div>
-        <button class="btn-ghost w-full !py-2 text-xs" onclick="saveTelegramSettings()">ذخیره و اعتبارسنجی</button>
+        <div><label class="lbl">{{ t("set.bot_token") }}</label><input id="tg_bot_token" class="field mono-num" dir="ltr" type="password" placeholder="123456:ABC-DEF..."></div>
+        <div><label class="lbl">{{ t("set.admin_chat_id") }}</label><input id="tg_admin_chat_id" class="field mono-num" dir="ltr" placeholder="{{ t('set.admin_chat_ph') }}"></div>
+        <button class="btn-ghost w-full !py-2 text-xs" onclick="saveTelegramSettings()">{{ t("set.save_validate") }}</button>
         <p id="tg_bot_status" class="text-[11px] text-on-surface-variant"></p>
       </div>
     </div>
@@ -132,19 +146,19 @@
     <!-- تنظیمات SMTP ایمیل (فقط ادمین) -->
     <div class="glass-card rounded-2xl p-6">
       <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
-        <span class="material-symbols-outlined text-gold">mail</span> تنظیمات ایمیل SMTP (ادمین)
+        <span class="material-symbols-outlined text-gold">mail</span> {{ t("set.email_smtp") }}
       </h3>
       <div class="space-y-3">
-        <div><label class="lbl">آدرس سرور SMTP</label><input id="em_host" class="field mono-num" dir="ltr" placeholder="smtp.example.com"></div>
+        <div><label class="lbl">{{ t("set.smtp_host") }}</label><input id="em_host" class="field mono-num" dir="ltr" placeholder="smtp.example.com"></div>
         <div class="grid grid-cols-2 gap-3">
-          <div><label class="lbl">پورت</label><input id="em_port" class="field mono-num" dir="ltr" type="number" value="587"></div>
+          <div><label class="lbl">{{ t("set.smtp_port") }}</label><input id="em_port" class="field mono-num" dir="ltr" type="number" value="587"></div>
           <div class="flex items-end pb-1"><label class="flex items-center gap-2 text-xs"><input type="checkbox" id="em_tls" class="of-switch" checked> STARTTLS</label></div>
         </div>
-        <div><label class="lbl">نام کاربری SMTP</label><input id="em_user" class="field mono-num" dir="ltr"></div>
-        <div><label class="lbl">رمز عبور SMTP</label><input id="em_password" class="field mono-num" dir="ltr" type="password" placeholder="خالی = بدون تغییر"></div>
-        <div><label class="lbl">آدرس فرستنده</label><input id="em_from_address" class="field mono-num" dir="ltr" placeholder="no-reply@example.com"></div>
-        <div><label class="lbl">نام فرستنده</label><input id="em_from_name" class="field" value="CryptoPulse"></div>
-        <button class="btn-ghost w-full !py-2 text-xs" onclick="saveEmailSettings()">ذخیره و تست اتصال</button>
+        <div><label class="lbl">{{ t("set.smtp_user") }}</label><input id="em_user" class="field mono-num" dir="ltr"></div>
+        <div><label class="lbl">{{ t("set.smtp_password") }}</label><input id="em_password" class="field mono-num" dir="ltr" type="password" placeholder="{{ t('set.smtp_password_ph') }}"></div>
+        <div><label class="lbl">{{ t("set.from_address") }}</label><input id="em_from_address" class="field mono-num" dir="ltr" placeholder="no-reply@example.com"></div>
+        <div><label class="lbl">{{ t("set.from_name") }}</label><input id="em_from_name" class="field" value="CryptoPulse"></div>
+        <button class="btn-ghost w-full !py-2 text-xs" onclick="saveEmailSettings()">{{ t("set.save_test") }}</button>
         <p id="em_status" class="text-[11px] text-on-surface-variant"></p>
       </div>
     </div>
@@ -152,50 +166,50 @@
     <!-- تنظیمات کیف پول و پلن‌های خرید توکن (فقط ادمین) -->
     <div class="glass-card rounded-2xl p-6">
       <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
-        <span class="material-symbols-outlined text-gold">account_balance_wallet</span> کیف پول و پلن‌های خرید توکن (ادمین)
+        <span class="material-symbols-outlined text-gold">account_balance_wallet</span> {{ t("set.payment") }}
       </h3>
       <div class="space-y-3">
-        <div><label class="lbl">آدرس کیف پول</label><input id="pm_wallet_address" class="field mono-num" dir="ltr"></div>
-        <div><label class="lbl">شبکه</label><input id="pm_wallet_network" class="field mono-num" dir="ltr" placeholder="USDT (TRC20)"></div>
+        <div><label class="lbl">{{ t("set.wallet_address") }}</label><input id="pm_wallet_address" class="field mono-num" dir="ltr"></div>
+        <div><label class="lbl">{{ t("set.wallet_network") }}</label><input id="pm_wallet_network" class="field mono-num" dir="ltr" placeholder="USDT (TRC20)"></div>
         <div class="border-t border-outline-variant/20 pt-3">
-          <label class="lbl mb-2">پلن‌ها (مدت به روز / قیمت به دلار)</label>
+          <label class="lbl mb-2">{{ t("set.plans_label") }}</label>
           <div class="grid grid-cols-2 gap-2 mb-1.5" id="pm_plans"></div>
         </div>
-        <button class="btn-ghost w-full !py-2 text-xs" onclick="savePaymentSettings()">ذخیره</button>
+        <button class="btn-ghost w-full !py-2 text-xs" onclick="savePaymentSettings()">{{ t("common.save") }}</button>
       </div>
     </div>
     {% endif %}
 
     <div class="glass-card rounded-2xl p-6">
       <h3 class="font-headline font-bold mb-5 flex items-center gap-2">
-        <span class="material-symbols-outlined text-primary">notifications</span> تنظیمات اعلان‌رسانی
+        <span class="material-symbols-outlined text-primary">notifications</span> {{ t("set.notifications") }}
       </h3>
       <div class="space-y-4" id="notifBox">
         <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3"><span class="material-symbols-outlined text-on-surface-variant">mail</span><div><div class="text-sm">ایمیل</div><div class="text-[10px] text-on-surface-variant">گزارش عملکرد هفتگی</div></div></div>
+          <div class="flex items-center gap-3"><span class="material-symbols-outlined text-on-surface-variant">mail</span><div><div class="text-sm">{{ t("auth.email") }}</div><div class="text-[10px] text-on-surface-variant">{{ t("set.notify_email_desc") }}</div></div></div>
           <input type="checkbox" id="n_email" class="of-switch" onchange="saveNotif()" {{ '' if user.role == 'admin' else 'disabled' }}>
         </div>
         <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3"><span class="material-symbols-outlined text-on-surface-variant">sms</span><div><div class="text-sm">پیامک (SMS)</div><div class="text-[10px] text-on-surface-variant">اعلان بستن پوزیشن و سوددهی</div></div></div>
+          <div class="flex items-center gap-3"><span class="material-symbols-outlined text-on-surface-variant">sms</span><div><div class="text-sm">{{ t("set.notify_sms") }}</div><div class="text-[10px] text-on-surface-variant">{{ t("set.notify_sms_desc") }}</div></div></div>
           <input type="checkbox" id="n_sms" class="of-switch" onchange="saveNotif()" {{ '' if user.role == 'admin' else 'disabled' }}>
         </div>
       </div>
       <p class="text-[10px] text-on-surface-variant mt-4 border-t border-outline-variant/20 pt-3 leading-5">
-        این دو کانال هنوز پیاده‌سازی نشده‌اند (فقط وضعیت سوئیچ ذخیره می‌شود). اعلان تلگرام از کارت بالا واقعاً فعال است.
+        {{ t("set.notify_note") }}
       </p>
     </div>
 
     <div class="glass-card rounded-2xl p-6 border-gold/30">
       <h3 class="font-headline font-bold mb-4 flex items-center gap-2">
-        <span class="material-symbols-outlined text-gold">shield</span> امنیت حساب
+        <span class="material-symbols-outlined text-gold">shield</span> {{ t("set.security") }}
       </h3>
       <div class="text-xs text-on-surface-variant leading-6 space-y-3">
         <div class="flex gap-2"><span class="material-symbols-outlined text-buy text-base">check_circle</span>
-          دسترسی به داشبورد با رمز (HTTP Basic Auth) محافظت می‌شود. رمز را در فایل <span class="mono-num" dir="ltr">.env</span> تغییر دهید.</div>
+          {{ t("set.sec_1") }}</div>
         <div class="flex gap-2"><span class="material-symbols-outlined text-buy text-base">check_circle</span>
-          کلیدهای API فقط روی سرور شما نگهداری می‌شوند و هیچ‌جا ارسال نمی‌شوند.</div>
+          {{ t("set.sec_2") }}</div>
         <div class="flex gap-2"><span class="material-symbols-outlined text-gold text-base">warning</span>
-          توکن وبهوک را محرمانه نگه دارید؛ هر کس توکن را داشته باشد می‌تواند سیگنال ارسال کند.</div>
+          {{ t("set.sec_3") }}</div>
       </div>
     </div>
   </div>
@@ -205,10 +219,10 @@
 <!-- سوابق خرید توکن -->
 <div class="glass-card rounded-2xl p-6 mt-6">
   <h3 class="font-headline text-lg font-bold mb-4 flex items-center gap-2">
-    <span class="material-symbols-outlined text-primary">receipt_long</span> سوابق خرید توکن فعال‌سازی
+    <span class="material-symbols-outlined text-primary">receipt_long</span> {{ t("set.token_history") }}
   </h3>
   <div class="overflow-x-auto"><table class="of-table">
-    <thead><tr><th>تاریخ صدور</th><th>مدت</th><th>تاریخ انقضا</th><th>وضعیت</th><th>یادداشت</th></tr></thead>
+    <thead><tr><th>{{ t("set.th_issued") }}</th><th>{{ t("set.th_duration") }}</th><th>{{ t("set.th_expires") }}</th><th>{{ t("common.status") }}</th><th>{{ t("common.note") }}</th></tr></thead>
     <tbody id="tokenHistoryTbody"></tbody>
   </table></div>
 </div>
@@ -217,18 +231,18 @@
 <!-- مودال ویرایش کلید -->
 <div class="modal-bg" id="keyModalBg">
   <div class="modal-panel">
-    <h3 id="keyModalTitle" class="font-headline text-lg font-bold mb-4">ویرایش کلید API</h3>
+    <h3 id="keyModalTitle" class="font-headline text-lg font-bold mb-4">{{ t("set.edit_key") }}</h3>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <div><label class="lbl">نام نمایشی حساب</label><input id="k_name" class="field"></div>
-      <div><label class="lbl">صرافی</label><select id="k_exchange" class="field"><option value="toobit">Toobit</option></select></div>
+      <div><label class="lbl">{{ t("set.display_name") }}</label><input id="k_name" class="field"></div>
+      <div><label class="lbl">{{ t("common.exchange") }}</label><select id="k_exchange" class="field"><option value="toobit">Toobit</option></select></div>
       <div class="sm:col-span-2"><label class="lbl">API Key</label><input id="k_api_key" class="field mono-num" dir="ltr"></div>
       <div class="sm:col-span-2"><label class="lbl">Secret Key</label><input id="k_api_secret" class="field mono-num" dir="ltr" type="password"></div>
-      <div><label class="lbl">حالت معامله</label><select id="k_trading_mode" class="field"><option value="paper">کاغذی (paper)</option><option value="live">واقعی (LIVE)</option></select></div>
-      <div class="flex items-end"><button class="btn-ghost w-full !py-2 text-xs" onclick="testKey()">تست اتصال و ذخیره</button></div>
+      <div><label class="lbl">{{ t("common.trading_mode") }}</label><select id="k_trading_mode" class="field"><option value="paper">{{ t("common.mode_paper") }}</option><option value="live">{{ t("common.mode_live") }}</option></select></div>
+      <div class="flex items-end"><button class="btn-ghost w-full !py-2 text-xs" onclick="testKey()">{{ t("set.test_and_save") }}</button></div>
     </div>
     <div class="flex justify-end gap-2 mt-5">
-      <button class="btn-ghost" onclick="closeModal('keyModalBg')">انصراف</button>
-      <button class="btn-primary-of" onclick="saveKey()">ذخیره</button>
+      <button class="btn-ghost" onclick="closeModal('keyModalBg')">{{ t("common.cancel") }}</button>
+      <button class="btn-primary-of" onclick="saveKey()">{{ t("common.save") }}</button>
     </div>
   </div>
 </div>
@@ -239,14 +253,6 @@
 const IS_ADMIN = {{ 'true' if user.role == 'admin' else 'false' }};
 let accountsCache = [];
 let editingAccountId = null;
-
-function faDate(iso) {
-  if (!iso) return '—';
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString('fa-IR') + ' ' + d.toLocaleTimeString('fa-IR', {hour: '2-digit', minute: '2-digit'});
-  } catch (e) { return String(iso).slice(0, 16).replace('T', ' '); }
-}
 
 async function loadAll() {
   const tasks = [callApi('/api/accounts'), loadTelegramCard()];
@@ -265,45 +271,46 @@ async function loadAll() {
   whSel.innerHTML = accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
   await loadWebhookInfo();
 
-  document.getElementById('p_joined').textContent = faDate('{{ user.created_at or "" }}');
+  document.getElementById('p_joined').textContent = fmtDateTime('{{ user.created_at or "" }}');
 }
 
 async function saveProfileEmail() {
   const email = document.getElementById('p_email').value.trim();
-  try { await callApi('/api/profile', 'PUT', { email }); toast('ایمیل ذخیره شد'); }
-  catch (e) { toast('خطا: ' + e.message, true); }
+  try { await callApi('/api/profile', 'PUT', { email }); toast(t('set.email_saved')); }
+  catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function changePassword() {
   const current_password = document.getElementById('p_cur_pw').value;
   const new_password = document.getElementById('p_new_pw').value;
   const new_password2 = document.getElementById('p_new_pw2').value;
-  if (new_password !== new_password2) { toast('تکرار رمز جدید یکسان نیست', true); return; }
+  if (new_password !== new_password2) { toast(t('set.password_mismatch'), true); return; }
   try {
     await callApi('/api/profile/change-password', 'POST', { current_password, new_password });
-    toast('رمز عبور تغییر کرد');
+    toast(t('set.password_changed'));
     document.getElementById('p_cur_pw').value = '';
     document.getElementById('p_new_pw').value = '';
     document.getElementById('p_new_pw2').value = '';
-  } catch (e) { toast('خطا: ' + e.message, true); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
-const TOKEN_STATUS_LABEL = t => {
-  if (t.revoked) return '<span class="text-sell text-xs">باطل‌شده</span>';
-  if (new Date(t.expires_at) > new Date()) return '<span class="text-buy text-xs">فعال</span>';
-  return '<span class="text-on-surface-variant text-xs">منقضی‌شده</span>';
+// نام پارامتر عمداً tok است نه t، تا تابع سراسری ترجمه t() سایه‌گذاری نشود.
+const TOKEN_STATUS_LABEL = tok => {
+  if (tok.revoked) return `<span class="text-sell text-xs">${t('set.token_revoked')}</span>`;
+  if (new Date(tok.expires_at) > new Date()) return `<span class="text-buy text-xs">${t('common.active')}</span>`;
+  return `<span class="text-on-surface-variant text-xs">${t('set.token_expired')}</span>`;
 };
 
 async function loadTokenHistory() {
   try {
     const list = await callApi('/api/tokens/history');
-    document.getElementById('tokenHistoryTbody').innerHTML = list.map(t => `
-      <tr><td class="mono-num text-xs" dir="ltr">${faDate(t.issued_at)}</td>
-      <td class="num">${t.duration_days} روز</td>
-      <td class="mono-num text-xs" dir="ltr">${faDate(t.expires_at)}</td>
-      <td>${TOKEN_STATUS_LABEL(t)}</td>
-      <td class="text-xs text-on-surface-variant">${t.note || '—'}</td></tr>`
-    ).join('') || '<tr><td colspan="5" class="text-center text-on-surface-variant py-6">هنوز توکنی صادر نشده است.</td></tr>';
+    document.getElementById('tokenHistoryTbody').innerHTML = list.map(tok => `
+      <tr><td class="mono-num text-xs" dir="ltr">${fmtDateTime(tok.issued_at)}</td>
+      <td class="num">${tok.duration_days} ${t('common.days')}</td>
+      <td class="mono-num text-xs" dir="ltr">${fmtDateTime(tok.expires_at)}</td>
+      <td>${TOKEN_STATUS_LABEL(tok)}</td>
+      <td class="text-xs text-on-surface-variant">${tok.note || '—'}</td></tr>`
+    ).join('') || `<tr><td colspan="5" class="text-center text-on-surface-variant py-6">${t('set.no_tokens')}</td></tr>`;
   } catch (e) {}
 }
 
@@ -318,7 +325,7 @@ async function loadEmailAdminSettings() {
     document.getElementById('em_from_address').value = s.from_address || '';
     document.getElementById('em_from_name').value = s.from_name || 'CryptoPulse';
     document.getElementById('em_status').textContent = s.smtp_host
-      ? (s.smtp_password_set ? 'تنظیم شده' : 'سرور تنظیم شده ولی بدون رمز عبور') : 'هنوز تنظیم نشده است.';
+      ? (s.smtp_password_set ? t('set.smtp_configured') : t('set.smtp_no_password')) : t('set.smtp_not_set');
   } catch (e) {}
 }
 
@@ -332,13 +339,13 @@ async function saveEmailSettings() {
     from_address: document.getElementById('em_from_address').value.trim(),
     from_name: document.getElementById('em_from_name').value.trim() || 'CryptoPulse',
   };
-  if (!payload.smtp_host) { toast('آدرس سرور SMTP را وارد کنید', true); return; }
+  if (!payload.smtp_host) { toast(t('set.smtp_host_required'), true); return; }
   try {
     await callApi('/api/admin/email-settings', 'PUT', payload);
-    toast('تنظیمات ایمیل ذخیره و اتصال تأیید شد');
+    toast(t('set.smtp_saved'));
     document.getElementById('em_password').value = '';
     loadEmailAdminSettings();
-  } catch (e) { toast('خطا: ' + e.message, true); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function loadTelegramCard() {
@@ -348,20 +355,20 @@ async function loadTelegramCard() {
     if (st.linked) {
       box.innerHTML = `
         <div class="flex items-center gap-2 mb-3"><span class="material-symbols-outlined text-buy text-base">check_circle</span>
-          <span>حساب تلگرام شما متصل است.</span></div>
+          <span>${t('set.telegram_connected')}</span></div>
         <div class="flex items-center justify-between mb-3">
-          <span>دریافت اعلان‌های معاملاتی</span>
+          <span>${t('set.telegram_notify')}</span>
           <input type="checkbox" id="n_tg_personal" class="of-switch" ${st.notify_telegram ? 'checked' : ''} onchange="saveTelegramNotifyPref()">
         </div>
-        <button class="btn-ghost w-full !py-2 text-xs !text-sell !border-sell/40" onclick="unlinkTelegram()">قطع اتصال</button>`;
+        <button class="btn-ghost w-full !py-2 text-xs !text-sell !border-sell/40" onclick="unlinkTelegram()">${t('set.telegram_unlink')}</button>`;
     } else {
       box.innerHTML = `
-        <p class="mb-3 leading-6">با اتصال تلگرام، اعلان باز/بسته‌شدن پوزیشن، خطاها و برخورد سقف ضرر روزانه را همان‌جا دریافت می‌کنید.</p>
-        <button class="btn-primary-of w-full !py-2 text-xs" onclick="getTelegramLinkCode()">دریافت کد اتصال</button>
+        <p class="mb-3 leading-6">${t('set.telegram_intro')}</p>
+        <button class="btn-primary-of w-full !py-2 text-xs" onclick="getTelegramLinkCode()">${t('set.telegram_get_code')}</button>
         <div id="tgLinkCodeBox" class="mt-3 hidden"></div>`;
     }
   } catch (e) {
-    box.innerHTML = `<p class="text-sell">خطا: ${e.message}</p>`;
+    box.innerHTML = `<p class="text-sell">${t('common.error_prefix')}${e.message}</p>`;
   }
 }
 
@@ -372,25 +379,25 @@ async function getTelegramLinkCode() {
     box.classList.remove('hidden');
     box.innerHTML = `
       <div class="bg-primary-container rounded-lg p-3 text-center">
-        <p class="text-[11px] text-on-surface-variant mb-2">در تلگرام به ربات پیام دهید:</p>
+        <p class="text-[11px] text-on-surface-variant mb-2">${t('set.telegram_send_bot')}</p>
         <code class="mono-num text-buy text-sm block mb-2" dir="ltr">/start ${r.code}</code>
-        <a href="https://t.me/${r.bot_username}?start=${r.code}" target="_blank" class="btn-ghost !py-1.5 !px-3 text-xs inline-block">باز کردن ربات در تلگرام</a>
-        <p class="text-[10px] text-on-surface-variant mt-2">این کد تا ${r.ttl_minutes} دقیقه معتبر است.</p>
+        <a href="https://t.me/${r.bot_username}?start=${r.code}" target="_blank" class="btn-ghost !py-1.5 !px-3 text-xs inline-block">${t('set.telegram_open')}</a>
+        <p class="text-[10px] text-on-surface-variant mt-2">${t('set.telegram_code_ttl', {n: r.ttl_minutes})}</p>
       </div>`;
-  } catch (e) { toast('خطا: ' + e.message, true); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function unlinkTelegram() {
-  if (!askConfirm('اتصال تلگرام قطع شود؟')) return;
+  if (!askConfirm(t('set.telegram_unlink_confirm'))) return;
   try { await callApi('/api/settings/telegram/unlink', 'POST'); loadTelegramCard(); }
-  catch (e) { toast('خطا: ' + e.message, true); }
+  catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function saveTelegramNotifyPref() {
   try {
     await callApi('/api/settings/notifications', 'PUT', { notify_telegram: document.getElementById('n_tg_personal').checked });
-    toast('ذخیره شد');
-  } catch (e) { toast('خطا: ' + e.message, true); }
+    toast(t('common.saved'));
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function loadTelegramAdminSettings() {
@@ -399,26 +406,26 @@ async function loadTelegramAdminSettings() {
     const s = await callApi('/api/admin/telegram-settings');
     document.getElementById('tg_admin_chat_id').value = s.admin_chat_id || '';
     document.getElementById('tg_bot_status').textContent = s.bot_token_set
-      ? `متصل به ربات: @${s.bot_username}` : 'هنوز توکنی تنظیم نشده است.';
+      ? t('set.bot_connected_to', {name: s.bot_username}) : t('set.bot_not_set');
   } catch (e) {}
 }
 
 async function saveTelegramSettings() {
   const bot_token = document.getElementById('tg_bot_token').value.trim();
   const admin_chat_id = document.getElementById('tg_admin_chat_id').value.trim();
-  if (!bot_token) { toast('توکن ربات را وارد کنید', true); return; }
+  if (!bot_token) { toast(t('set.bot_token_required'), true); return; }
   try {
     const r = await callApi('/api/admin/telegram-settings', 'PUT', { bot_token, admin_chat_id });
-    toast('ربات متصل شد: @' + r.bot_username);
+    toast(t('set.bot_connected', {name: r.bot_username}));
     document.getElementById('tg_bot_token').value = '';
     loadTelegramAdminSettings();
-  } catch (e) { toast('خطا: ' + e.message, true); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function loadWebhookInfo() {
   const accId = document.getElementById('wh_account').value;
   if (!accId) {
-    document.getElementById('wh_url').textContent = '— ابتدا یک حساب بسازید —';
+    document.getElementById('wh_url').textContent = t('set.no_account_first');
     document.getElementById('wh_token').textContent = '—';
     document.getElementById('wh_msg').textContent = '';
     return;
@@ -428,17 +435,17 @@ async function loadWebhookInfo() {
     document.getElementById('wh_url').textContent = wh.url;
     document.getElementById('wh_token').textContent = (wh.sample && wh.sample.token) || '—';
     document.getElementById('wh_msg').textContent = JSON.stringify(wh.sample || {}, null, 2);
-  } catch (e) { toast('خطا: ' + e.message, true); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 function renderAccounts() {
   const box = document.getElementById('accountsList');
   if (!accountsCache.length) {
-    box.innerHTML = '<div class="text-center text-on-surface-variant text-sm py-6">حسابی تعریف نشده است.</div>';
+    box.innerHTML = `<div class="text-center text-on-surface-variant text-sm py-6">${t('set.no_accounts')}</div>`;
     return;
   }
   box.innerHTML = accountsCache.map(a => {
-    const masked = a.api_key ? (a.api_key.slice(0, 4) + '••••••••' + a.api_key.slice(-4)) : 'بدون کلید (paper)';
+    const masked = a.api_key ? (a.api_key.slice(0, 4) + '••••••••' + a.api_key.slice(-4)) : t('set.no_key_paper');
     return `<div class="glass-card rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap">
       <div class="flex items-center gap-4">
         <div class="w-11 h-11 rounded-lg bg-primary-container flex items-center justify-center text-primary border border-primary/20">
@@ -451,9 +458,9 @@ function renderAccounts() {
       </div>
       <div class="flex items-center gap-3">
         <span class="text-[10px] px-2 py-0.5 rounded ${a.trading_mode === 'live' ? 'bg-sell/20 text-sell' : 'bg-info-blue/20 text-secondary-fixed-dim'}">${a.trading_mode === 'live' ? 'LIVE' : 'PAPER'}</span>
-        <span class="text-[10px] text-on-surface-variant">${a.api_key ? 'متصل' : 'بدون API'}</span>
+        <span class="text-[10px] text-on-surface-variant">${a.api_key ? t('set.connected') : t('set.no_api')}</span>
         <button class="btn-ghost !py-1.5 !px-3 text-xs flex items-center gap-1" onclick="openKeyModal('${a.id}')">
-          <span class="material-symbols-outlined text-sm">edit</span> ویرایش کلید
+          <span class="material-symbols-outlined text-sm">edit</span> ${t('set.edit_key_btn')}
         </button>
       </div>
     </div>`;
@@ -463,7 +470,7 @@ function renderAccounts() {
 function openKeyModal(accId) {
   editingAccountId = accId || null;
   const acc = accId ? accountsCache.find(a => a.id === accId) : null;
-  document.getElementById('keyModalTitle').textContent = acc ? ('ویرایش کلید: ' + acc.name) : 'حساب جدید';
+  document.getElementById('keyModalTitle').textContent = acc ? t('set.edit_key_of', {name: acc.name}) : t('dash.account_new');
   const g = id => document.getElementById(id);
   g('k_name').value = acc ? acc.name : '';
   g('k_exchange').value = acc ? acc.exchange : 'toobit';
@@ -477,13 +484,13 @@ async function saveKey(thenTest) {
   const g = id => document.getElementById(id);
   const base = editingAccountId ? accountsCache.find(a => a.id === editingAccountId) : null;
   const payload = base ? { ...base } : {
-    name: 'حساب Toobit', exchange: 'toobit', trading_mode: 'paper', api_key: '', api_secret: '',
+    name: t('set.default_account_name'), exchange: 'toobit', trading_mode: 'paper', api_key: '', api_secret: '',
     paper_balance: 10000, risk_percent: 1, default_leverage: 5, max_open_positions: 2,
     max_daily_loss_percent: 5, poll_interval_seconds: 60, recycle_on_new_signal: false,
     accept_webhook: true, enabled: true, symbols: [],
   };
   delete payload.id;
-  payload.name = g('k_name').value.trim() || 'حساب Toobit';
+  payload.name = g('k_name').value.trim() || t('set.default_account_name');
   payload.exchange = g('k_exchange').value;
   payload.api_key = g('k_api_key').value.trim();
   payload.api_secret = g('k_api_secret').value.trim();
@@ -495,10 +502,10 @@ async function saveKey(thenTest) {
     if (thenTest) {
       const r = await callApi('/api/accounts/' + accId + '/test-connection', 'POST');
       toast(r.message, !r.ok);
-    } else toast('ذخیره شد');
+    } else toast(t('common.saved'));
     closeModal('keyModalBg');
     loadAll();
-  } catch (e) { toast('خطا: ' + e.message, true); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 function testKey() { saveKey(true); }
@@ -509,25 +516,25 @@ async function saveNotif() {
     email: document.getElementById('n_email').checked,
     sms: document.getElementById('n_sms').checked,
   }};
-  try { await callApi('/api/app-settings', 'PUT', patch); toast('تنظیمات اعلان ذخیره شد'); }
-  catch (e) { toast('خطا: ' + e.message, true); }
+  try { await callApi('/api/app-settings', 'PUT', patch); toast(t('set.notify_saved')); }
+  catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function rotateToken() {
   const accId = document.getElementById('wh_account').value;
   if (!accId) return;
-  if (!askConfirm('توکن جدید تولید شود؟ توکن قبلی بلافاصله باطل می‌شود و باید آلرت‌های TradingView این حساب را به‌روز کنید.')) return;
+  if (!askConfirm(t('set.rotate_confirm'))) return;
   try {
     const r = await callApi(`/api/accounts/${accId}/webhook-token/rotate`, 'POST');
     document.getElementById('wh_url').textContent = r.url;
     document.getElementById('wh_token').textContent = r.token;
-    toast('توکن جدید تولید شد');
-  } catch (e) { toast('خطا: ' + e.message, true); }
+    toast(t('set.rotated'));
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 function copyEl(id) {
   const txt = document.getElementById(id).textContent;
-  navigator.clipboard.writeText(txt).then(() => toast('کپی شد'), () => toast('کپی ناموفق بود', true));
+  navigator.clipboard.writeText(txt).then(() => toast(t('common.copied')), () => toast(t('common.copy_failed'), true));
 }
 
 async function loadPaymentAdminSettings() {
@@ -538,7 +545,7 @@ async function loadPaymentAdminSettings() {
     document.getElementById('pm_wallet_network').value = s.wallet_network || '';
     const plans = (s.plans && s.plans.length) ? s.plans : [{days: 30, price_usdt: 20}, {days: 60, price_usdt: 38}, {days: 90, price_usdt: 75}];
     document.getElementById('pm_plans').innerHTML = plans.map((p, i) => `
-      <input class="field mono-num text-xs" dir="ltr" type="number" value="${p.days}" placeholder="روز" data-plan-days="${i}">
+      <input class="field mono-num text-xs" dir="ltr" type="number" value="${p.days}" placeholder="${t('common.days')}" data-plan-days="${i}">
       <input class="field mono-num text-xs" dir="ltr" type="number" step="0.01" value="${p.price_usdt}" placeholder="USDT" data-plan-price="${i}">`
     ).join('');
   } catch (e) {}
@@ -550,11 +557,11 @@ async function savePaymentSettings() {
   const days = [...document.querySelectorAll('[data-plan-days]')].map(el => parseInt(el.value) || 0);
   const prices = [...document.querySelectorAll('[data-plan-price]')].map(el => parseFloat(el.value) || 0);
   const plans = days.map((d, i) => ({ days: d, price_usdt: prices[i] })).filter(p => p.days > 0 && p.price_usdt > 0);
-  if (!wallet_address) { toast('آدرس کیف پول را وارد کنید', true); return; }
+  if (!wallet_address) { toast(t('set.wallet_required'), true); return; }
   try {
     await callApi('/api/admin/payment-settings', 'PUT', { wallet_address, wallet_network, plans });
-    toast('تنظیمات پرداخت ذخیره شد');
-  } catch (e) { toast('خطا: ' + e.message, true); }
+    toast(t('set.payment_saved'));
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 function syncThemeSwitcher() {
@@ -567,6 +574,6 @@ function syncThemeSwitcher() {
 }
 syncThemeSwitcher();
 
-loadAll().catch(e => toast('خطا: ' + e.message, true));
+loadAll().catch(e => toast(t('common.error_prefix') + e.message, true));
 </script>
 {% endblock %}

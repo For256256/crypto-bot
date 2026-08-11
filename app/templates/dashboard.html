@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}CryptoPulse - پیشخوان{% endblock %}
+{% block title %}CryptoPulse - {{ t("dash.title") }}{% endblock %}
 
 {% block content %}
 <!-- وضعیت توکن فعال‌سازی -->
@@ -26,51 +26,49 @@
 <!-- مودال حساب -->
 <div class="modal-bg" id="accountModalBg">
   <div class="modal-panel">
-    <h3 id="accountModalTitle" class="font-headline text-lg font-bold mb-4">حساب جدید</h3>
+    <h3 id="accountModalTitle" class="font-headline text-lg font-bold mb-4">{{ t("dash.account_new") }}</h3>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <div><label class="lbl">نام حساب</label><input id="f_name" class="field" placeholder="مثلاً: حساب اصلی Toobit"></div>
-      <div><label class="lbl">صرافی</label><select id="f_exchange" class="field" onchange="onExchangeChange()">
+      <div><label class="lbl">{{ t("dash.account_name") }}</label><input id="f_name" class="field" placeholder="{{ t('dash.account_name_ph') }}"></div>
+      <div><label class="lbl">{{ t("common.exchange") }}</label><select id="f_exchange" class="field" onchange="onExchangeChange()">
         <option value="toobit">Toobit</option>
-        <option value="tabdeal">تبدیل (Tabdeal)</option>
+        <option value="tabdeal">{{ t("dash.exchange_tabdeal") }}</option>
       </select></div>
       <div class="sm:col-span-2 text-[11px] text-gold hidden" id="f_exchange_warning">
-        ℹ️ صرافی تبدیل اندپوینت کندل تاریخی ندارد؛ به همین دلیل سیگنال و کندل‌ها برای این حساب
-        از قیمت عمومی توبیت گرفته می‌شود ولی سفارش/پوزیشن واقعی همیشه روی خود تبدیل ثبت و اجرا می‌شود —
-        استراتژی‌های داخلی و وبهوک TradingView هر دو روی این حساب کار می‌کنند.
+        {{ t("dash.tabdeal_note") }}
       </div>
-      <div class="sm:col-span-2"><label class="lbl">API Key</label><input id="f_api_key" class="field mono-num" dir="ltr" placeholder="در حالت paper اختیاری است"></div>
-      <div class="sm:col-span-2"><label class="lbl">API Secret</label><input id="f_api_secret" class="field mono-num" dir="ltr" type="password" placeholder="در حالت paper اختیاری است"></div>
-      <div><label class="lbl">حالت معامله</label><select id="f_trading_mode" class="field"><option value="paper">کاغذی (paper)</option><option value="live">واقعی (LIVE)</option></select></div>
-      <div><label class="lbl">موجودی اولیه paper (USDT)</label><input id="f_paper_balance" class="field mono-num" dir="ltr" type="number" value="10000"></div>
-      <div><label class="lbl">ریسک هر معامله (٪)</label><input id="f_risk_percent" class="field mono-num" dir="ltr" type="number" step="0.1" value="1"></div>
+      <div class="sm:col-span-2"><label class="lbl">API Key</label><input id="f_api_key" class="field mono-num" dir="ltr" placeholder="{{ t('dash.api_optional_paper') }}"></div>
+      <div class="sm:col-span-2"><label class="lbl">API Secret</label><input id="f_api_secret" class="field mono-num" dir="ltr" type="password" placeholder="{{ t('dash.api_optional_paper') }}"></div>
+      <div><label class="lbl">{{ t("common.trading_mode") }}</label><select id="f_trading_mode" class="field"><option value="paper">{{ t("common.mode_paper") }}</option><option value="live">{{ t("common.mode_live") }}</option></select></div>
+      <div><label class="lbl">{{ t("dash.paper_balance") }}</label><input id="f_paper_balance" class="field mono-num" dir="ltr" type="number" value="10000"></div>
+      <div><label class="lbl">{{ t("dash.risk_percent") }}</label><input id="f_risk_percent" class="field mono-num" dir="ltr" type="number" step="0.1" value="1"></div>
       <div>
-        <label class="lbl">اهرم پیش‌فرض</label>
+        <label class="lbl">{{ t("dash.default_leverage") }}</label>
         <input id="f_default_leverage" class="field mono-num" dir="ltr" type="number" value="5">
-        <p class="text-[10px] text-on-surface-variant mt-1 leading-5">اهرمی که با آن حجم پوزیشن نسبت به مارجین بزرگ‌تر می‌شود؛ اهرم بالاتر یعنی با مارجین کمتری می‌توان حجم بیشتری باز کرد، ولی هم سود و هم ضرر به همان نسبت بزرگ‌تر می‌شود و ریسک لیکویید شدن هم بالا می‌رود.</p>
+        <p class="text-[10px] text-on-surface-variant mt-1 leading-5">{{ t("dash.leverage_hint") }}</p>
       </div>
       <div>
-        <label class="lbl">ضریب ATR برای SL/TP (فاصله‌ی یکسان)</label>
+        <label class="lbl">{{ t("dash.atr_mult") }}</label>
         <input id="f_sl_tp_atr_mult" class="field mono-num" dir="ltr" type="number" step="0.1" value="3">
       </div>
       <div class="sm:col-span-2">
         <label class="lbl flex justify-between items-center">
-          <span>حداکثر مارجین هر معامله از کل حساب</span>
-          <span id="f_margin_cap_val" class="mono-num text-primary font-bold">25٪</span>
+          <span>{{ t("dash.margin_cap") }}</span>
+          <span id="f_margin_cap_val" class="mono-num text-primary font-bold">25{{ t('common.pct') }}</span>
         </label>
         <input id="f_max_margin_per_trade_pct" type="range" min="1" max="100" step="1" value="25" dir="rtl"
           class="w-full accent-gold" style="accent-color:#f0b90b"
-          oninput="document.getElementById('f_margin_cap_val').textContent = this.value + '٪'">
-        <p class="text-[10px] text-on-surface-variant mt-1 leading-5">حداکثر سهمی از کل اکوییتی حساب که فقط یک پوزیشن اجازه دارد به‌عنوان مارجین قفل کند — مستقل از فاصله‌ی حد ضرر. عدد کوچک‌تر یعنی حجم هر معامله محدودتر و ریسک تمرکز کمتر روی یک پوزیشن؛ عدد بزرگ‌تر یعنی امکان حجم بزرگ‌تر ولی خطر قفل‌شدن بیشتر مارجین حساب روی یک معامله.</p>
+          oninput="document.getElementById('f_margin_cap_val').textContent = this.value + t('common.pct')">
+        <p class="text-[10px] text-on-surface-variant mt-1 leading-5">{{ t("dash.margin_cap_hint") }}</p>
       </div>
-      <div><label class="lbl">حداکثر پوزیشن باز هم‌زمان</label><input id="f_max_open_positions" class="field mono-num" dir="ltr" type="number" value="2"></div>
-      <div><label class="lbl">سقف ضرر روزانه (٪)</label><input id="f_max_daily_loss_percent" class="field mono-num" dir="ltr" type="number" step="0.5" value="5"></div>
-      <div><label class="lbl">بازه بررسی سیگنال (ثانیه)</label><input id="f_poll_interval_seconds" class="field mono-num" dir="ltr" type="number" value="60"></div>
-      <div class="flex items-center gap-2 pt-5"><input type="checkbox" id="f_recycle_on_new_signal" class="of-switch"><label for="f_recycle_on_new_signal" class="text-xs text-on-surface-variant">بستن سودده‌ترین پوزیشن هنگام پر بودن ظرفیت (recycle)</label></div>
-      <div class="flex items-center gap-2 pt-5"><input type="checkbox" id="f_accept_webhook" class="of-switch" checked><label for="f_accept_webhook" class="text-xs text-on-surface-variant">دریافت سیگنال از وبهوک TradingView</label></div>
+      <div><label class="lbl">{{ t("dash.max_open_positions") }}</label><input id="f_max_open_positions" class="field mono-num" dir="ltr" type="number" value="2"></div>
+      <div><label class="lbl">{{ t("dash.max_daily_loss") }}</label><input id="f_max_daily_loss_percent" class="field mono-num" dir="ltr" type="number" step="0.5" value="5"></div>
+      <div><label class="lbl">{{ t("dash.poll_interval") }}</label><input id="f_poll_interval_seconds" class="field mono-num" dir="ltr" type="number" value="60"></div>
+      <div class="flex items-center gap-2 pt-5"><input type="checkbox" id="f_recycle_on_new_signal" class="of-switch"><label for="f_recycle_on_new_signal" class="text-xs text-on-surface-variant">{{ t("dash.recycle") }}</label></div>
+      <div class="flex items-center gap-2 pt-5"><input type="checkbox" id="f_accept_webhook" class="of-switch" checked><label for="f_accept_webhook" class="text-xs text-on-surface-variant">{{ t("dash.accept_webhook") }}</label></div>
     </div>
     <div class="flex justify-end gap-2 mt-5">
-      <button class="btn-ghost" onclick="closeModal('accountModalBg')">انصراف</button>
-      <button class="btn-primary-of" onclick="saveAccount()">ذخیره</button>
+      <button class="btn-ghost" onclick="closeModal('accountModalBg')">{{ t("common.cancel") }}</button>
+      <button class="btn-primary-of" onclick="saveAccount()">{{ t("common.save") }}</button>
     </div>
   </div>
 </div>
@@ -78,54 +76,54 @@
 <!-- مودال اعمال دسته‌جمعی -->
 <div class="modal-bg" id="bulkModalBg">
   <div class="modal-panel">
-    <h3 class="font-headline text-lg font-bold mb-1">اعمال دسته‌جمعی روی نمادها</h3>
-    <p class="text-[11px] text-on-surface-variant mb-4">فقط بخش‌های تیک‌خورده روی <b id="bulkCount">همه</b> نماد این بات اعمال می‌شود.</p>
+    <h3 class="font-headline text-lg font-bold mb-1">{{ t("dash.bulk_title") }}</h3>
+    <p class="text-[11px] text-on-surface-variant mb-4">{{ t("dash.bulk_note") | safe }}</p>
     <div class="space-y-4">
       <div class="flex items-center gap-3">
         <input type="checkbox" id="b_use_timeframe" class="of-switch" checked>
-        <label class="text-sm flex-1" for="b_use_timeframe">تایم‌فریم</label>
+        <label class="text-sm flex-1" for="b_use_timeframe">{{ t("common.timeframe") }}</label>
         <select id="b_timeframe" class="field !w-32">
-          <option value="1m">1 دقیقه</option><option value="5m">5 دقیقه</option><option value="15m">15 دقیقه</option>
-          <option value="30m">30 دقیقه</option><option value="1h" selected>1 ساعت</option><option value="4h">4 ساعت</option>
-          <option value="1d">روزانه</option>
+          <option value="1m">{{ t("common.tf_1m") }}</option><option value="5m">{{ t("common.tf_5m") }}</option><option value="15m">{{ t("common.tf_15m") }}</option>
+          <option value="30m">{{ t("common.tf_30m") }}</option><option value="1h" selected>{{ t("common.tf_1h") }}</option><option value="4h">{{ t("common.tf_4h") }}</option>
+          <option value="1d">{{ t("common.tf_1d") }}</option>
         </select>
       </div>
       <div>
         <div class="flex items-center gap-3 mb-2">
           <input type="checkbox" id="b_use_strategy" class="of-switch" onchange="document.getElementById('bulkParamsBox').style.display=this.checked?'grid':'none'">
-          <label class="text-sm flex-1" for="b_use_strategy">استراتژی و پارامترها</label>
+          <label class="text-sm flex-1" for="b_use_strategy">{{ t("dash.bulk_strategy_params") }}</label>
           <select id="b_strategy" class="field !w-56" onchange="renderBulkStrategyParams()"></select>
         </div>
         <div id="bulkParamsBox" class="grid grid-cols-2 sm:grid-cols-3 gap-3" style="display:none"></div>
       </div>
       <div class="flex items-center gap-3">
         <input type="checkbox" id="b_use_leverage" class="of-switch">
-        <label class="text-sm flex-1" for="b_use_leverage">اهرم (خالی = پیش‌فرض حساب)</label>
-        <input id="b_leverage" class="field mono-num !w-32" dir="ltr" type="number" placeholder="خودکار">
+        <label class="text-sm flex-1" for="b_use_leverage">{{ t("dash.bulk_leverage") }}</label>
+        <input id="b_leverage" class="field mono-num !w-32" dir="ltr" type="number" placeholder="{{ t('common.auto') }}">
       </div>
       <div>
         <div class="flex items-center gap-3 mb-2">
           <input type="checkbox" id="b_use_qty" class="of-switch" onchange="document.getElementById('bulkQtyBox').style.display=this.checked?'grid':'none'">
-          <label class="text-sm flex-1" for="b_use_qty">محدودیت‌های حجم</label>
+          <label class="text-sm flex-1" for="b_use_qty">{{ t("dash.bulk_qty_limits") }}</label>
         </div>
         <div id="bulkQtyBox" class="grid grid-cols-3 gap-3" style="display:none">
-          <div><label class="lbl">حداقل حجم</label><input id="b_min_qty" class="field mono-num" dir="ltr" type="number" step="any" placeholder="از صرافی"></div>
-          <div><label class="lbl">گام حجم</label><input id="b_qty_step" class="field mono-num" dir="ltr" type="number" step="any" placeholder="از صرافی"></div>
-          <div><label class="lbl">حداکثر حجم</label><input id="b_max_qty" class="field mono-num" dir="ltr" type="number" step="any" placeholder="بدون سقف"></div>
+          <div><label class="lbl">{{ t("dash.min_qty") }}</label><input id="b_min_qty" class="field mono-num" dir="ltr" type="number" step="any" placeholder="{{ t('common.from_exchange') }}"></div>
+          <div><label class="lbl">{{ t("dash.qty_step") }}</label><input id="b_qty_step" class="field mono-num" dir="ltr" type="number" step="any" placeholder="{{ t('common.from_exchange') }}"></div>
+          <div><label class="lbl">{{ t("dash.max_qty") }}</label><input id="b_max_qty" class="field mono-num" dir="ltr" type="number" step="any" placeholder="{{ t('common.no_limit') }}"></div>
         </div>
       </div>
       <div class="flex items-center gap-3">
-        <label class="text-sm flex-1">وضعیت نمادها</label>
+        <label class="text-sm flex-1">{{ t("dash.symbols_state") }}</label>
         <select id="b_enabled" class="field !w-40">
-          <option value="" selected>بدون تغییر</option>
-          <option value="true">فعال کردن همه</option>
-          <option value="false">غیرفعال کردن همه</option>
+          <option value="" selected>{{ t("common.no_change") }}</option>
+          <option value="true">{{ t("dash.enable_all") }}</option>
+          <option value="false">{{ t("dash.disable_all") }}</option>
         </select>
       </div>
     </div>
     <div class="flex justify-end gap-2 mt-5">
-      <button class="btn-ghost" onclick="closeModal('bulkModalBg')">انصراف</button>
-      <button class="btn-primary-of" onclick="applyBulk()">اعمال روی همه نمادها</button>
+      <button class="btn-ghost" onclick="closeModal('bulkModalBg')">{{ t("common.cancel") }}</button>
+      <button class="btn-primary-of" onclick="applyBulk()">{{ t("dash.bulk_apply") }}</button>
     </div>
   </div>
 </div>
@@ -133,29 +131,29 @@
 <!-- مودال نماد -->
 <div class="modal-bg" id="symbolModalBg">
   <div class="modal-panel">
-    <h3 id="symbolModalTitle" class="font-headline text-lg font-bold mb-4">افزودن نماد</h3>
+    <h3 id="symbolModalTitle" class="font-headline text-lg font-bold mb-4">{{ t("dash.symbol_add") }}</h3>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div class="sm:col-span-2">
-        <label class="lbl">نماد فیوچرز (از لیست Toobit)</label>
-        <input id="s_symbol_search" class="field mono-num mb-2" dir="ltr" placeholder="جستجو… (مثلاً BTC یا PEPE)" oninput="filterSymbolList()">
+        <label class="lbl">{{ t("dash.symbol_futures_list") }}</label>
+        <input id="s_symbol_search" class="field mono-num mb-2" dir="ltr" placeholder="{{ t('dash.symbol_search_ph') }}" oninput="filterSymbolList()">
         <select id="s_symbol" class="field mono-num" dir="ltr"></select>
         <div id="s_symbol_status" class="text-[11px] text-on-surface-variant mt-1"></div>
       </div>
-      <div><label class="lbl">تایم‌فریم</label><select id="s_timeframe" class="field">
-        <option value="1m">1 دقیقه</option><option value="5m">5 دقیقه</option><option value="15m">15 دقیقه</option>
-        <option value="30m">30 دقیقه</option><option value="1h" selected>1 ساعت</option><option value="4h">4 ساعت</option>
-        <option value="1d">روزانه</option>
+      <div><label class="lbl">{{ t("common.timeframe") }}</label><select id="s_timeframe" class="field">
+        <option value="1m">{{ t("common.tf_1m") }}</option><option value="5m">{{ t("common.tf_5m") }}</option><option value="15m">{{ t("common.tf_15m") }}</option>
+        <option value="30m">{{ t("common.tf_30m") }}</option><option value="1h" selected>{{ t("common.tf_1h") }}</option><option value="4h">{{ t("common.tf_4h") }}</option>
+        <option value="1d">{{ t("common.tf_1d") }}</option>
       </select></div>
-      <div><label class="lbl">استراتژی</label><select id="s_strategy" class="field" onchange="renderStrategyParams()"></select></div>
+      <div><label class="lbl">{{ t("common.strategy") }}</label><select id="s_strategy" class="field" onchange="renderStrategyParams()"></select></div>
       <div class="sm:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3" id="strategyParamsBox"></div>
-      <div><label class="lbl">اهرم (خالی = پیش‌فرض حساب)</label><input id="s_leverage" class="field mono-num" dir="ltr" type="number" placeholder="خودکار"></div>
-      <div><label class="lbl">حداکثر حجم (خالی = بدون سقف)</label><input id="s_max_qty" class="field mono-num" dir="ltr" type="number" step="any" placeholder="خودکار"></div>
-      <div><label class="lbl">حداقل حجم</label><input id="s_min_qty" class="field mono-num" dir="ltr" type="number" step="any" placeholder="از صرافی"></div>
-      <div><label class="lbl">گام حجم</label><input id="s_qty_step" class="field mono-num" dir="ltr" type="number" step="any" placeholder="از صرافی"></div>
+      <div><label class="lbl">{{ t("dash.bulk_leverage") }}</label><input id="s_leverage" class="field mono-num" dir="ltr" type="number" placeholder="{{ t('common.auto') }}"></div>
+      <div><label class="lbl">{{ t("dash.max_qty_empty") }}</label><input id="s_max_qty" class="field mono-num" dir="ltr" type="number" step="any" placeholder="{{ t('common.auto') }}"></div>
+      <div><label class="lbl">{{ t("dash.min_qty") }}</label><input id="s_min_qty" class="field mono-num" dir="ltr" type="number" step="any" placeholder="{{ t('common.from_exchange') }}"></div>
+      <div><label class="lbl">{{ t("dash.qty_step") }}</label><input id="s_qty_step" class="field mono-num" dir="ltr" type="number" step="any" placeholder="{{ t('common.from_exchange') }}"></div>
     </div>
     <div class="flex justify-end gap-2 mt-5">
-      <button class="btn-ghost" onclick="closeModal('symbolModalBg')">انصراف</button>
-      <button class="btn-primary-of" id="symbolSaveBtn" onclick="saveSymbol()">افزودن</button>
+      <button class="btn-ghost" onclick="closeModal('symbolModalBg')">{{ t("common.cancel") }}</button>
+      <button class="btn-primary-of" id="symbolSaveBtn" onclick="saveSymbol()">{{ t("common.add") }}</button>
     </div>
   </div>
 </div>
@@ -175,9 +173,9 @@ let selectedAccountId = null;
 let tokenStatus = null;
 
 const EXTRA_LABELS = {
-  ema_fast: 'EMA سریع', ema_slow: 'EMA کند', rsi: 'RSI', supertrend: 'SuperTrend', atr: 'ATR',
-  macd: 'MACD', macd_signal: 'سیگنال MACD', macd_hist: 'هیستوگرام', trend_ema: 'EMA روند',
-  bb_upper: 'باند بالا', bb_mid: 'باند میانی', bb_lower: 'باند پایین',
+  ema_fast: t('ind.ema_fast'), ema_slow: t('ind.ema_slow'), rsi: 'RSI', supertrend: 'SuperTrend', atr: 'ATR',
+  macd: 'MACD', macd_signal: t('ind.macd_signal'), macd_hist: t('ind.macd_hist'), trend_ema: t('ind.trend_ema'),
+  bb_upper: t('ind.bb_upper'), bb_mid: t('ind.bb_mid'), bb_lower: t('ind.bb_lower'),
   ma_fast: 'ma_fast', ma_mid: 'ma_mid', ma_slow: 'ma_slow',
   kijun_short: 'kijun_short', kijun_long: 'kijun_long', psar: 'psar',
 };
@@ -187,16 +185,16 @@ async function loadSymbolsList(force, exchange) {
   exchange = exchange || 'toobit';
   const statusEl = document.getElementById('s_symbol_status');
   if (symbolsListCache.length && symbolsListExchange === exchange && !force) return;
-  if (statusEl) statusEl.textContent = `در حال دریافت لیست نمادها از ${exchange === 'tabdeal' ? 'تبدیل' : 'Toobit'}…`;
+  if (statusEl) statusEl.textContent = t('dash.symbols_loading', {exchange: exchange === 'tabdeal' ? 'Tabdeal' : 'Toobit'});
   try {
     const r = await callApi(`/api/futures-symbols?exchange=${exchange}` + (force ? '&force=true' : ''));
     symbolsListCache = r.symbols || [];
     symbolsListExchange = exchange;
     if (statusEl) statusEl.textContent = symbolsListCache.length
-      ? `${symbolsListCache.length} نماد قابل معامله` + (r.warning ? ' (از کش)' : '')
-      : 'لیستی دریافت نشد';
+      ? t('dash.symbols_count', {n: symbolsListCache.length}) + (r.warning ? t('dash.symbols_cached') : '')
+      : t('dash.symbols_none');
   } catch (e) {
-    if (statusEl) statusEl.textContent = 'دریافت لیست ناموفق: ' + e.message;
+    if (statusEl) statusEl.textContent = t('dash.symbols_failed', {msg: e.message});
   }
 }
 
@@ -209,16 +207,16 @@ function renderSymbolOptions(filter, selected) {
   sel.innerHTML = shown.map(s =>
     `<option value="${s.symbol}"${s.symbol === selected ? ' selected' : ''}>${s.symbol}</option>`).join('');
   if (selected && !shown.some(s => s.symbol === selected)) {
-    sel.insertAdjacentHTML('afterbegin', `<option value="${selected}" selected>${selected} (خارج از لیست فعلی)</option>`);
+    sel.insertAdjacentHTML('afterbegin', `<option value="${selected}" selected>${t('dash.symbol_outside_list', {symbol: selected})}</option>`);
   }
   if (!sel.options.length) {
     sel.innerHTML = f
-      ? `<option value="${f}" selected>${f} (ورود دستی)</option>`
-      : '<option value="" disabled selected>نتیجه‌ای یافت نشد</option>';
+      ? `<option value="${f}" selected>${t('dash.symbol_manual', {symbol: f})}</option>`
+      : `<option value="" disabled selected>${t('dash.symbols_no_match')}</option>`;
   }
   const statusEl = document.getElementById('s_symbol_status');
   if (statusEl && symbolsListCache.length) {
-    statusEl.textContent = f ? `${items.length} نماد مطابق «${f}»` : `${symbolsListCache.length} نماد قابل معامله`;
+    statusEl.textContent = f ? t('dash.symbols_matching', {n: items.length, q: f}) : t('dash.symbols_count', {n: symbolsListCache.length});
   }
 }
 
@@ -265,7 +263,7 @@ function onExchangeChange() {
 
 function openAccountModal(acc) {
   editingAccountId = acc ? acc.id : null;
-  document.getElementById('accountModalTitle').textContent = acc ? ('ویرایش حساب: ' + acc.name) : 'حساب جدید';
+  document.getElementById('accountModalTitle').textContent = acc ? t('dash.account_edit', {name: acc.name}) : t('dash.account_new');
   const g = id => document.getElementById(id);
   g('f_name').value = acc ? acc.name : '';
   g('f_exchange').value = acc ? acc.exchange : 'toobit';
@@ -275,14 +273,14 @@ function openAccountModal(acc) {
   const liveOpt = g('f_trading_mode').querySelector('option[value="live"]');
   const liveLocked = tokenStatus && !tokenStatus.is_admin && !tokenStatus.active;
   liveOpt.disabled = liveLocked;
-  liveOpt.textContent = liveLocked ? 'واقعی (LIVE) — نیاز به توکن فعال' : 'واقعی (LIVE)';
+  liveOpt.textContent = liveLocked ? t('common.mode_live') + ' — ' + t('dash.request_token') : t('common.mode_live');
   g('f_trading_mode').value = acc ? acc.trading_mode : 'paper';
   g('f_paper_balance').value = acc ? (acc.paper_balance ?? 10000) : 10000;
   g('f_risk_percent').value = acc ? acc.risk_percent : 1;
   g('f_default_leverage').value = acc ? acc.default_leverage : 5;
   g('f_sl_tp_atr_mult').value = acc ? (acc.sl_tp_atr_mult ?? 3) : 3;
   g('f_max_margin_per_trade_pct').value = acc ? (acc.max_margin_per_trade_pct ?? 25) : 25;
-  g('f_margin_cap_val').textContent = g('f_max_margin_per_trade_pct').value + '٪';
+  g('f_margin_cap_val').textContent = g('f_max_margin_per_trade_pct').value + t('common.pct');
   g('f_max_open_positions').value = acc ? acc.max_open_positions : 2;
   g('f_max_daily_loss_percent').value = acc ? acc.max_daily_loss_percent : 5;
   g('f_poll_interval_seconds').value = acc ? acc.poll_interval_seconds : 60;
@@ -311,75 +309,75 @@ async function saveAccount() {
     accept_webhook: g('f_accept_webhook').checked,
     enabled: true,
   };
-  if (!payload.name) { toast('نام حساب را وارد کنید', true); return; }
+  if (!payload.name) { toast(t('dash.name_required'), true); return; }
   if (payload.trading_mode === 'live' && (!payload.api_key || !payload.api_secret)) {
-    toast('برای حالت واقعی (LIVE) کلید API و Secret الزامی است', true); return;
+    toast(t('dash.live_needs_keys'), true); return;
   }
   if (payload.trading_mode === 'live' && tokenStatus && !tokenStatus.is_admin && !tokenStatus.active) {
-    toast('برای معامله‌ی واقعی نیاز به توکن فعال‌سازی دارید — از پشتیبانی (واحد مالی) درخواست بدهید', true);
+    toast(t('dash.live_needs_token'), true);
     return;
   }
   try {
     if (editingAccountId) await callApi('/api/accounts/' + editingAccountId, 'PUT', payload);
     else await callApi('/api/accounts', 'POST', payload);
     closeModal('accountModalBg');
-    toast('حساب ذخیره شد');
+    toast(t('dash.account_saved'));
     refresh();
-  } catch (e) { toast('خطا: ' + e.message, true); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function duplicateAccount(id, name) {
-  if (!askConfirm(`بات جدیدی با کپی کامل تنظیمات و نمادهای «${name}» ساخته شود؟`)) return;
+  if (!askConfirm(t('dash.duplicate_confirm', {name: name}))) return;
   try {
     const a = await callApi(`/api/accounts/${id}/duplicate`, 'POST');
-    toast(`بات جدید «${a.name}» ساخته شد`);
+    toast(t('dash.duplicated', {name: a.name}));
     selectedAccountId = a.id;
     refresh();
-  } catch (e) { toast('خطا: ' + e.message, true); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function deleteAccount(id, name) {
-  if (!askConfirm(`حساب «${name}» حذف شود؟`)) return;
-  try { await callApi('/api/accounts/' + id, 'DELETE'); toast('حساب حذف شد'); selectedAccountId = null; refresh(); }
-  catch (e) { toast('خطا: ' + e.message, true); }
+  if (!askConfirm(t('dash.account_delete_confirm', {name: name}))) return;
+  try { await callApi('/api/accounts/' + id, 'DELETE'); toast(t('dash.account_deleted')); selectedAccountId = null; refresh(); }
+  catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function testConnection(id) {
-  toast('در حال تست اتصال به Toobit…');
+  toast(t('dash.testing_connection'));
   try {
     const r = await callApi('/api/accounts/' + id + '/test-connection', 'POST');
     toast(r.message, !r.ok);
-  } catch (e) { toast('خطا: ' + e.message, true); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function startAccount(id) {
-  try { await callApi('/api/accounts/' + id + '/start', 'POST'); toast('ربات شروع شد'); refresh(); }
-  catch (e) { toast('شروع ناموفق: ' + e.message, true); }
+  try { await callApi('/api/accounts/' + id + '/start', 'POST'); toast(t('dash.bot_started')); refresh(); }
+  catch (e) { toast(t('dash.start_failed', {msg: e.message}), true); }
 }
 async function stopAccount(id) {
-  try { await callApi('/api/accounts/' + id + '/stop', 'POST'); toast('ربات متوقف شد'); refresh(); }
-  catch (e) { toast('خطا: ' + e.message, true); }
+  try { await callApi('/api/accounts/' + id + '/stop', 'POST'); toast(t('dash.bot_stopped')); refresh(); }
+  catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function switchMode(id, current) {
   const target = current === 'paper' ? 'live' : 'paper';
   const warn = target === 'live'
-    ? '⚠️ سوییچ به حالت واقعی (LIVE)! سفارش‌ها با پول واقعی ثبت می‌شوند. مطمئن هستید؟'
-    : 'سوییچ به حالت کاغذی (paper)؟ ربات این حساب متوقف می‌شود.';
+    ? t('dash.switch_live_confirm')
+    : t('dash.switch_paper_confirm');
   if (!askConfirm(warn)) return;
   try {
     await callApi(`/api/accounts/${id}/trading-mode?mode=${target}`, 'POST');
-    toast('حالت معامله تغییر کرد — ربات را دوباره شروع کنید');
+    toast(t('dash.mode_changed'));
     refresh();
-  } catch (e) { toast('خطا: ' + e.message, true); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function closePosition(accId, posId, symbol) {
-  if (!askConfirm(`پوزیشن ${symbol} بسته شود؟`)) return;
+  if (!askConfirm(t('dash.position_close_confirm', {symbol: symbol}))) return;
   try {
     await callApi(`/api/accounts/${accId}/close-position`, 'POST', { position_id: posId, symbol });
-    toast('پوزیشن بسته شد'); refresh();
-  } catch (e) { toast('خطا: ' + e.message, true); }
+    toast(t('dash.position_closed')); refresh();
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 // ---------- نمادها ----------
@@ -390,8 +388,8 @@ function openSymbolModal(accId, symName) {
   const acc = accountsCache.find(a => a.id === accId);
   const sym = symName && acc ? (acc.symbols || []).find(s => s.symbol === symName) : null;
 
-  document.getElementById('symbolModalTitle').textContent = sym ? ('ویرایش نماد: ' + sym.symbol) : 'افزودن نماد';
-  document.getElementById('symbolSaveBtn').textContent = sym ? 'ذخیره تغییرات' : 'افزودن';
+  document.getElementById('symbolModalTitle').textContent = sym ? t('dash.symbol_edit', {name: sym.symbol}) : t('dash.symbol_add');
+  document.getElementById('symbolSaveBtn').textContent = sym ? t('dash.save_changes') : t('common.add');
   g('s_symbol_search').value = '';
   g('s_symbol_search').disabled = !!sym;
   g('s_symbol').disabled = !!sym;
@@ -424,37 +422,37 @@ async function saveSymbol() {
     qty_step: g('s_qty_step').value ? parseFloat(g('s_qty_step').value) : null,
     max_qty: g('s_max_qty').value ? parseFloat(g('s_max_qty').value) : null,
   };
-  if (!payload.symbol) { toast('نماد را وارد کنید', true); return; }
+  if (!payload.symbol) { toast(t('dash.symbol_required'), true); return; }
   try {
     if (editing) {
       await callApi(`/api/accounts/${symbolAccountId}/symbols/${encodeURIComponent(editingSymbolName)}`, 'PUT', payload);
-      toast('نماد ویرایش شد');
+      toast(t('dash.symbol_edited'));
     } else {
       await callApi(`/api/accounts/${symbolAccountId}/symbols`, 'POST', payload);
-      toast('نماد اضافه شد');
+      toast(t('dash.symbol_added'));
     }
     closeModal('symbolModalBg');
     editingSymbolName = null;
     refresh();
-  } catch (e) { toast('خطا: ' + e.message, true); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function deleteSymbol(accId, symbol) {
-  if (!askConfirm(`نماد ${symbol} حذف شود؟`)) return;
-  try { await callApi(`/api/accounts/${accId}/symbols/${encodeURIComponent(symbol)}`, 'DELETE'); toast('نماد حذف شد'); refresh(); }
-  catch (e) { toast('خطا: ' + e.message, true); }
+  if (!askConfirm(t('dash.symbol_delete_confirm', {symbol: symbol}))) return;
+  try { await callApi(`/api/accounts/${accId}/symbols/${encodeURIComponent(symbol)}`, 'DELETE'); toast(t('dash.symbol_deleted')); refresh(); }
+  catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function toggleSymbol(accId, symbol, enabled) {
   try { await callApi(`/api/accounts/${accId}/symbols/${encodeURIComponent(symbol)}/toggle?enabled=${enabled}`, 'POST'); refresh(); }
-  catch (e) { toast('خطا: ' + e.message, true); }
+  catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 // ---------- اسپارک‌لاین ----------
 function sparklineSvg(spark, signal, uid) {
   const color = signal === 'buy' ? '#2ebd85' : (signal === 'sell' ? '#f6465d' : '#919094');
   if (!spark || spark.length < 2) {
-    return `<div class="h-12 flex items-center justify-center text-[10px] text-on-surface-variant">در انتظار داده…</div>`;
+    return `<div class="h-12 flex items-center justify-center text-[10px] text-on-surface-variant">${t('dash.waiting_data')}</div>`;
   }
   const min = Math.min(...spark), max = Math.max(...spark);
   const span = (max - min) || 1;
@@ -478,16 +476,16 @@ function sparklineSvg(spark, signal, uid) {
 
 function signalBadge(sig) {
   const s = sig ? sig.signal : null;
-  if (s === 'buy') return '<span class="px-2 py-0.5 rounded text-[10px] bg-buy/20 text-buy">خرید</span>';
-  if (s === 'sell') return '<span class="px-2 py-0.5 rounded text-[10px] bg-sell/20 text-sell">فروش</span>';
-  return '<span class="px-2 py-0.5 rounded text-[10px] bg-outline-variant/30 text-on-surface-variant">بدون سیگنال</span>';
+  if (s === 'buy') return `<span class="px-2 py-0.5 rounded text-[10px] bg-buy/20 text-buy">${t('dash.signal_buy')}</span>`;
+  if (s === 'sell') return `<span class="px-2 py-0.5 rounded text-[10px] bg-sell/20 text-sell">${t('dash.signal_sell')}</span>`;
+  return `<span class="px-2 py-0.5 rounded text-[10px] bg-outline-variant/30 text-on-surface-variant">${t('dash.signal_none')}</span>`;
 }
 
 // ---------- رندر ----------
 function renderSymbolCard(acc, sym, sig, uid) {
   const stLabel = (strategiesCache.find(x => x.key === sym.strategy) || {}).label || sym.strategy;
   const rows = [];
-  if (sig && sig.close !== undefined) rows.push(['قیمت', fmtNum(sig.close)]);
+  if (sig && sig.close !== undefined) rows.push([t('dash.price'), fmtNum(sig.close)]);
   const extras = Object.entries((sig && sig.extra) || {}).slice(0, 6);
   for (const [k, v] of extras) rows.push([EXTRA_LABELS[k] || k, fmtNum(v)]);
   const rowsHtml = rows.map(([k, v]) => `
@@ -506,17 +504,17 @@ function renderSymbolCard(acc, sym, sig, uid) {
     </div>
     <div class="p-4 flex-grow">
       <p class="text-[10px] text-center text-primary/60 mb-3 leading-tight">${stLabel}</p>
-      <div class="space-y-1.5">${rowsHtml || '<div class="text-center text-[11px] text-on-surface-variant py-3">ربات را شروع کنید تا داده نمایش داده شود</div>'}</div>
+      <div class="space-y-1.5">${rowsHtml || `<div class="text-center text-[11px] text-on-surface-variant py-3">${t('dash.start_bot_for_data')}</div>`}</div>
       <div class="mt-3">${sparklineSvg(sig ? sig.spark : null, sig ? sig.signal : null, uid)}</div>
     </div>
     <div class="p-3 bg-surface-container-low/50 flex gap-2">
       <button class="flex-1 py-1.5 rounded-lg border border-outline-variant/50 text-[11px] hover:bg-surface-variant transition-colors flex items-center justify-center gap-1" onclick="openSymbolModal('${acc.id}','${sym.symbol}')">
-        <span class="material-symbols-outlined text-[14px]">edit</span> ویرایش
+        <span class="material-symbols-outlined text-[14px]">edit</span> ${t('common.edit')}
       </button>
-      <button class="py-1.5 px-2 rounded-lg border border-outline-variant/50 text-[11px] hover:bg-surface-variant transition-colors" onclick="toggleSymbol('${acc.id}','${sym.symbol}',${!sym.enabled})" title="${sym.enabled ? 'غیرفعال کردن' : 'فعال کردن'}">
+      <button class="py-1.5 px-2 rounded-lg border border-outline-variant/50 text-[11px] hover:bg-surface-variant transition-colors" onclick="toggleSymbol('${acc.id}','${sym.symbol}',${!sym.enabled})" title="${sym.enabled ? t('common.disable') : t('common.enable')}">
         <span class="material-symbols-outlined text-[14px]">${sym.enabled ? 'toggle_on' : 'toggle_off'}</span>
       </button>
-      <button class="py-1.5 px-2 rounded-lg border border-sell/30 text-sell text-[11px] hover:bg-sell/10 transition-colors" onclick="deleteSymbol('${acc.id}','${sym.symbol}')" title="حذف">
+      <button class="py-1.5 px-2 rounded-lg border border-sell/30 text-sell text-[11px] hover:bg-sell/10 transition-colors" onclick="deleteSymbol('${acc.id}','${sym.symbol}')" title="${t('common.delete')}">
         <span class="material-symbols-outlined text-[14px]">delete</span>
       </button>
     </div>
@@ -539,7 +537,7 @@ function renderTabs() {
       <span class="text-[10px] px-1.5 py-0.5 rounded ${a.trading_mode === 'live' ? 'bg-sell/20 text-sell' : 'bg-info-blue/20 text-secondary-fixed-dim'}">${a.trading_mode === 'live' ? 'LIVE' : 'PAPER'}</span>
     </button>`;
   }).join('') + `<button onclick="openAccountModal()" class="flex items-center gap-1 px-4 py-2 rounded-lg border border-dashed border-outline-variant/50 text-sm text-on-surface-variant hover:bg-primary/5 transition-all">
-    <span class="material-symbols-outlined text-base">add</span> حساب جدید
+    <span class="material-symbols-outlined text-base">add</span> ${t('dash.account_new')}
   </button>`;
 }
 
@@ -548,8 +546,8 @@ function renderAccountBar() {
   const acc = accountsCache.find(a => a.id === selectedAccountId);
   if (!acc) {
     box.innerHTML = `<div class="glass-card rounded-2xl p-8 text-center text-on-surface-variant">
-      هنوز حسابی تعریف نشده است.<br><br>
-      <button class="btn-primary-of" onclick="openAccountModal()">+ افزودن اولین حساب</button></div>`;
+      ${t('dash.no_accounts')}<br><br>
+      <button class="btn-primary-of" onclick="openAccountModal()">${t('dash.add_first_account')}</button></div>`;
     return;
   }
   const st = statusCache[acc.id] || {};
@@ -564,40 +562,40 @@ function renderAccountBar() {
   box.innerHTML = `<div class="glass-card rounded-2xl p-6 flex flex-col lg:flex-row-reverse justify-between items-start lg:items-center gap-6">
     <div class="flex flex-wrap items-center gap-6 lg:gap-8">
       <div class="text-right">
-        <p class="text-on-surface-variant text-xs mb-1">نام بات</p>
+        <p class="text-on-surface-variant text-xs mb-1">${t('dash.bot_name')}</p>
         <h2 class="font-headline text-xl font-bold">${acc.name}</h2>
       </div>
       <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
       <div class="text-right">
-        <p class="text-on-surface-variant text-xs mb-1">مبلغ اولیه (USDT)</p>
+        <p class="text-on-surface-variant text-xs mb-1">${t('dash.initial_amount')}</p>
         <p class="mono-num text-sm" dir="ltr">${stats ? fmt(stats.initial_balance) : '—'}</p>
       </div>
       <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
       <div class="text-right">
-        <p class="text-on-surface-variant text-xs mb-1">اکوییتی (USDT)</p>
+        <p class="text-on-surface-variant text-xs mb-1">${t('dash.equity')}</p>
         <p class="mono-num text-primary text-xl" dir="ltr">${info ? fmt(info.equity) : '—'}</p>
       </div>
       <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
       <div class="text-right">
-        <p class="text-on-surface-variant text-xs mb-1">سود/زیان روزانه</p>
+        <p class="text-on-surface-variant text-xs mb-1">${t('dash.daily_pnl')}</p>
         <p class="mono-num text-sm ${dPnlCls}" dir="ltr">${dPnl === null ? '—' : (dPnl >= 0 ? '+' : '') + fmt(dPnl)}</p>
       </div>
       <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
       <div class="text-right">
-        <p class="text-on-surface-variant text-xs mb-1">درصد سود کلی</p>
-        <p class="mono-num text-sm ${oPctCls}" dir="ltr">${oPct === null ? '—' : (oPct >= 0 ? '+' : '') + fmt(oPct) + '٪'}</p>
+        <p class="text-on-surface-variant text-xs mb-1">${t('dash.overall_pct')}</p>
+        <p class="mono-num text-sm ${oPctCls}" dir="ltr">${oPct === null ? '—' : (oPct >= 0 ? '+' : '') + fmt(oPct) + t('common.pct')}</p>
       </div>
       <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
       <div class="text-right">
-        <p class="text-on-surface-variant text-xs mb-1">موجودی قابل برداشت / پوزیشن</p>
+        <p class="text-on-surface-variant text-xs mb-1">${t('dash.free_position')}</p>
         <p class="mono-num text-sm" dir="ltr">${info ? fmt(info.free_margin) : '—'} <span class="text-on-surface-variant">|</span> ${posCount}/${acc.max_open_positions}</p>
       </div>
       <div class="h-10 w-px bg-outline-variant/30 hidden sm:block"></div>
       <div class="text-right">
-        <p class="text-on-surface-variant text-xs mb-1">وضعیت</p>
+        <p class="text-on-surface-variant text-xs mb-1">${t('common.status')}</p>
         <div class="flex items-center gap-2">
           <span class="w-2 h-2 rounded-full ${running ? 'bg-buy pulse-active' : 'bg-outline'}"></span>
-          <span class="${running ? 'text-buy' : 'text-on-surface-variant'} font-bold text-sm">${running ? 'فعال' : 'متوقف'}</span>
+          <span class="${running ? 'text-buy' : 'text-on-surface-variant'} font-bold text-sm">${running ? t('dash.running') : t('dash.stopped')}</span>
           <span class="text-[10px] px-1.5 py-0.5 rounded ${acc.trading_mode === 'live' ? 'bg-sell/20 text-sell' : 'bg-info-blue/20 text-secondary-fixed-dim'}">${acc.trading_mode === 'live' ? 'LIVE' : 'PAPER'}</span>
         </div>
       </div>
@@ -605,22 +603,22 @@ function renderAccountBar() {
     </div>
     <div class="flex flex-wrap gap-2">
       <button class="flex items-center gap-1 px-3 py-2 rounded-lg border border-outline-variant/50 hover:bg-surface-variant transition-colors text-sm" onclick="duplicateAccount('${acc.id}','${acc.name}')">
-        <span class="material-symbols-outlined text-sm">content_copy</span> کپی از بات
+        <span class="material-symbols-outlined text-sm">content_copy</span> ${t('dash.copy_from_bot')}
       </button>
       <button class="flex items-center gap-1 px-3 py-2 rounded-lg border border-outline-variant/50 hover:bg-surface-variant transition-colors text-sm" onclick='openAccountModal(${JSON.stringify(acc).replace(/'/g, "&#39;")})'>
-        <span class="material-symbols-outlined text-sm">edit</span> ویرایش
+        <span class="material-symbols-outlined text-sm">edit</span> ${t('common.edit')}
       </button>
       <button class="flex items-center gap-1 px-3 py-2 rounded-lg border border-outline-variant/50 hover:bg-surface-variant transition-colors text-sm" onclick="testConnection('${acc.id}')">
-        <span class="material-symbols-outlined text-sm">api</span> تست اتصال
+        <span class="material-symbols-outlined text-sm">api</span> ${t('dash.test_connection')}
       </button>
       ${running
-        ? `<button class="flex items-center gap-1 px-3 py-2 rounded-lg bg-sell/20 text-sell border border-sell/30 text-sm" onclick="stopAccount('${acc.id}')"><span class="material-symbols-outlined text-sm">stop</span> توقف</button>`
-        : `<button class="flex items-center gap-1 px-3 py-2 rounded-lg bg-buy/20 text-buy border border-buy/30 text-sm" onclick="startAccount('${acc.id}')"><span class="material-symbols-outlined text-sm">play_arrow</span> شروع</button>`}
+        ? `<button class="flex items-center gap-1 px-3 py-2 rounded-lg bg-sell/20 text-sell border border-sell/30 text-sm" onclick="stopAccount('${acc.id}')"><span class="material-symbols-outlined text-sm">stop</span> ${t('dash.stop')}</button>`
+        : `<button class="flex items-center gap-1 px-3 py-2 rounded-lg bg-buy/20 text-buy border border-buy/30 text-sm" onclick="startAccount('${acc.id}')"><span class="material-symbols-outlined text-sm">play_arrow</span> ${t('dash.start')}</button>`}
       <button class="flex items-center gap-1 px-3 py-2 rounded-lg border border-gold/40 text-gold hover:bg-gold/10 transition-colors text-sm" onclick="switchMode('${acc.id}','${acc.trading_mode}')">
-        <span class="material-symbols-outlined text-sm">swap_horiz</span> ${acc.trading_mode === 'paper' ? 'به LIVE' : 'به paper'}
+        <span class="material-symbols-outlined text-sm">swap_horiz</span> ${acc.trading_mode === 'paper' ? t('dash.to_live') : t('dash.to_paper')}
       </button>
       <a href="/reports?acc=${acc.id}" class="flex items-center gap-1 px-3 py-2 rounded-lg border border-outline-variant/50 hover:bg-surface-variant transition-colors text-sm">
-        <span class="material-symbols-outlined text-sm">monitoring</span> گزارش
+        <span class="material-symbols-outlined text-sm">monitoring</span> ${t('dash.report')}
       </a>
       <button class="flex items-center gap-1 px-3 py-2 rounded-lg border border-sell/30 text-sell hover:bg-sell/10 transition-colors text-sm" onclick="deleteAccount('${acc.id}','${acc.name}')">
         <span class="material-symbols-outlined text-sm">delete</span>
@@ -628,7 +626,7 @@ function renderAccountBar() {
     </div>
   </div>
   <div class="text-on-surface-variant text-[11px] mono-num mt-2 px-1">
-    ریسک: ${acc.risk_percent}٪ · اهرم: ${acc.default_leverage}x · ضریب SL/TP: ${acc.sl_tp_atr_mult ?? 3}×ATR · سقف ضرر روزانه: ${acc.max_daily_loss_percent}٪ · وبهوک: ${acc.accept_webhook ? 'فعال' : 'غیرفعال'}
+    ${t('dash.account_summary', {risk: acc.risk_percent, lev: acc.default_leverage, atr: acc.sl_tp_atr_mult ?? 3, dl: acc.max_daily_loss_percent, wh: acc.accept_webhook ? t('common.active') : t('common.inactive')})}
   </div>`;
 }
 
@@ -643,7 +641,7 @@ function renderSymbols() {
     <div class="w-12 h-12 rounded-full bg-surface-variant flex items-center justify-center group-hover:scale-110 transition-transform mb-3">
       <span class="material-symbols-outlined text-primary">add_circle</span>
     </div>
-    <span class="text-on-surface-variant font-bold text-sm">افزودن جفت ارز</span>
+    <span class="text-on-surface-variant font-bold text-sm">${t('dash.add_pair')}</span>
   </div>`;
   grid.innerHTML = cards + addCard;
 }
@@ -667,15 +665,15 @@ function renderPositions() {
       <td class="num text-sell">${p.stop_loss != null ? fmtNum(p.stop_loss) : '—'}</td>
       <td class="num text-buy">${p.take_profit != null ? fmtNum(p.take_profit) : '—'}</td>
       <td class="num ${cls} font-bold">${fmt(p.profit)}</td>
-      <td><button class="btn-ghost !py-1 !px-3 text-[11px] !border-sell/40 !text-sell" onclick="closePosition('${acc.id}','${p.id}','${p.symbol}')">بستن</button></td>
+      <td><button class="btn-ghost !py-1 !px-3 text-[11px] !border-sell/40 !text-sell" onclick="closePosition('${acc.id}','${p.id}','${p.symbol}')">${t('dash.close')}</button></td>
     </tr>`;
   }).join('');
   box.innerHTML = `<div class="glass-card rounded-2xl overflow-hidden mb-6">
     <div class="px-5 py-4 border-b border-outline-variant/20 bg-surface-container-low">
-      <h3 class="font-headline font-bold flex items-center gap-2"><span class="material-symbols-outlined text-primary">candlestick_chart</span> پوزیشن‌های باز</h3>
+      <h3 class="font-headline font-bold flex items-center gap-2"><span class="material-symbols-outlined text-primary">candlestick_chart</span> ${t('dash.open_positions')}</h3>
     </div>
     <div class="overflow-x-auto"><table class="of-table">
-      <thead><tr><th>نماد</th><th>جهت</th><th>حجم</th><th>ورود</th><th>قیمت فعلی</th><th>حد ضرر</th><th>حد سود</th><th>سود/زیان</th><th></th></tr></thead>
+      <thead><tr><th>${t('common.symbol')}</th><th>${t('dash.th_side')}</th><th>${t('dash.th_qty')}</th><th>${t('dash.th_entry')}</th><th>${t('dash.th_current')}</th><th>${t('dash.th_sl')}</th><th>${t('dash.th_tp')}</th><th>${t('dash.th_pnl')}</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
   </div>`;
@@ -693,8 +691,8 @@ function renderLogs() {
     return `<div class="${c} text-[11px] mono-num py-0.5">[${(l.time || '').slice(11, 19)}] ${l.message}</div>`;
   }).join('');
   box.innerHTML = `<div class="glass-card rounded-2xl p-5">
-    <h3 class="font-headline font-bold mb-3 flex items-center gap-2"><span class="material-symbols-outlined text-primary">receipt_long</span> آخرین رویدادها
-      <a href="/logs" class="text-[11px] text-primary/70 font-normal mr-auto">مشاهده همه</a></h3>
+    <h3 class="font-headline font-bold mb-3 flex items-center gap-2"><span class="material-symbols-outlined text-primary">receipt_long</span> ${t('dash.recent_events')}
+      <a href="/logs" class="text-[11px] text-primary/70 font-normal ms-auto">${t('dash.view_all')}</a></h3>
     <div class="bg-primary-container rounded-lg p-3 max-h-44 overflow-y-auto">${logRows}</div>
   </div>`;
 }
@@ -705,10 +703,10 @@ function renderToolbar() {
   if (!acc) { box.innerHTML = ''; return; }
   const count = (acc.symbols || []).length;
   box.innerHTML = `<h3 class="font-headline font-bold flex items-center gap-2">
-      <span class="material-symbols-outlined text-primary">currency_bitcoin</span> نمادها
+      <span class="material-symbols-outlined text-primary">currency_bitcoin</span> ${t('dash.symbols')}
       <span class="text-xs text-on-surface-variant font-normal">(${count})</span></h3>
     ${count ? `<button class="btn-ghost !py-2 flex items-center gap-1 text-xs" onclick="openBulkModal()">
-      <span class="material-symbols-outlined text-base">checklist</span> اعمال دسته‌جمعی
+      <span class="material-symbols-outlined text-base">checklist</span> ${t('dash.bulk_edit')}
     </button>` : ''}`;
 }
 
@@ -725,7 +723,7 @@ function renderAll() {
 function openBulkModal() {
   const acc = accountsCache.find(a => a.id === selectedAccountId);
   if (!acc) return;
-  document.getElementById('bulkCount').textContent = `هر ${(acc.symbols || []).length}`;
+  document.getElementById('bulkCount').textContent = t('dash.bulk_count', {n: (acc.symbols || []).length});
   document.getElementById('b_strategy').innerHTML =
     strategiesCache.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
   renderBulkStrategyParams();
@@ -764,15 +762,15 @@ async function applyBulk() {
     payload.max_qty = g('b_max_qty').value ? parseFloat(g('b_max_qty').value) : null;
   }
   if (g('b_enabled').value !== '') payload.enabled = g('b_enabled').value === 'true';
-  if (!Object.keys(payload).length) { toast('حداقل یک بخش را تیک بزنید', true); return; }
+  if (!Object.keys(payload).length) { toast(t('dash.bulk_pick_one'), true); return; }
   const n = (acc.symbols || []).length;
-  if (!askConfirm(`تنظیمات انتخاب‌شده روی هر ${n} نماد این بات اعمال شود؟`)) return;
+  if (!askConfirm(t('dash.bulk_confirm', {n: n}))) return;
   try {
     const r = await callApi(`/api/accounts/${acc.id}/symbols/bulk`, 'POST', payload);
     closeModal('bulkModalBg');
-    toast(`${r.updated} نماد به‌روزرسانی شد`);
+    toast(t('dash.bulk_done', {n: r.updated}));
     refresh();
-  } catch (e) { toast('خطا: ' + e.message, true); }
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function refresh() {
@@ -786,7 +784,7 @@ async function refresh() {
     renderAll();
   } catch (e) {
     document.getElementById('accountBar').innerHTML =
-      `<div class="glass-card rounded-2xl p-8 text-center text-sell">خطا در دریافت وضعیت: ${e.message}</div>`;
+      `<div class="glass-card rounded-2xl p-8 text-center text-sell">${t('dash.status_error', {msg: e.message})}</div>`;
   }
 }
 
@@ -800,20 +798,20 @@ async function loadTokenStatus() {
     const exp = tokenStatus.token ? new Date(tokenStatus.token.expires_at).toLocaleDateString('fa-IR') : '';
     box.innerHTML = `<div class="glass-card rounded-xl px-4 py-2.5 flex items-center gap-2 text-xs border-buy/30">
       <span class="material-symbols-outlined text-buy text-base">verified</span>
-      <span class="text-on-surface-variant">توکن معاملات واقعی فعال است${exp ? ' — تا ' + exp : ''}</span>
+      <span class="text-on-surface-variant">${t('dash.token_active', {until: exp ? t('dash.token_until', {date: exp}) : ''})}</span>
     </div>`;
   } else {
     box.innerHTML = `<div class="glass-card rounded-xl px-4 py-2.5 flex items-center justify-between flex-wrap gap-2 text-xs border-gold/30">
       <div class="flex items-center gap-2">
         <span class="material-symbols-outlined text-gold text-base">lock</span>
-        <span class="text-on-surface-variant">حساب شما فقط در حالت کاغذی (paper) قابل استفاده است. برای معامله‌ی واقعی به توکن فعال‌سازی نیاز دارید.</span>
+        <span class="text-on-surface-variant">${t('dash.token_missing')}</span>
       </div>
-      <a href="/support" class="btn-ghost !py-1.5 !px-3 text-[11px]">درخواست توکن از پشتیبانی</a>
+      <a href="/billing" class="btn-ghost !py-1.5 !px-3 text-[11px]">${t('dash.request_token')}</a>
     </div>`;
   }
 }
 
-loadStrategies().then(refresh).then(loadTokenStatus).catch(e => toast('خطا: ' + e.message, true));
+loadStrategies().then(refresh).then(loadTokenStatus).catch(e => toast(t('common.error_prefix') + e.message, true));
 setInterval(refresh, 5000);
 </script>
 {% endblock %}
