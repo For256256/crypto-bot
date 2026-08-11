@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta content="width=device-width, initial-scale=1.0" name="viewport">
+<link rel="icon" type="image/png" href="/static/logo-icon.png?v=3">
 <title>{% block title %}CryptoPulse{% endblock %}</title>
 <script>
 (function() {
@@ -183,12 +184,9 @@ tailwind.config = {
 
 <!-- سایدبار راست -->
 <aside class="fixed right-0 top-0 h-full z-40 flex flex-col py-6 bg-surface-container border-l border-outline-variant/30 w-60 hidden md:flex">
-  <div class="px-6 mb-8 flex flex-col items-center">
-    <div class="w-14 h-14 mb-3 flex items-center justify-center">
-      <img src="/static/logo-icon.png?v=2" alt="CryptoPulse" class="w-full h-full object-contain">
-    </div>
-    <h1 class="font-headline text-lg font-bold text-on-surface">CryptoPulse</h1>
-    <p class="text-xs text-buy mt-1" id="connStatus"><span class="pulse-active">●</span> وضعیت: متصل</p>
+  <div class="px-4 mb-8 flex flex-col items-center">
+    <img src="/static/logo-full.png?v=3" alt="CryptoPulse" class="w-full max-w-[190px] h-auto">
+    <p class="text-xs text-buy mt-2" id="connStatus"><span class="pulse-active">●</span> وضعیت: متصل</p>
   </div>
   <nav class="flex-grow flex flex-col gap-1.5">
     {% set nav = [
@@ -227,22 +225,23 @@ tailwind.config = {
 <!-- تاپ‌بار -->
 <header class="fixed top-0 right-0 md:right-60 left-0 z-30 bg-surface-container/80 backdrop-blur-xl border-b border-outline-variant/30">
   <div class="flex items-center justify-between px-4 md:px-8 py-3">
-    <div class="flex items-center gap-4">
-      <span class="font-headline text-xl font-black tracking-tight md:hidden">CryptoPulse</span>
-      <span class="hidden md:inline font-headline text-xl font-black tracking-tight">CryptoPulse <span class="text-[10px] font-normal text-on-surface-variant tracking-widest">FUTURES TRADING</span></span>
+    <div class="flex items-center gap-4 min-w-0">
+      <img src="/static/logo-full.png?v=3" alt="CryptoPulse" class="h-8 w-auto md:hidden shrink-0">
+      <span class="hidden md:inline text-[10px] font-normal text-on-surface-variant tracking-widest">FUTURES TRADING</span>
     </div>
-    <div class="flex items-center gap-2 md:gap-3">
-      <button onclick="startAll()" class="btn-buy flex items-center gap-1"><span class="material-symbols-outlined text-base">play_arrow</span><span class="hidden sm:inline">شروع همه</span></button>
-      <button onclick="stopAll()" class="btn-sell flex items-center gap-1"><span class="material-symbols-outlined text-base">stop</span><span class="hidden sm:inline">توقف همه</span></button>
-      <button onclick="cycleTheme()" id="themeBtn" title="تغییر تم" class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center hover:bg-surface-bright transition-colors">
+    <div class="flex items-center gap-1.5 sm:gap-2 md:gap-3 shrink-0">
+      <button onclick="startAll()" class="btn-buy flex items-center gap-1 !px-3 sm:!px-6"><span class="material-symbols-outlined text-base">play_arrow</span><span class="hidden sm:inline">شروع همه</span></button>
+      <button onclick="stopAll()" class="btn-sell flex items-center gap-1 !px-3 sm:!px-6"><span class="material-symbols-outlined text-base">stop</span><span class="hidden sm:inline">توقف همه</span></button>
+      <button onclick="cycleTheme()" id="themeBtn" title="تغییر تم" class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center hover:bg-surface-bright transition-colors shrink-0">
         <span class="material-symbols-outlined text-on-surface-variant text-xl" id="themeIcon">brightness_auto</span>
       </button>
-      <a href="/settings" class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center hover:bg-surface-bright transition-colors">
+      {# روی موبایل «تنظیمات» از نوار پایین در دسترس است، پس آیکون تکراری بالا پنهان می‌شود تا لوگو جا بگیرد #}
+      <a href="/settings" class="w-9 h-9 rounded-full bg-surface-container-high hidden md:flex items-center justify-center hover:bg-surface-bright transition-colors shrink-0">
         <span class="material-symbols-outlined text-on-surface-variant text-xl">settings</span>
       </a>
       {% if user %}
       <span class="hidden sm:inline text-xs text-on-surface-variant mono-num">{{ user.username }}</span>
-      <button onclick="logoutUser()" title="خروج" class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center hover:bg-sell/20 transition-colors">
+      <button onclick="logoutUser()" title="خروج" class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center hover:bg-sell/20 transition-colors shrink-0">
         <span class="material-symbols-outlined text-on-surface-variant text-xl">logout</span>
       </button>
       {% endif %}
