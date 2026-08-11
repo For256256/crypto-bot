@@ -25,6 +25,7 @@ LANGUAGES = {
     "en": {"native_name": "English",  "english_name": "English", "dir": "ltr", "flag": "🇬🇧", "date_locale": "en-US"},
     "ru": {"native_name": "Русский",  "english_name": "Russian", "dir": "ltr", "flag": "🇷🇺", "date_locale": "ru-RU"},
     "zh": {"native_name": "中文",      "english_name": "Chinese", "dir": "ltr", "flag": "🇨🇳", "date_locale": "zh-CN"},
+    "tr": {"native_name": "Türkçe",   "english_name": "Turkish", "dir": "ltr", "flag": "🇹🇷", "date_locale": "tr-TR"},
 }
 
 _cache: dict[str, dict] = {}
