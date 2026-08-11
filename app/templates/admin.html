@@ -9,6 +9,7 @@
 
 <div class="flex gap-2 mb-6 border-b border-outline-variant/20 overflow-x-auto">
   <button class="tab-btn" data-tab="users" onclick="switchTab('users')">{{ t("adm.tab_users") }}</button>
+  <button class="tab-btn" data-tab="useraccounts" onclick="switchTab('useraccounts')">{{ t("adm.tab_user_accounts") }}</button>
   <button class="tab-btn" data-tab="tickets" onclick="switchTab('tickets')">{{ t("adm.tab_tickets") }}</button>
   <button class="tab-btn" data-tab="presets" onclick="switchTab('presets')">{{ t("adm.tab_presets") }}</button>
 </div>
@@ -23,6 +24,12 @@
       <tbody id="usersTbody"></tbody>
     </table></div>
   </div>
+</div>
+
+<!-- تب حساب‌های کاربران -->
+<div id="tab-useraccounts" class="tab-pane hidden">
+  <p class="text-[11px] text-on-surface-variant mb-4">{{ t("adm.own_accounts_note") }}</p>
+  <div class="space-y-4" id="userAccountsList"></div>
 </div>
 
 <!-- تب تیکت‌ها -->
@@ -297,11 +304,57 @@ async function deletePreset(id) {
   } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
+// ---------- حساب‌های کاربران ----------
+const MODE_PILL = acc => acc.trading_mode === 'live'
+  ? `<span class="text-[10px] px-2 py-0.5 rounded bg-sell/20 text-sell">${t('common.mode_live')}</span>`
+  : `<span class="text-[10px] px-2 py-0.5 rounded bg-info-blue/20 text-secondary-fixed-dim">${t('common.mode_paper')}</span>`;
+
+async function loadUserAccounts() {
+  const groups = await callApi('/api/admin/user-accounts');
+  const box = document.getElementById('userAccountsList');
+  if (!groups.length) {
+    box.innerHTML = `<div class="glass-card rounded-xl p-8 text-center text-on-surface-variant text-sm">${t('adm.no_user_accounts')}</div>`;
+    return;
+  }
+  box.innerHTML = groups.map(g => {
+    const rows = g.accounts.map(a => `
+      <tr>
+        <td class="font-bold">${a.name}</td>
+        <td>${MODE_PILL(a)}</td>
+        <td>${a.running ? `<span class="text-buy text-xs">${t('common.active')}</span>` : `<span class="text-on-surface-variant text-xs">${t('dash.stopped')}</span>`}</td>
+        <td class="num">${a.symbols_count}</td>
+        <td class="num">${a.open_positions}</td>
+        <td class="num">${a.equity == null ? '—' : niceNum(a.equity)}</td>
+        <td class="num ${a.overall_profit_pct == null ? '' : (a.overall_profit_pct >= 0 ? 'text-buy' : 'text-sell')}">
+          ${a.overall_profit_pct == null ? '—' : (a.overall_profit_pct >= 0 ? '+' : '') + fmt(a.overall_profit_pct) + t('common.pct')}</td>
+      </tr>`).join('');
+    return `<div class="glass-card rounded-xl p-4">
+      <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary text-lg">person</span>
+          <span class="font-bold text-sm">${g.username}</span>
+          ${g.email ? `<span class="text-[10px] text-on-surface-variant mono-num" dir="ltr">${g.email}</span>` : ''}
+          ${g.enabled ? '' : `<span class="text-[10px] px-2 py-0.5 rounded bg-sell/15 text-sell">${t('common.inactive')}</span>`}
+          ${g.has_active_token ? `<span class="text-[10px] px-2 py-0.5 rounded bg-buy/15 text-buy">${t('adm.th_token')}</span>` : ''}
+        </div>
+        <span class="text-[11px] text-on-surface-variant">${t('adm.accounts_of', {n: g.accounts.length})}</span>
+      </div>
+      <div class="overflow-x-auto"><table class="of-table">
+        <thead><tr>
+          <th>${t('dash.bot_name')}</th><th>${t('common.trading_mode')}</th><th>${t('common.status')}</th>
+          <th>${t('adm.th_symbols')}</th><th>${t('adm.th_open')}</th><th>${t('adm.th_equity')}</th><th>${t('adm.th_return')}</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+    </div>`;
+  }).join('');
+}
+
 async function init() {
   switchTab('users');
   const st = await callApi('/api/strategies');
   strategiesCache = st;
-  await Promise.all([loadUsers(), loadAdminTickets(), loadPresets()]);
+  await Promise.all([loadUsers(), loadUserAccounts(), loadAdminTickets(), loadPresets()]);
 }
 init().catch(e => toast(t('common.error_prefix') + e.message, true));
 </script>
