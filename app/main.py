@@ -476,6 +476,48 @@ class ResetPasswordIn(BaseModel):
     new_password: str = ""
 
 
+@app.get("/api/admin/user-accounts")
+async def admin_user_accounts(user: dict = Depends(auth.require_admin)):
+    """حساب‌های ساخته‌شده توسط کاربران، تفکیک‌شده بر اساس کاربر.
+
+    حساب‌های خودِ ادمینِ درخواست‌دهنده عمداً حذف می‌شوند — آن‌ها در پیشخوان
+    خودش دیده می‌شوند و نباید با حساب‌های کاربران قاطی شوند.
+    """
+    status_map = (await bot_manager.get_status())["accounts"]
+    by_owner: dict[str, dict] = {}
+    for acc in config_store.list_accounts():
+        owner_id = acc.get("owner_id")
+        if not owner_id or owner_id == user["id"]:
+            continue
+        st = status_map.get(acc["id"]) or {}
+        stats = st.get("account_stats") or {}
+        group = by_owner.setdefault(owner_id, {"accounts": []})
+        group["accounts"].append({
+            "id": acc["id"],
+            "name": acc.get("name", ""),
+            "exchange": acc.get("exchange", ""),
+            "trading_mode": acc.get("trading_mode", "paper"),
+            "enabled": acc.get("enabled", True),
+            "symbols_count": len(acc.get("symbols") or []),
+            "running": bool(st.get("running")),
+            "equity": stats.get("current_equity"),
+            "overall_profit_pct": stats.get("overall_profit_pct"),
+            "open_positions": len(st.get("positions") or []),
+        })
+    out = []
+    for owner_id, group in by_owner.items():
+        owner = users.get_user(owner_id)
+        out.append({
+            "user_id": owner_id,
+            "username": owner["username"] if owner else owner_id,
+            "email": (owner or {}).get("email"),
+            "enabled": (owner or {}).get("enabled", True),
+            "has_active_token": tokens.has_active_token(owner_id),
+            "accounts": sorted(group["accounts"], key=lambda a: a["name"]),
+        })
+    return sorted(out, key=lambda g: g["username"].lower())
+
+
 @app.get("/api/admin/users")
 async def admin_list_users(_: dict = Depends(auth.require_admin)):
     all_accounts = config_store.list_accounts()
@@ -654,7 +696,9 @@ async def put_notification_prefs(payload: NotifyPrefIn, user: dict = Depends(aut
 # ---------- وضعیت کلی ----------
 @app.get("/api/status")
 async def api_status(user: dict = Depends(auth.require_user)):
-    return await bot_manager.get_status(None if user["role"] == "admin" else user["id"])
+    # ادمین هم فقط حساب‌های خودش را می‌بیند؛ حساب‌های کاربران در پنل مدیریت و
+    # تفکیک‌شده بر اساس کاربر نمایش داده می‌شوند.
+    return await bot_manager.get_status(user["id"])
 
 
 @app.get("/api/health")
@@ -836,7 +880,9 @@ def _assert_can_go_live(user: dict):
 
 @app.get("/api/accounts")
 async def get_accounts(user: dict = Depends(auth.require_user)):
-    return config_store.list_accounts(None if user["role"] == "admin" else user["id"])
+    # فهرست حساب‌های «خودِ» کاربر — برای ادمین هم همین‌طور. حساب‌های سایر کاربران
+    # فقط از مسیر /api/admin/user-accounts و تفکیک‌شده در دسترس‌اند.
+    return config_store.list_accounts(user["id"])
 
 
 @app.post("/api/accounts")
@@ -944,16 +990,14 @@ async def stop_account(account_id: str, user: dict = Depends(auth.require_user))
 
 @app.post("/api/start-all")
 async def start_all(user: dict = Depends(auth.require_user)):
-    owner_id = None if user["role"] == "admin" else user["id"]
-    await bot_manager.start_all(owner_id)
-    return await bot_manager.get_status(owner_id)
+    await bot_manager.start_all(user["id"])
+    return await bot_manager.get_status(user["id"])
 
 
 @app.post("/api/stop-all")
 async def stop_all(user: dict = Depends(auth.require_user)):
-    owner_id = None if user["role"] == "admin" else user["id"]
-    await bot_manager.stop_all(owner_id)
-    return await bot_manager.get_status(owner_id)
+    await bot_manager.stop_all(user["id"])
+    return await bot_manager.get_status(user["id"])
 
 
 # ---------- بستن دستی پوزیشن ----------
