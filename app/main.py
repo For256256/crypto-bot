@@ -476,6 +476,70 @@ class ResetPasswordIn(BaseModel):
     new_password: str = ""
 
 
+# ---------- حساب‌های پیشنهادی ادمین ----------
+def _suggested_view(acc: dict) -> dict:
+    """نمای عمومی یک حساب پیشنهادی — فقط تنظیمات و روند کلی.
+
+    کلید API، توکن وبهوک و شناسه‌ی مالک عمداً بیرون نمی‌روند؛ کاربر قرار است
+    فقط روند و پیکربندی را ببیند و از رویش یک حساب مشابه بسازد.
+    """
+    report = history.get_report(acc["id"], days=30, mode=acc.get("trading_mode"))
+    summary = report.get("summary") or {}
+    return {
+        "id": acc["id"],
+        "name": acc.get("name", ""),
+        "exchange": acc.get("exchange", ""),
+        "trading_mode": acc.get("trading_mode", "paper"),
+        "settings": {
+            "risk_percent": acc.get("risk_percent"),
+            "default_leverage": acc.get("default_leverage"),
+            "sl_tp_atr_mult": acc.get("sl_tp_atr_mult"),
+            "max_margin_per_trade_pct": acc.get("max_margin_per_trade_pct"),
+            "max_open_positions": acc.get("max_open_positions"),
+            "max_daily_loss_percent": acc.get("max_daily_loss_percent"),
+        },
+        "symbols": [
+            {"symbol": s.get("symbol"), "timeframe": s.get("timeframe"), "strategy": s.get("strategy")}
+            for s in (acc.get("symbols") or [])
+        ],
+        "trend": {
+            "equity_curve": report.get("equity_curve") or [],
+            "net_pnl": summary.get("net_pnl"),
+            "win_rate": summary.get("win_rate"),
+            "trades": summary.get("trades"),
+            "max_drawdown_pct": summary.get("max_drawdown_pct"),
+            "profit_factor": summary.get("profit_factor"),
+        },
+    }
+
+
+@app.get("/api/suggested-accounts")
+async def get_suggested_accounts(_: dict = Depends(auth.require_user)):
+    return [_suggested_view(a) for a in config_store.list_suggested()]
+
+
+@app.post("/api/suggested-accounts/{account_id}/clone")
+async def clone_suggested_account(account_id: str, user: dict = Depends(auth.require_user)):
+    """از یک حساب پیشنهادی، حساب مشابهی برای کاربر جاری می‌سازد."""
+    src = config_store.get_account(account_id)
+    if src is None or not src.get("is_suggested"):
+        raise ApiError(404, "err.account_not_found", "حساب پیدا نشد")
+    account = config_store.clone_for_user(account_id, user["id"])
+    bot_manager.sync_from_config()
+    return account
+
+
+@app.post("/api/admin/accounts/{account_id}/suggested")
+async def admin_set_suggested(account_id: str, is_suggested: bool, user: dict = Depends(auth.require_admin)):
+    """فقط حساب‌های خودِ ادمین می‌توانند پیشنهادی شوند — نه حساب کاربران."""
+    account = config_store.get_account(account_id)
+    if account is None:
+        raise ApiError(404, "err.account_not_found", "حساب پیدا نشد")
+    if account.get("owner_id") != user["id"]:
+        raise ApiError(403, "err.account_not_yours", "این حساب متعلق به شما نیست")
+    return config_store.set_suggested(account_id, is_suggested)
+
+
 @app.get("/api/admin/user-accounts")
 async def admin_user_accounts(user: dict = Depends(auth.require_admin)):
     """حساب‌های ساخته‌شده توسط کاربران، تفکیک‌شده بر اساس کاربر.

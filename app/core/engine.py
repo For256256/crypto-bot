@@ -66,7 +66,7 @@ class AccountRunner:
         self.driver = None
         self.task: asyncio.Task | None = None
         self.running = False
-        self.status = "متوقف"
+        self.status, self.status_key = "متوقف", "stopped"
         self.logs: deque = deque(maxlen=100)
         self.last_signals: dict = {}
         self.account_info: dict | None = None
@@ -106,14 +106,14 @@ class AccountRunner:
         self.driver = build_driver(self.cfg.get("trading_mode", "paper"), self.cfg)
         await self.driver.connect()
         self.running = True
-        self.status = "فعال"
+        self.status, self.status_key = "فعال", "running"
         mode_fa = "کاغذی (paper)" if self.cfg.get("trading_mode") == "paper" else "⚠️ واقعی (LIVE)"
         self.log(f"ربات در حالت {mode_fa} شروع شد.")
         self.task = asyncio.create_task(self._loop())
 
     async def stop(self):
         self.running = False
-        self.status = "متوقف"
+        self.status, self.status_key = "متوقف", "stopped"
         if self.task is not None:
             self.task.cancel()
             try:
@@ -140,12 +140,12 @@ class AccountRunner:
             except asyncio.CancelledError:
                 raise
             except ExchangeError as e:
-                self.status = "خطای صرافی"
+                self.status, self.status_key = "خطای صرافی", "exchange_error"
                 self.log(f"خطای صرافی: {e}", "error")
                 if not was_error:
                     self._notify_owner(f"⚠️ خطای صرافی: {e}")
             except Exception as e:
-                self.status = "خطا"
+                self.status, self.status_key = "خطا", "error"
                 self.log(f"خطای غیرمنتظره: {e}", "error")
                 if not was_error:
                     self._notify_owner(f"⚠️ خطای غیرمنتظره: {e}")
@@ -157,7 +157,7 @@ class AccountRunner:
         # ۱) وضعیت حساب و پوزیشن‌ها
         self.account_info = await self.driver.get_account_info()
         self.positions = await self.driver.get_open_positions()
-        self.status = "فعال"
+        self.status, self.status_key = "فعال", "running"
 
         # ۲) ثبت نقطه‌ی اکوییتی (هر ۵ دقیقه)
         now_ts = loop.time()
@@ -316,7 +316,7 @@ class AccountRunner:
             )
             self._notify_owner(f"⛔ سقف ضرر روزانه ({max_loss}٪) رسید — تا فردا ورودی جدید ممنوع است.")
         elif self._daily["blocked"]:
-            self.status = "متوقف (سقف ضرر روزانه)"
+            self.status, self.status_key = "متوقف (سقف ضرر روزانه)", "stopped_daily_loss"
 
     # ---------- پردازش سیگنال یک نماد ----------
     async def _process_symbol(self, sym_cfg: dict):
@@ -638,6 +638,9 @@ class AccountRunner:
         return {
             "running": self.running,
             "status": self.status,
+            # کلید پایدار وضعیت — رابط کاربری آن را ترجمه می‌کند و اگر کلیدی
+            # نشناخت، به همان رشته‌ی status برمی‌گردد.
+            "status_key": getattr(self, "status_key", None),
             "account_info": self.account_info,
             "account_stats": account_stats,
             "positions": positions,
