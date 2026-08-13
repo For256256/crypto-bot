@@ -406,7 +406,7 @@
   "rep.th_entry_price": "Цена входа",
   "rep.th_exit_price": "Цена выхода",
   "rep.th_net_usdt": "Чистый P&L (USDT)",
-  "rep.th_time": "Время",
+  "rep.th_time": "Дата и время закрытия",
   "rep.th_type": "Тип",
   "rep.this_period": "USDT (за период)",
   "rep.title": "Отчёты и история сделок",
@@ -633,5 +633,7 @@
   "dash.invert_badge": "ИНВЕРСИЯ",
   "str.backtest_invert": "Бэктест в инвертированном режиме (сигналы наоборот)",
   "str.backtest_inverted_note": "Результат получен в инвертированном режиме — каждый сигнал на покупку превращён в продажу и наоборот.",
-  "str.backtest_fees": "Всего комиссий уплачено в этом бэктесте: {fees}"
+  "str.backtest_fees": "Всего комиссий уплачено в этом бэктесте: {fees}",
+  "rep.opened_at": "Открыто: {time}",
+  "rep.closed_at": "Закрыто: {time}"
 }

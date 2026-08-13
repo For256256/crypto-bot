@@ -406,7 +406,7 @@
   "rep.th_entry_price": "Giriş fiyatı",
   "rep.th_exit_price": "Çıkış fiyatı",
   "rep.th_net_usdt": "Net K/Z (USDT)",
-  "rep.th_time": "Zaman",
+  "rep.th_time": "Kapanış tarihi ve saati",
   "rep.th_type": "Tür",
   "rep.this_period": "USDT (bu dönem)",
   "rep.title": "Raporlar ve işlem geçmişi",
@@ -633,5 +633,7 @@
   "dash.invert_badge": "TERS",
   "str.backtest_invert": "Geriye dönük testi ters modda çalıştır (sinyaller tersine)",
   "str.backtest_inverted_note": "Bu sonuç ters modda üretildi — her alış sinyali satışa, her satış sinyali alışa dönüştürüldü.",
-  "str.backtest_fees": "Bu geriye dönük testte ödenen toplam komisyon: {fees}"
+  "str.backtest_fees": "Bu geriye dönük testte ödenen toplam komisyon: {fees}",
+  "rep.opened_at": "Açılış zamanı: {time}",
+  "rep.closed_at": "Kapanış zamanı: {time}"
 }

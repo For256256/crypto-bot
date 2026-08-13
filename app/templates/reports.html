@@ -187,9 +187,14 @@ function svgDailyPnl(daily) {
 }
 
 function filteredTrades() {
-  const trades = reportData.trades || [];
-  if (!tradeFilter) return trades;
-  return trades.filter(t => (t.symbol || '').toUpperCase().includes(tradeFilter));
+  let trades = reportData.trades || [];
+  if (tradeFilter) trades = trades.filter(tr => (tr.symbol || '').toUpperCase().includes(tradeFilter));
+  // مرتب‌سازی صریح بر اساس زمان بستن، جدیدترین اول — به ترتیبی که بک‌اند
+  // برمی‌گرداند تکیه نمی‌کنیم. رشته‌ی ISO با UTC یکسان، مقایسه‌ی رشته‌ای هم
+  // درست است، ولی برای رکوردهای قدیمیِ بدون منطقه‌ی زمانی از parseUtc
+  // استفاده می‌کنیم تا همه با یک مبنا مقایسه شوند.
+  const key = tr => { const d = parseUtc(tr.close_time); return d ? d.getTime() : -Infinity; };
+  return trades.slice().sort((a, b) => key(b) - key(a));
 }
 
 function renderTradesTable() {
@@ -198,20 +203,31 @@ function renderTradesTable() {
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   tradePage = Math.min(Math.max(1, tradePage), pages);
   const slice = trades.slice((tradePage - 1) * PAGE_SIZE, tradePage * PAGE_SIZE);
-  const rows = slice.map(t => {
-    const r = Number(t.realized || 0);
+  // پارامتر عمداً tr نام دارد نه t — نام t تابع سراسری ترجمه را سایه می‌اندازد
+  // و هر فراخوانی t('...') داخل این بلاک را می‌شکند.
+  const rows = slice.map(tr => {
+    const r = Number(tr.realized || 0);
     const cls = r >= 0 ? 'text-buy' : 'text-sell';
-    const side = t.side === 'long'
+    const side = tr.side === 'long'
       ? '<span class="bg-buy/10 text-buy px-2 py-0.5 rounded text-[11px] font-bold border border-buy/20">LONG</span>'
       : '<span class="bg-sell/10 text-sell px-2 py-0.5 rounded text-[11px] font-bold border border-sell/20">SHORT</span>';
-    const by = CLOSED_BY_LABELS[t.closed_by] || t.closed_by || '—';
-    const est = t.estimated ? ' <span class="text-gold">≈</span>' : '';
-    const fee = t.fee != null ? fmtNum(t.fee) : '—';
+    const by = CLOSED_BY_LABELS[tr.closed_by] || tr.closed_by || '—';
+    const est = tr.estimated ? ' <span class="text-gold">≈</span>' : '';
+    const fee = tr.fee != null ? fmtNum(tr.fee) : '—';
+    // تولتیپ: زمان دقیق باز و بسته شدن (با ثانیه). خود سلول بدون ثانیه می‌ماند
+    // تا شلوغ نشود. dir=ltr لازم است وگرنه در چیدمان راست‌به‌چپ، ساعت و تاریخ
+    // جای هم عوض می‌شوند.
+    const times = [
+      tr.open_time ? t('rep.opened_at', {time: fmtDateTime(tr.open_time, true)}) : '',
+      t('rep.closed_at', {time: fmtDateTime(tr.close_time, true)}),
+    ].filter(Boolean).join(' · ').replace(/"/g, '&quot;');
     return `<tr class="hover:bg-surface-variant/20 transition-colors">
-      <td class="num !text-start text-on-surface-variant text-[11px]" dir="ltr">${String(t.close_time || '').slice(0, 16).replace('T', ' ')}</td>
-      <td class="font-bold">${t.symbol || ''}</td><td>${side}</td>
-      <td class="num">${fmtNum(t.qty)}</td>
-      <td class="num">${fmtNum(t.entry_price)}</td><td class="num">${fmtNum(t.close_price)}</td>
+      <td class="!text-start text-on-surface-variant text-[11px] whitespace-nowrap" dir="ltr" title="${times}">
+        ${fmtDateTime(tr.close_time)}
+      </td>
+      <td class="font-bold">${tr.symbol || ''}</td><td>${side}</td>
+      <td class="num">${fmtNum(tr.qty)}</td>
+      <td class="num">${fmtNum(tr.entry_price)}</td><td class="num">${fmtNum(tr.close_price)}</td>
       <td class="text-[11px]">${by}</td>
       <td class="num text-on-surface-variant text-[11px]">${fee}</td>
       <td class="num ${cls} font-bold">${niceNum(r)}${est}</td>

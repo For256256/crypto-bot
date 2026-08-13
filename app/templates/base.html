@@ -326,13 +326,26 @@ function t(key, params) {
   if (params) for (var k in params) s = s.split('{' + k + '}').join(params[k]);
   return s;
 }
-// تاریخ/ساعت با تقویم و ارقام همان زبان
-function fmtDateTime(iso) {
-  if (!iso) return '—';
+// بک‌اند همیشه UTC ذخیره می‌کند، ولی رکوردهای قدیمی ممکن است بدون پسوند
+// منطقه‌ی زمانی باشند. جاوااسکریپت رشته‌ی بدون منطقه را «وقت محلی» می‌خواند،
+// که ساعت را به‌اندازه‌ی اختلاف منطقه جابه‌جا می‌کند. پس اگر پسوند نبود، خودمان
+// Z می‌گذاریم تا همه‌جا درست به وقت محلی کاربر تبدیل شود.
+function parseUtc(iso) {
+  if (!iso) return null;
+  var s = String(iso).trim();
+  if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(s) && !/(Z|[+-]\d{2}:?\d{2})$/.test(s)) s += 'Z';
+  var d = new Date(s.replace(' ', 'T'));
+  return isNaN(d.getTime()) ? null : d;
+}
+// تاریخ/ساعت با تقویم و ارقام همان زبان، به وقت محلی خود کاربر
+function fmtDateTime(iso, withSeconds) {
+  var d = parseUtc(iso);
+  if (!d) return '—';
+  var opts = {hour: '2-digit', minute: '2-digit'};
+  if (withSeconds) opts.second = '2-digit';
   try {
-    var d = new Date(iso);
     return d.toLocaleDateString(window.DATE_LOCALE) + ' ' +
-           d.toLocaleTimeString(window.DATE_LOCALE, {hour: '2-digit', minute: '2-digit'});
+           d.toLocaleTimeString(window.DATE_LOCALE, opts);
   } catch (e) { return String(iso).slice(0, 16).replace('T', ' '); }
 }
 

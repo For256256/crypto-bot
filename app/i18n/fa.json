@@ -406,7 +406,7 @@
   "rep.th_entry_price": "قیمت ورود",
   "rep.th_exit_price": "قیمت خروج",
   "rep.th_net_usdt": "سود/ضرر خالص (USDT)",
-  "rep.th_time": "زمان",
+  "rep.th_time": "تاریخ و ساعت بستن",
   "rep.th_type": "نوع",
   "rep.this_period": "USDT (این بازه)",
   "rep.title": "گزارشات و تاریخچه معاملات",
@@ -633,5 +633,7 @@
   "dash.invert_badge": "معکوس",
   "str.backtest_invert": "بک‌تست در حالت معکوس (سیگنال‌ها وارونه)",
   "str.backtest_inverted_note": "این نتیجه در حالت معکوس گرفته شده است — هر سیگنال خرید به فروش و برعکس تبدیل شده.",
-  "str.backtest_fees": "کارمزد کل پرداخت‌شده در این بک‌تست: {fees}"
+  "str.backtest_fees": "کارمزد کل پرداخت‌شده در این بک‌تست: {fees}",
+  "rep.opened_at": "زمان باز شدن: {time}",
+  "rep.closed_at": "زمان بسته شدن: {time}"
 }
