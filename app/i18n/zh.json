@@ -627,5 +627,11 @@
   "unit.billing": "财务",
   "unit.general": "综合",
   "unit.strategy": "策略",
-  "unit.technical": "技术"
+  "unit.technical": "技术",
+  "dash.invert_signals": "反向模式 — 所有信号反向执行",
+  "dash.invert_signals_hint": "启用后，买入信号将变为卖出订单，卖出信号将变为买入订单（内置策略和 Webhook 均适用）。止损与止盈会围绕入场价格镜像翻转。注意：由于止损和止盈是对称的，反向操作会把盈利和亏损互换，但开仓与平仓的手续费在两种情况下都要支付 — 因此只有当当前亏损超过手续费的两倍时才有利可图。请先在模拟模式或回测中验证。",
+  "dash.invert_badge": "反向",
+  "str.backtest_invert": "以反向模式运行回测（信号反转）",
+  "str.backtest_inverted_note": "此结果在反向模式下生成 — 每个买入信号已转为卖出，反之亦然。",
+  "str.backtest_fees": "本次回测支付的手续费总额：{fees}"
 }

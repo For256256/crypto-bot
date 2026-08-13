@@ -344,13 +344,40 @@ class AccountRunner:
         sig["timeframe"] = sym_cfg.get("timeframe", "1h")
         self.last_signals[symbol] = sig
         if sig["signal"] in ("buy", "sell"):
-            await self._handle_entry_signal(sym_cfg, sig["signal"], sig["close"], None, None, sig.get("atr"))
+            raw = sig["signal"]
+            await self._handle_entry_signal(sym_cfg, raw, sig["close"], None, None, sig.get("atr"))
+            if self.cfg.get("invert_signals"):
+                # چیپ سیگنال در داشبورد باید همان جهتی را نشان دهد که واقعاً
+                # اجرا شده، نه خروجی خام استراتژی. جهت خام هم نگه داشته می‌شود.
+                sig["raw_signal"] = raw
+                sig["inverted"] = True
+                sig["signal"] = "sell" if raw == "buy" else "buy"
 
     # ---------- باز کردن پوزیشن ----------
     async def _handle_entry_signal(self, sym_cfg: dict, side: str, price: float | None,
                                    stop_loss: float | None, take_profit: float | None,
                                    atr: float | None):
         symbol = sym_cfg["symbol"]
+
+        # حالت معکوس: هم سیگنال استراتژی داخلی و هم سیگنال وبهوک از همین‌جا رد
+        # می‌شوند، پس وارونه‌کردن در یک نقطه انجام می‌شود.
+        if self.cfg.get("invert_signals") and side in ("buy", "sell"):
+            original_side = side
+            side = "sell" if side == "buy" else "buy"
+            # SL/TP ای که همراه سیگنال آمده برای جهت اصلی حساب شده؛ حول قیمت
+            # ورود آینه می‌شود تا برای جهت معکوس معنا داشته باشد. اگر آینه‌کردن
+            # عدد نامعتبر بدهد، خالی می‌شود تا موتور خودش از ATR حساب کند.
+            if price and price > 0:
+                if stop_loss:
+                    mirrored = 2 * price - stop_loss
+                    stop_loss = mirrored if mirrored > 0 else None
+                if take_profit:
+                    mirrored = 2 * price - take_profit
+                    take_profit = mirrored if mirrored > 0 else None
+            else:
+                stop_loss = take_profit = None
+            self.log(f"{symbol}: حالت معکوس فعال است — سیگنال {original_side} به {side} تبدیل شد.")
+
         wanted = "long" if side == "buy" else "short"
 
         # پوزیشن روی همین نماد داریم؟

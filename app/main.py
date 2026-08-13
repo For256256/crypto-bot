@@ -110,6 +110,7 @@ class AccountIn(BaseModel):
     max_daily_loss_percent: float = 5.0
     poll_interval_seconds: int = 60
     recycle_on_new_signal: bool = False
+    invert_signals: bool = False
     accept_webhook: bool = True
     enabled: bool = True
 
@@ -281,6 +282,7 @@ class BacktestIn(BaseModel):
     strategy: str = "supertrend_ema_rsi"
     strategy_params: dict = {}
     candles: int = 500
+    invert: bool = False
 
 
 @app.post("/api/backtest")
@@ -301,7 +303,7 @@ async def run_backtest_api(payload: BacktestIn, _: dict = Depends(auth.require_u
         await driver.close()
         raise ApiError(502, "err.candles_failed", f"دریافت کندل از Toobit ناموفق: {e}", msg=str(e))
     try:
-        return run_backtest(df, payload.strategy, payload.strategy_params)
+        return run_backtest(df, payload.strategy, payload.strategy_params, invert=payload.invert)
     except ValueError as e:
         raise ApiError(400, _VALUE_ERROR_KEYS.get(str(e), ""), str(e))
 

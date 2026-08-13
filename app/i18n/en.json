@@ -627,5 +627,11 @@
   "unit.billing": "Billing",
   "unit.general": "General",
   "unit.strategy": "Strategy",
-  "unit.technical": "Technical"
+  "unit.technical": "Technical",
+  "dash.invert_signals": "Inverted mode — execute every signal reversed",
+  "dash.invert_signals_hint": "When enabled, a buy signal becomes a sell order and a sell signal becomes a buy order (both the built-in strategy and the webhook). Stop-loss and take-profit are mirrored around the entry price. Note: because SL and TP are symmetric, inverting swaps wins and losses, but the round-trip fee is paid either way — so it only pays off if your current loss exceeds twice the fees. Test it in paper mode or the backtest first.",
+  "dash.invert_badge": "INVERTED",
+  "str.backtest_invert": "Run backtest in inverted mode (signals reversed)",
+  "str.backtest_inverted_note": "This result was produced in inverted mode — every buy signal was turned into a sell and vice versa.",
+  "str.backtest_fees": "Total fees paid in this backtest: {fees}"
 }
