@@ -406,7 +406,7 @@
   "rep.th_entry_price": "开仓价",
   "rep.th_exit_price": "平仓价",
   "rep.th_net_usdt": "净盈亏 (USDT)",
-  "rep.th_time": "时间",
+  "rep.th_time": "平仓日期与时间",
   "rep.th_type": "类型",
   "rep.this_period": "USDT（本期）",
   "rep.title": "报告与交易历史",
@@ -633,5 +633,7 @@
   "dash.invert_badge": "反向",
   "str.backtest_invert": "以反向模式运行回测（信号反转）",
   "str.backtest_inverted_note": "此结果在反向模式下生成 — 每个买入信号已转为卖出，反之亦然。",
-  "str.backtest_fees": "本次回测支付的手续费总额：{fees}"
+  "str.backtest_fees": "本次回测支付的手续费总额：{fees}",
+  "rep.opened_at": "开仓时间：{time}",
+  "rep.closed_at": "平仓时间：{time}"
 }

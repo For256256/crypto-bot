@@ -406,7 +406,7 @@
   "rep.th_entry_price": "Entry price",
   "rep.th_exit_price": "Exit price",
   "rep.th_net_usdt": "Net P&L (USDT)",
-  "rep.th_time": "Time",
+  "rep.th_time": "Close date & time",
   "rep.th_type": "Type",
   "rep.this_period": "USDT (this period)",
   "rep.title": "Reports and trade history",
@@ -633,5 +633,7 @@
   "dash.invert_badge": "INVERTED",
   "str.backtest_invert": "Run backtest in inverted mode (signals reversed)",
   "str.backtest_inverted_note": "This result was produced in inverted mode — every buy signal was turned into a sell and vice versa.",
-  "str.backtest_fees": "Total fees paid in this backtest: {fees}"
+  "str.backtest_fees": "Total fees paid in this backtest: {fees}",
+  "rep.opened_at": "Opened at: {time}",
+  "rep.closed_at": "Closed at: {time}"
 }
