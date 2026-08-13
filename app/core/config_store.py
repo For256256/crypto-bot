@@ -34,6 +34,8 @@ ACCOUNT_DEFAULTS = {
     "max_daily_loss_percent": 5.0,
     "poll_interval_seconds": 60,
     "recycle_on_new_signal": False,
+    # همه‌ی سیگنال‌ها (استراتژی داخلی و وبهوک) وارونه اجرا می‌شوند: خرید→فروش
+    "invert_signals": False,
     "accept_webhook": True,
     "enabled": True,
 }

@@ -627,5 +627,11 @@
   "unit.billing": "Finans",
   "unit.general": "Genel",
   "unit.strategy": "Strateji",
-  "unit.technical": "Teknik"
+  "unit.technical": "Teknik",
+  "dash.invert_signals": "Ters mod — tüm sinyaller tersine çevrilerek uygulansın",
+  "dash.invert_signals_hint": "Etkinleştirildiğinde alış sinyali satış emrine, satış sinyali alış emrine dönüşür (hem dahili strateji hem de webhook için). Zarar durdur ve kâr al seviyeleri giriş fiyatı etrafında aynalanır. Not: SL ve TP simetrik olduğu için ters çevirmek kâr ile zararı yer değiştirir, ancak gidiş-dönüş komisyonu her iki durumda da ödenir — bu nedenle yalnızca mevcut zararınız komisyonun iki katını aşıyorsa kazançlıdır. Önce kâğıt modunda veya geriye dönük testte deneyin.",
+  "dash.invert_badge": "TERS",
+  "str.backtest_invert": "Geriye dönük testi ters modda çalıştır (sinyaller tersine)",
+  "str.backtest_inverted_note": "Bu sonuç ters modda üretildi — her alış sinyali satışa, her satış sinyali alışa dönüştürüldü.",
+  "str.backtest_fees": "Bu geriye dönük testte ödenen toplam komisyon: {fees}"
 }

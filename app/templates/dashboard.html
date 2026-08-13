@@ -69,6 +69,13 @@
       <div class="flex items-center gap-2 pt-5"><input type="checkbox" id="f_recycle_on_new_signal" class="of-switch"><label for="f_recycle_on_new_signal" class="text-xs text-on-surface-variant">{{ t("dash.recycle") }}</label></div>
       <div class="flex items-center gap-2 pt-5"><input type="checkbox" id="f_accept_webhook" class="of-switch" checked><label for="f_accept_webhook" class="text-xs text-on-surface-variant">{{ t("dash.accept_webhook") }}</label></div>
     </div>
+    <div class="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+      <div class="flex items-center gap-2">
+        <input type="checkbox" id="f_invert_signals" class="of-switch">
+        <label for="f_invert_signals" class="text-xs font-bold text-amber-500">{{ t("dash.invert_signals") }}</label>
+      </div>
+      <p class="text-[10px] text-on-surface-variant mt-2 leading-5">{{ t("dash.invert_signals_hint") }}</p>
+    </div>
     <div class="flex justify-end gap-2 mt-5">
       <button class="btn-ghost" onclick="closeModal('accountModalBg')">{{ t("common.cancel") }}</button>
       <button class="btn-primary-of" onclick="saveAccount()">{{ t("common.save") }}</button>
@@ -290,6 +297,7 @@ function openAccountModal(acc) {
   g('f_poll_interval_seconds').value = acc ? acc.poll_interval_seconds : 60;
   g('f_recycle_on_new_signal').checked = acc ? !!acc.recycle_on_new_signal : false;
   g('f_accept_webhook').checked = acc ? !!acc.accept_webhook : true;
+  g('f_invert_signals').checked = acc ? !!acc.invert_signals : false;
   openModal('accountModalBg');
 }
 
@@ -311,6 +319,7 @@ async function saveAccount() {
     poll_interval_seconds: parseInt(g('f_poll_interval_seconds').value) || 60,
     recycle_on_new_signal: g('f_recycle_on_new_signal').checked,
     accept_webhook: g('f_accept_webhook').checked,
+    invert_signals: g('f_invert_signals').checked,
     enabled: true,
   };
   if (!payload.name) { toast(t('dash.name_required'), true); return; }
@@ -732,6 +741,7 @@ function renderAccountBar() {
   </div>
   <div class="text-on-surface-variant text-[11px] mono-num mt-2 px-1">
     ${t('dash.account_summary', {risk: acc.risk_percent, lev: acc.default_leverage, atr: acc.sl_tp_atr_mult ?? 3, dl: acc.max_daily_loss_percent, wh: acc.accept_webhook ? t('common.active') : t('common.inactive')})}
+    ${acc.invert_signals ? `<span class="ms-2 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 font-bold">${t('dash.invert_badge')}</span>` : ''}
   </div>`;
 }
 

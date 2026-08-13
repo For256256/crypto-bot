@@ -2,29 +2,36 @@
 بک‌تست ساده‌ی استراتژی‌ها روی کندل‌های تاریخی — برای صفحه‌ی «مدیریت استراتژی».
 
 روش: از کندل warmup به بعد، روی هر کندل بسته‌شده استراتژی اجرا می‌شود (بدون
-نگاه به آینده). هر سیگنال buy/sell یک پوزیشن باز/معکوس می‌کند. SL/TP مانند
-ربات واقعی از ATR ساخته می‌شود (۱.۵× و ۳×) و در کندل‌های بعدی با high/low
-چک می‌شود. حجم هر معامله ثابت فرض می‌شود (یک واحد) تا نتایج خام استراتژی
-دیده شود؛ آمار خروجی: نرخ برد، PnL، Profit Factor، ماکس دراوداون، منحنی اکوییتی.
+نگاه به آینده). هر سیگنال buy/sell یک پوزیشن باز/معکوس می‌کند.
+
+SL/TP دقیقاً مثل موتور واقعی و متقارن از ATR ساخته می‌شود (هر دو با همان
+sl_tp_atr_mult) و در کندل‌های بعدی با high/low چک می‌شود. کارمزد رفت و برگشت
+هم با همان نرخ صرافی کسر می‌شود — بدون آن، نتیجه‌ی بک‌تست (به‌ویژه در حالت
+معکوس) به‌شکل گمراه‌کننده‌ای خوش‌بینانه می‌شود.
+
+invert=True همان کاری را می‌کند که تیک «معکوس» روی حساب انجام می‌دهد: هر
+سیگنال buy به sell و برعکس تبدیل می‌شود — برای تست فرضیه پیش از ریسک واقعی.
 """
 import pandas as pd
 
+from app.core.exchanges.toobit import TAKER_FEE_RATE
 from app.core.strategies import indicators as ind
 from app.core.strategies.registry import run_strategy
 
 WARMUP = 60
-SL_ATR_MULT = 1.5
-TP_ATR_MULT = 3.0
+DEFAULT_SL_TP_ATR_MULT = 3.0   # متقارن، مثل موتور واقعی
 START_EQUITY = 10000.0
 RISK_PCT = 1.0  # ٪ریسک هر معامله از اکوییتی جاری — مثل ربات واقعی
 
 
-def run_backtest(df: pd.DataFrame, strategy_key: str, params: dict | None = None) -> dict:
+def run_backtest(df: pd.DataFrame, strategy_key: str, params: dict | None = None,
+                 invert: bool = False, sl_tp_atr_mult: float = DEFAULT_SL_TP_ATR_MULT) -> dict:
     if df is None or len(df) < WARMUP + 10:
         raise ValueError("داده‌ی کندل برای بک‌تست کافی نیست (حداقل ~۷۰ کندل).")
 
     atr_series = ind.atr(df, 14)
     equity = START_EQUITY
+    total_fees = 0.0
     peak = equity
     max_dd_pct = 0.0
     position = None          # {side, entry, qty, sl, tp}
@@ -32,9 +39,13 @@ def run_backtest(df: pd.DataFrame, strategy_key: str, params: dict | None = None
     curve: list[dict] = []
 
     def close_position(price, when, closed_by):
-        nonlocal equity, position, peak, max_dd_pct
+        nonlocal equity, position, peak, max_dd_pct, total_fees
         direction = 1 if position["side"] == "long" else -1
-        pnl = (price - position["entry"]) * direction * position["qty"]
+        gross = (price - position["entry"]) * direction * position["qty"]
+        exit_fee = abs(price * position["qty"]) * TAKER_FEE_RATE
+        fee = position.get("entry_fee", 0.0) + exit_fee
+        total_fees += fee
+        pnl = gross - fee
         equity += pnl
         trades.append({
             "side": position["side"], "entry": position["entry"], "exit": price,
@@ -73,17 +84,26 @@ def run_backtest(df: pd.DataFrame, strategy_key: str, params: dict | None = None
             sig = {"signal": "none"}
 
         if sig["signal"] in ("buy", "sell"):
-            wanted = "long" if sig["signal"] == "buy" else "short"
+            side = sig["signal"]
+            if invert:
+                side = "sell" if side == "buy" else "buy"
+            wanted = "long" if side == "buy" else "short"
             if position is not None and position["side"] != wanted:
                 close_position(close, when, "reversal")
             if position is None:
                 atr_v = atr_series.iat[i]
                 if pd.notna(atr_v) and atr_v > 0:
-                    sl = close - SL_ATR_MULT * atr_v if wanted == "long" else close + SL_ATR_MULT * atr_v
-                    tp = close + TP_ATR_MULT * atr_v if wanted == "long" else close - TP_ATR_MULT * atr_v
+                    dist = sl_tp_atr_mult * atr_v
+                    sl = close - dist if wanted == "long" else close + dist
+                    tp = close + dist if wanted == "long" else close - dist
                     risk_amount = equity * RISK_PCT / 100
                     qty = risk_amount / abs(close - sl)
-                    position = {"side": wanted, "entry": close, "qty": qty, "sl": sl, "tp": tp}
+                    # کارمزد ورود همین‌جا حساب می‌شود اما از اکوییتی کم نمی‌شود؛
+                    # هنگام بستن، ورود و خروج با هم در fee لحاظ می‌شوند تا دوبار
+                    # کسر نشود.
+                    entry_fee = abs(close * qty) * TAKER_FEE_RATE
+                    position = {"side": wanted, "entry": close, "qty": qty, "sl": sl, "tp": tp,
+                                "entry_fee": entry_fee}
 
         # ۳) نقطه‌ی منحنی اکوییتی (مارک‌تو‌مارکت)
         floating = 0.0
@@ -114,6 +134,8 @@ def run_backtest(df: pd.DataFrame, strategy_key: str, params: dict | None = None
             "max_drawdown_pct": max_dd_pct,
             "start_equity": START_EQUITY,
             "end_equity": equity,
+            "total_fees": total_fees,
+            "inverted": bool(invert),
         },
         "equity_curve": curve,
         "trades": trades[-50:],
