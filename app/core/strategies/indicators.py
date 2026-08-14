@@ -91,6 +91,50 @@ def kijun(df: pd.DataFrame, length: int = 26) -> pd.Series:
     return (df["high"].rolling(length).max() + df["low"].rolling(length).min()) / 2
 
 
+def donchian(df: pd.DataFrame, length: int = 20) -> pd.DataFrame:
+    """کانال دانچیان — سقف/کف N کندل اخیر، یعنی همان سطوح مقاومت و حمایتِ
+    ساختاری که استراتژی شکست روی آن‌ها کار می‌کند.
+
+    مهم: باندها با shift(1) یک کندل عقب کشیده می‌شوند. بدون این کار، سقفِ
+    کانال شامل high خود کندل جاری می‌شود و شرط «close > سقف» عملاً هیچ‌وقت
+    برقرار نمی‌شود (نگاه به آینده‌ی خودش).
+    """
+    upper = df["high"].rolling(length).max().shift(1)
+    lower = df["low"].rolling(length).min().shift(1)
+    return pd.DataFrame({"dc_upper": upper, "dc_lower": lower, "dc_mid": (upper + lower) / 2},
+                        index=df.index)
+
+
+def adx(df: pd.DataFrame, length: int = 14) -> pd.DataFrame:
+    """ADX و ±DI — سنجه‌ی «قدرت» روند، نه جهت آن.
+
+    ADX بالا یعنی بازار روندی است (مناسب استراتژی‌های دنبال‌کننده‌ی روند و
+    شکست)، ADX پایین یعنی بازار رنج است (مناسب استراتژی‌های بازگشتی/معکوس).
+    """
+    high, low = df["high"], df["low"]
+    up = high.diff()
+    down = -low.diff()
+    plus_dm = up.where((up > down) & (up > 0), 0.0)
+    minus_dm = down.where((down > up) & (down > 0), 0.0)
+
+    prev_close = df["close"].shift(1)
+    tr = pd.concat([high - low, (high - prev_close).abs(), (low - prev_close).abs()],
+                   axis=1).max(axis=1)
+    atr_v = tr.ewm(alpha=1 / length, adjust=False).mean()
+
+    # تقسیم بر صفر در بازار کاملاً بی‌حرکت ممکن است؛ nan بعداً پر می‌شود
+    safe_atr = atr_v.replace(0, np.nan)
+    plus_di = 100 * plus_dm.ewm(alpha=1 / length, adjust=False).mean() / safe_atr
+    minus_di = 100 * minus_dm.ewm(alpha=1 / length, adjust=False).mean() / safe_atr
+    di_sum = (plus_di + minus_di).replace(0, np.nan)
+    dx = 100 * (plus_di - minus_di).abs() / di_sum
+    adx_v = dx.ewm(alpha=1 / length, adjust=False).mean()
+
+    return pd.DataFrame({"adx": adx_v.fillna(0.0),
+                         "plus_di": plus_di.fillna(0.0),
+                         "minus_di": minus_di.fillna(0.0)}, index=df.index)
+
+
 def psar(df: pd.DataFrame, step: float = 0.02, max_step: float = 0.2) -> pd.Series:
     high = df["high"].values
     low = df["low"].values

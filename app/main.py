@@ -49,6 +49,7 @@ _VALUE_ERROR_KEYS = {
     "موضوع و متن تیکت الزامی است.": "err.ticket_required",
     "متن پاسخ نمی‌تواند خالی باشد.": "err.reply_empty",
     "مدت‌زمان توکن باید بزرگ‌تر از صفر باشد.": "err.token_duration",
+    "داده‌ی کندل برای بک‌تست کافی نیست (حداقل ~۲۳۰ کندل).": "err.candles_insufficient",
 }
 
 
@@ -243,6 +244,11 @@ async def dashboard(request: Request):
 @app.get("/strategies", response_class=HTMLResponse)
 async def strategies_page(request: Request, user: dict = Depends(auth.require_user_page)):
     return render(request, "strategies.html", user, active="strategies")
+
+
+@app.get("/learn", response_class=HTMLResponse)
+async def learn_page(request: Request, user: dict = Depends(auth.require_user_page)):
+    return render(request, "learn.html", user, active="learn")
 
 
 @app.get("/reports", response_class=HTMLResponse)
