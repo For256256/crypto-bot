@@ -58,7 +58,7 @@
           <select id="bt_strategy" class="field"></select>
         </div>
         <div class="col-span-2 md:col-span-4 flex items-center gap-2">
-          <input type="checkbox" id="bt_invert" class="of-switch">
+          <label class="switch"><input type="checkbox" id="bt_invert"><span class="switch-track"><span class="switch-thumb"></span></span></label>
           <label for="bt_invert" class="text-xs text-on-surface-variant">{{ t("str.backtest_invert") }}</label>
         </div>
       </div>
@@ -178,7 +178,7 @@ function renderList() {
           ${signalTxt}
         </div>
         <div class="flex flex-col items-center gap-2">
-          <input type="checkbox" class="of-switch" ${sym.enabled ? 'checked' : ''} onchange="toggleSym('${acc.id}','${sym.symbol}',this.checked)">
+          <label class="switch"><input type="checkbox" ${sym.enabled ? 'checked' : ''} onchange="toggleSym('${acc.id}','${sym.symbol}',this.checked)"><span class="switch-track"><span class="switch-thumb"></span></span></label>
           <button class="text-xs flex items-center gap-1 ${isEditing ? 'text-primary font-bold' : 'text-on-surface-variant hover:text-primary'} transition-colors"
                   onclick="openParamEditor('${acc.id}','${sym.symbol}')">
             <span class="material-symbols-outlined text-sm">edit_note</span> ${t('str.edit_params')}

@@ -23,6 +23,7 @@ from app.core import presets
 from app.core import telegram
 from app.core import mailer
 from app.core import i18n
+from app.core import backup
 from app.core.errors import ApiError
 from app.core.exchanges.toobit import normalize_symbol
 
@@ -50,6 +51,9 @@ _VALUE_ERROR_KEYS = {
     "متن پاسخ نمی‌تواند خالی باشد.": "err.reply_empty",
     "مدت‌زمان توکن باید بزرگ‌تر از صفر باشد.": "err.token_duration",
     "داده‌ی کندل برای بک‌تست کافی نیست (حداقل ~۲۳۰ کندل).": "err.candles_insufficient",
+    "فایل پشتیبان معتبر نیست.": "err.backup_invalid",
+    "فایل پشتیبان هیچ حسابی ندارد.": "err.backup_empty",
+    "حالت بازیابی نامعتبر است.": "err.backup_mode",
 }
 
 
@@ -948,6 +952,37 @@ def _assert_can_go_live(user: dict):
             "برای معامله‌ی واقعی (live) نیاز به توکن فعال‌سازی دارید — "
             "از صفحه‌ی پشتیبانی (واحد مالی) درخواست خرید توکن کنید.",
         )
+
+
+# ---------- پشتیبان‌گیری و بازیابی ----------
+class RestoreIn(BaseModel):
+    payload: dict
+    mode: str = "new"
+
+
+@app.get("/api/backup")
+async def download_backup(user: dict = Depends(auth.require_user)):
+    """فایل پشتیبان تنظیمات و نمادهای حساب‌های همین کاربر. کلید API و توکن
+    وبهوک عمداً داخلش نیست — توضیحش در app/core/backup.py آمده."""
+    data = backup.export_for_owner(user["id"], user.get("username", ""))
+    stamp = data["exported_at"][:10]
+    filename = f"cryptopulse-backup-{stamp}.json"
+    return JSONResponse(
+        data,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/api/backup/restore")
+async def restore_backup(body: RestoreIn, user: dict = Depends(auth.require_user)):
+    try:
+        result = backup.restore_for_owner(user["id"], body.payload, body.mode)
+    except ValueError as e:
+        raise ApiError(400, _VALUE_ERROR_KEYS.get(str(e), ""), str(e))
+    # حساب‌های تازه هنوز در موتور نیستند؛ بدون این، کاربر باید سرور را
+    # ری‌استارت کند تا ربات آن‌ها را ببیند.
+    bot_manager.sync_from_config()
+    return result
 
 
 @app.get("/api/accounts")
