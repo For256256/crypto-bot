@@ -391,6 +391,13 @@ function switchHtml(attrs, cls) {
        + '</label>';
 }
 
+// رفتن به معامله‌ی واقعی همیشه کد دو مرحله‌ای می‌خواهد. prompt عمداً ساده
+// است: این کد فقط همان لحظه اعتبار دارد و جایی ذخیره نمی‌شود.
+function promptOtp() {
+  const code = prompt(t('auth.otp_prompt'));
+  return code === null ? null : code.trim();
+}
+
 function toggleLangMenu(ev) {
   ev.stopPropagation();
   document.getElementById('langMenu').classList.toggle('hidden');

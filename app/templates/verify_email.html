@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html dir="{{ lang_dir }}" lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<link rel="icon" type="image/png" href="/static/logo-icon.png?v=3">
+<title>{{ t("auth.verify_title") }} | CryptoPulse</title>
+<script>
+(function() {
+  var pref = localStorage.getItem('cb_theme');
+  if (pref === 'dark' || pref === 'light') document.documentElement.setAttribute('data-theme', pref);
+})();
+</script>
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100;300;400;500;700;900&family=Hanken+Grotesk:wght@700&display=swap" rel="stylesheet">
+{% if lang == 'zh' %}<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">{% endif %}
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<script>
+tailwind.config = { theme: { extend: { colors: {
+  "surface": "rgb(var(--c-surface) / <alpha-value>)", "surface-container-low": "rgb(var(--c-surface-container-low) / <alpha-value>)", "on-surface": "rgb(var(--c-on-surface) / <alpha-value>)",
+  "on-surface-variant": "rgb(var(--c-on-surface-variant) / <alpha-value>)", "outline-variant": "rgb(var(--c-outline-variant) / <alpha-value>)", "primary": "rgb(var(--c-primary) / <alpha-value>)",
+  "on-primary": "rgb(var(--c-on-primary) / <alpha-value>)", "sell": "rgb(var(--c-sell) / <alpha-value>)", "gold": "rgb(var(--c-gold) / <alpha-value>)",
+  "buy": "rgb(var(--c-buy) / <alpha-value>)",
+}, fontFamily: { headline: ["Vazirmatn", "Hanken Grotesk"], body: ["Vazirmatn"] } } } }
+</script>
+<style>
+  :root {
+    --c-surface: 11 19 38; --c-surface-container-lowest: 6 14 32; --c-surface-container-low: 19 27 46;
+    --c-on-surface: 218 226 253; --c-on-surface-variant: 185 202 202; --c-outline-variant: 58 73 74;
+    --c-primary: 0 220 229; --c-on-primary: 0 32 33; --c-sell: 244 63 94; --c-gold: 240 185 11; --c-buy: 78 222 163;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --c-surface: 247 249 252; --c-surface-container-lowest: 255 255 255; --c-surface-container-low: 238 241 247;
+      --c-on-surface: 19 26 44; --c-on-surface-variant: 85 96 110; --c-outline-variant: 199 206 217;
+      --c-primary: 0 150 158; --c-on-primary: 255 255 255; --c-sell: 225 29 72; --c-gold: 161 98 7; --c-buy: 23 145 95;
+      color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --c-surface: 247 249 252; --c-surface-container-lowest: 255 255 255; --c-surface-container-low: 238 241 247;
+    --c-on-surface: 19 26 44; --c-on-surface-variant: 85 96 110; --c-outline-variant: 199 206 217;
+    --c-primary: 0 150 158; --c-on-primary: 255 255 255; --c-sell: 225 29 72; --c-gold: 161 98 7; --c-buy: 23 145 95;
+    color-scheme: light;
+  }
+  body { background-color: rgb(var(--c-surface)); font-family: 'Vazirmatn', 'Noto Sans SC', 'Noto Sans', sans-serif; color: rgb(var(--c-on-surface)); }
+  .glass-card { background: rgb(var(--c-surface-container-low) / 0.75); backdrop-filter: blur(20px); border: 1px solid rgb(var(--c-on-surface) / 0.08); }
+  .field {
+    width: 100%; background-color: rgb(var(--c-surface-container-lowest)) !important; border: 1px solid rgb(var(--c-on-surface) / 0.08); color: rgb(var(--c-on-surface)) !important;
+    border-radius: 0.25rem; padding: 0.6rem 0.85rem; font-family: inherit; font-size: 0.9rem;
+  }
+  .field:focus { outline: none; border-color: rgb(var(--c-primary)); box-shadow: 0 0 0 3px rgb(var(--c-primary) / 0.15); }
+  .btn-primary-of {
+    background: linear-gradient(135deg, #00dce5, #00696e); color: #002021; border-radius: 0.25rem; font-weight: 700;
+    padding: 0.65rem 1.2rem; font-size: 0.9rem; transition: .2s; cursor: pointer; border: none; width: 100%;
+  }
+  .btn-primary-of:hover { box-shadow: 0 0 16px rgba(0,220,229,.4); }
+  .btn-primary-of:disabled { opacity: .6; cursor: default; }
+</style>
+</head>
+<script>
+window.I18N = {{ catalog | tojson }};
+function t(key, params) {
+  var s = window.I18N[key];
+  if (s === undefined) return key;
+  if (params) for (var k in params) s = s.split('{' + k + '}').join(params[k]);
+  return s;
+}
+async function setLanguage(code) {
+  try { await fetch('/api/language/' + code, { method: 'POST' }); location.reload(); } catch (e) {}
+}
+</script>
+<body class="min-h-screen flex items-center justify-center px-4">
+  <div class="w-full max-w-sm">
+    <div class="flex flex-col items-center mb-8">
+      <img src="/static/logo-full.png?v=3" alt="CryptoPulse" class="w-full max-w-[260px] h-auto">
+      <p class="text-xs text-on-surface-variant mt-2">{{ t("app.tagline") }}</p>
+    </div>
+    <div class="glass-card rounded-2xl p-6">
+      <div class="flex flex-col items-center mb-4">
+        <span class="material-symbols-outlined text-primary" style="font-size:44px">mark_email_unread</span>
+        <h2 class="font-headline text-lg font-bold mt-2 text-center">{{ t("auth.verify_heading") }}</h2>
+      </div>
+      <p class="text-xs text-on-surface-variant text-center leading-6 mb-5">
+        {{ t("auth.verify_sent_to") }}
+        <span class="text-on-surface font-bold" dir="ltr">{{ user.email }}</span>
+      </p>
+
+      <div id="err" class="hidden text-sell text-xs bg-sell/10 border border-sell/30 rounded-lg p-2.5 mb-4 text-center"></div>
+      <div id="ok" class="hidden text-buy text-xs bg-buy/10 border border-buy/30 rounded-lg p-2.5 mb-4 text-center"></div>
+
+      <form id="verifyForm" class="space-y-4">
+        <div>
+          <label class="block text-xs text-on-surface-variant mb-1.5">{{ t("auth.verify_code") }}</label>
+          <input id="code" class="field text-center" dir="ltr" inputmode="numeric" autocomplete="one-time-code"
+                 maxlength="6" placeholder="000000" style="letter-spacing:.5em;font-size:1.3rem" required>
+        </div>
+        <button id="submitBtn" type="submit" class="btn-primary-of">{{ t("auth.verify_button") }}</button>
+      </form>
+
+      <div class="text-center mt-5 space-y-2">
+        <button id="resendBtn" onclick="resend()" class="text-primary text-xs hover:underline">{{ t("auth.verify_resend") }}</button>
+        <p class="text-[11px] text-on-surface-variant leading-5">{{ t("auth.verify_spam_hint") }}</p>
+      </div>
+    </div>
+    <p class="text-center text-xs text-on-surface-variant mt-5">
+      <button onclick="logout()" class="hover:underline">{{ t("topbar.logout") }}</button>
+    </p>
+  </div>
+<script>
+const err = document.getElementById('err');
+const okBox = document.getElementById('ok');
+function show(el, msg) { el.textContent = msg; el.classList.remove('hidden'); }
+function hideAll() { err.classList.add('hidden'); okBox.classList.add('hidden'); }
+
+document.getElementById('verifyForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('submitBtn');
+  hideAll(); btn.disabled = true;
+  try {
+    const r = await fetch('/api/verify-email', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: document.getElementById('code').value.trim() }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.detail || t('auth.verify_failed'));
+    location.href = '/';
+  } catch (ex) {
+    show(err, ex.message);
+    btn.disabled = false;
+  }
+});
+
+async function resend() {
+  const btn = document.getElementById('resendBtn');
+  hideAll(); btn.disabled = true;
+  try {
+    const r = await fetch('/api/verify-email/resend', { method: 'POST' });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.detail || t('auth.verify_failed'));
+    show(okBox, t('auth.verify_resent'));
+  } catch (ex) {
+    show(err, ex.message);
+  } finally {
+    // ضد اسپم: دکمه یک دقیقه قفل می‌ماند، همان فاصله‌ای که بک‌اند هم اعمال می‌کند
+    setTimeout(() => { btn.disabled = false; }, 60000);
+  }
+}
+
+async function logout() {
+  try { await fetch('/logout', { method: 'POST' }); } catch (e) {}
+  location.href = '/login';
+}
+</script>
+</body>
+</html>

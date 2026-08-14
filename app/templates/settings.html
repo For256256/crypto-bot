@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block title %}{{ t("set.title") }} | CryptoPulse{% endblock %}
 
+{% block head %}
+<!-- برای کد QR راه‌اندازی ورود دو مرحله‌ای. اگر بارگذاری نشود، کلید متنی
+     نمایش داده می‌شود که برای ورود دستی در اپ احرازکننده کافی است. -->
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <div class="mb-8">
   <h2 class="font-headline text-2xl font-bold text-on-surface">{{ t("set.title") }}</h2>
@@ -200,6 +206,15 @@
       <p class="text-[10px] text-on-surface-variant mt-4 border-t border-outline-variant/20 pt-3 leading-5">
         {{ t("set.notify_note") }}
       </p>
+    </div>
+
+    <!-- ورود دو مرحله‌ای -->
+    <div class="glass-card rounded-2xl p-6">
+      <h3 class="font-headline font-bold mb-1 flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary">encrypted</span> {{ t("set.2fa_title") }}
+      </h3>
+      <p class="text-[11px] text-on-surface-variant mb-4 leading-6">{{ t("set.2fa_desc") }}</p>
+      <div id="twofaBox"><div class="text-xs text-on-surface-variant">{{ t("common.loading") }}</div></div>
     </div>
 
     <!-- پشتیبان‌گیری و بازیابی -->
@@ -630,6 +645,118 @@ function syncThemeSwitcher() {
   });
 }
 syncThemeSwitcher();
+
+// ---------- ورود دو مرحله‌ای ----------
+let twofaState = null;
+
+async function loadTwoFa() {
+  const box = document.getElementById('twofaBox');
+  try {
+    twofaState = await callApi('/api/2fa/status');
+  } catch (e) {
+    box.innerHTML = `<div class="text-xs text-sell">${t('common.error_prefix')}${e.message}</div>`;
+    return;
+  }
+  if (twofaState.enabled) {
+    box.innerHTML = `
+      <div class="flex items-center gap-2 text-buy text-sm mb-3">
+        <span class="material-symbols-outlined text-base">verified_user</span>
+        <span class="font-bold">${t('set.2fa_on')}</span>
+      </div>
+      <p class="text-[11px] text-on-surface-variant leading-6 mb-3">
+        ${t('set.2fa_recovery_left', {n: twofaState.recovery_left})}
+      </p>
+      <div class="flex gap-2 items-end flex-wrap">
+        <div>
+          <label class="lbl">${t('set.2fa_code')}</label>
+          <input id="tf_disable_code" class="field mono-num !w-40" dir="ltr" inputmode="numeric" placeholder="000000">
+        </div>
+        <button class="btn-ghost !border-sell/40 !text-sell" onclick="disableTwoFa()">${t('set.2fa_disable')}</button>
+      </div>
+      <p class="text-[10px] text-gold mt-2 leading-5">${t('set.2fa_disable_warn')}</p>`;
+    return;
+  }
+  box.innerHTML = `
+    <p class="text-[11px] text-on-surface-variant leading-6 mb-3">${t('set.2fa_off')}</p>
+    <button class="btn-primary-of flex items-center gap-2" onclick="setupTwoFa()">
+      <span class="material-symbols-outlined text-base">qr_code_2</span> ${t('set.2fa_setup')}
+    </button>
+    <div id="tf_setup" class="mt-4"></div>`;
+}
+
+async function setupTwoFa() {
+  const box = document.getElementById('tf_setup');
+  box.innerHTML = `<div class="text-xs text-on-surface-variant">${t('common.loading')}</div>`;
+  let data;
+  try {
+    data = await callApi('/api/2fa/setup', 'POST', {});
+  } catch (e) {
+    box.innerHTML = `<div class="text-xs text-sell">${t('common.error_prefix')}${e.message}</div>`;
+    return;
+  }
+  box.innerHTML = `
+    <ol class="text-[11px] text-on-surface-variant leading-6 list-decimal ms-5 mb-3 space-y-1">
+      <li>${t('set.2fa_step1')}</li>
+      <li>${t('set.2fa_step2')}</li>
+      <li>${t('set.2fa_step3')}</li>
+    </ol>
+    <div class="bg-white p-3 rounded-xl inline-block" id="tf_qr"></div>
+    <div class="mt-3">
+      <div class="text-[10px] text-on-surface-variant mb-1">${t('set.2fa_manual')}</div>
+      <div class="mono-num text-xs bg-surface-container-low rounded-lg p-2 break-all" dir="ltr">${data.secret}</div>
+    </div>
+    <div class="flex gap-2 items-end flex-wrap mt-3">
+      <div>
+        <label class="lbl">${t('set.2fa_code')}</label>
+        <input id="tf_enable_code" class="field mono-num !w-40" dir="ltr" inputmode="numeric" placeholder="000000">
+      </div>
+      <button class="btn-primary-of" onclick="enableTwoFa()">${t('set.2fa_enable')}</button>
+    </div>`;
+  // qrcodejs از قبل در billing استفاده می‌شود؛ اگر بارگذاری نشده بود فقط
+  // کلید متنی نمایش داده می‌شود که خودش برای ورود دستی کافی است.
+  if (window.QRCode) {
+    new QRCode(document.getElementById('tf_qr'), {text: data.uri, width: 168, height: 168});
+  } else {
+    document.getElementById('tf_qr').outerHTML =
+      `<div class="text-[11px] text-gold">${t('set.2fa_no_qr')}</div>`;
+  }
+}
+
+async function enableTwoFa() {
+  const code = document.getElementById('tf_enable_code').value.trim();
+  try {
+    const r = await callApi('/api/2fa/enable', 'POST', {code: code});
+    showRecoveryCodes(r.recovery_codes);
+    await loadTwoFa();
+  } catch (e) { toast(e.message, true); }
+}
+
+function showRecoveryCodes(codes) {
+  const box = document.getElementById('twofaBox');
+  const list = (codes || []).map(c => `<div class="mono-num text-sm" dir="ltr">${c}</div>`).join('');
+  box.insertAdjacentHTML('afterbegin', `
+    <div class="rounded-xl border border-gold/40 bg-gold/10 p-4 mb-4">
+      <div class="font-bold text-gold text-sm mb-1">${t('set.2fa_recovery_title')}</div>
+      <p class="text-[11px] text-on-surface-variant leading-6 mb-3">${t('set.2fa_recovery_desc')}</p>
+      <div class="grid grid-cols-2 gap-1 bg-surface-container-low rounded-lg p-3">${list}</div>
+    </div>`);
+}
+
+async function disableTwoFa() {
+  if (!confirm(t('set.2fa_disable_confirm'))) return;
+  const code = document.getElementById('tf_disable_code').value.trim();
+  try {
+    const r = await callApi('/api/2fa/disable', 'POST', {code: code});
+    if (r.reverted_to_paper && r.reverted_to_paper.length) {
+      toast(t('set.2fa_reverted', {names: r.reverted_to_paper.join('، ')}), true);
+    } else {
+      toast(t('set.2fa_disabled'));
+    }
+    await loadTwoFa();
+  } catch (e) { toast(e.message, true); }
+}
+
+loadTwoFa();
 
 // ---------- پشتیبان‌گیری ----------
 // ناوبری مستقیم به endpoint، چون پاسخ خودش Content-Disposition دارد و کوکی
