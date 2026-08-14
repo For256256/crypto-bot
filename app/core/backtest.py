@@ -18,7 +18,11 @@ from app.core.exchanges.toobit import TAKER_FEE_RATE
 from app.core.strategies import indicators as ind
 from app.core.strategies.registry import run_strategy
 
-WARMUP = 60
+# چند استراتژی EMA۲۰۰ دارند. با warmup=۶۰ آن EMA هنوز همگرا نشده و سیگنال‌های
+# اول بک‌تست روی مقداری بی‌معنا گرفته می‌شدند — یعنی نتیجه‌ی بک‌تست با رفتار
+# واقعی ربات (که ۵۰۰ کندل می‌گیرد) یکی نبود. warmup باید از بلندترین دوره‌ی
+# اندیکاتورها بیشتر باشد.
+WARMUP = 210
 DEFAULT_SL_TP_ATR_MULT = 3.0   # متقارن، مثل موتور واقعی
 START_EQUITY = 10000.0
 RISK_PCT = 1.0  # ٪ریسک هر معامله از اکوییتی جاری — مثل ربات واقعی
@@ -26,8 +30,8 @@ RISK_PCT = 1.0  # ٪ریسک هر معامله از اکوییتی جاری — 
 
 def run_backtest(df: pd.DataFrame, strategy_key: str, params: dict | None = None,
                  invert: bool = False, sl_tp_atr_mult: float = DEFAULT_SL_TP_ATR_MULT) -> dict:
-    if df is None or len(df) < WARMUP + 10:
-        raise ValueError("داده‌ی کندل برای بک‌تست کافی نیست (حداقل ~۷۰ کندل).")
+    if df is None or len(df) < WARMUP + 20:
+        raise ValueError("داده‌ی کندل برای بک‌تست کافی نیست (حداقل ~۲۳۰ کندل).")
 
     atr_series = ind.atr(df, 14)
     equity = START_EQUITY

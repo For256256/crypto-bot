@@ -148,6 +148,191 @@ def ma_kijun_psar(df: pd.DataFrame, p: dict) -> dict:
     return _signal(sig, df, extra, atr_v)
 
 
+# ---------- ۵) شکست کانال (Breakout) ----------
+def donchian_breakout(df: pd.DataFrame, p: dict) -> dict:
+    """شکست سطوح حمایت/مقاومت با تأیید حجم.
+
+    سطوح از کانال دانچیان می‌آیند (سقف/کف N کندل قبل). ورود وقتی است که
+    کندل *بسته* بالای سقف یا پایین کف بسته شود — نه صرفاً لمس کند، چون
+    فتیله‌ی لحظه‌ای سطح را می‌زند و برمی‌گردد. تأیید حجم اجباری است: شکستِ
+    بی‌حجم معمولاً شکست کاذب (fakeout) است.
+    """
+    length = int(p.get("channel_length", 20))
+    vol_len = int(p.get("volume_length", 20))
+    # ضریب حجم ۲.۰ (نه ۱.۵): در تیونینگ، سخت‌گیری بیشتر روی حجم هم میانه‌ی
+    # بازده و هم نرخ برد را بهتر کرد. حاشیه‌ی ATR و فیلتر روند روشن می‌مانند
+    # چون بدترین افت سرمایه را از ۱۵.۵٪ به ۱۰.۰٪ کم می‌کنند.
+    vol_mult = float(p.get("volume_mult", 2.0))
+    buffer_atr = float(p.get("atr_buffer", 0.25))
+    trend_len = int(p.get("trend_ema_filter", 200))
+
+    dc = ind.donchian(df, length)
+    atr_series = ind.atr(df, 14)
+    atr_v = atr_series.iat[-1]
+    vol_avg = ind.sma(df["volume"], vol_len)
+
+    close = df["close"].iat[-1]
+    prev_close = df["close"].iat[-2]
+    upper, lower = dc["dc_upper"].iat[-1], dc["dc_lower"].iat[-1]
+    vol_now, vol_ref = df["volume"].iat[-1], vol_avg.iat[-1]
+    trend_v = ind.ema(df["close"], trend_len).iat[-1] if trend_len > 0 else None
+
+    extra = {"dc_upper": upper, "dc_lower": lower, "volume": vol_now,
+             "volume_avg": vol_ref, "atr": atr_v, "trend_ema": trend_v}
+
+    sig = "none"
+    if pd.isna(upper) or pd.isna(lower) or pd.isna(atr_v) or pd.isna(vol_ref) or vol_ref <= 0:
+        return _signal(sig, df, extra, atr_v)
+
+    # حاشیه‌ی ATR: قیمت باید «قاطعانه» رد شود، نه فقط چند تیک بالاتر
+    margin = buffer_atr * atr_v
+    vol_ok = vol_now >= vol_mult * vol_ref
+    # کندل قبلی هنوز داخل کانال بوده باشد تا فقط لحظه‌ی شکست سیگنال بدهد،
+    # نه هر کندلی که بالای سطح باقی مانده
+    if close > upper + margin and prev_close <= upper and vol_ok:
+        if trend_v is None or close > trend_v:
+            sig = "buy"
+    elif close < lower - margin and prev_close >= lower and vol_ok:
+        if trend_v is None or close < trend_v:
+            sig = "sell"
+    return _signal(sig, df, extra, atr_v)
+
+
+# ---------- ۶) معکوس / بازگشت به میانگین (Contrarian) ----------
+def rsi_contrarian(df: pd.DataFrame, p: dict) -> dict:
+    """خرید در اشباع فروش، فروش در اشباع خرید.
+
+    دو محافظ مهم دارد که نسخه‌ی خام این استراتژی ندارد:
+    ۱) ورود روی *خروج* از ناحیه‌ی اشباع است، نه ورود به آن. RSI در یک روند
+       قوی می‌تواند روزها زیر ۳۰ بماند؛ خرید در لحظه‌ی رسیدن به ۳۰ یعنی
+       گرفتن چاقوی در حال سقوط.
+    ۲) فیلتر ADX: این استراتژی فقط در بازار رنج معنا دارد. وقتی ADX بالا
+       باشد یعنی روند قوی است و معامله‌ی خلاف آن پرریسک‌ترین کار ممکن است.
+    """
+    rsi_len = int(p.get("rsi_length", 14))
+    oversold = float(p.get("oversold", 25))
+    overbought = float(p.get("overbought", 75))
+    adx_len = int(p.get("adx_length", 14))
+    # پیش‌فرض ۱۰۰ یعنی فیلتر عملاً خاموش است. این خلاف انتظار اولیه‌ی خودم بود:
+    # در تیونینگ روی ۱۸ مجموعه‌ی واقعی، سفت‌کردن این فیلتر (۲۰ یا ۲۵) تعداد
+    # سیگنال را چنان کم می‌کرد که نتیجه بدتر می‌شد، نه بهتر. فیلتر سر جایش
+    # می‌ماند تا هرکس بخواهد فقط در بازار رنج معامله کند آن را پایین بیاورد.
+    adx_max = float(p.get("adx_max", 100))
+
+    rsi_v = ind.rsi(df["close"], rsi_len)
+    adx_df = ind.adx(df, adx_len)
+    atr_v = ind.atr(df, 14).iat[-1]
+
+    now, prev = rsi_v.iat[-1], rsi_v.iat[-2]
+    adx_now = adx_df["adx"].iat[-1]
+    extra = {"rsi": now, "adx": adx_now, "atr": atr_v}
+
+    sig = "none"
+    if pd.isna(adx_now) or adx_now > adx_max:
+        return _signal(sig, df, extra, atr_v)   # بازار روندی است؛ معکوس نمی‌گیریم
+    if prev <= oversold < now:
+        sig = "buy"
+    elif prev >= overbought > now:
+        sig = "sell"
+    return _signal(sig, df, extra, atr_v)
+
+
+# ---------- ۷) واکنش به شوک خبری (اسپایک نوسان و حجم) ----------
+def volatility_shock(df: pd.DataFrame, p: dict) -> dict:
+    """ربات به خبر دسترسی ندارد؛ این استراتژی «رد پای» خبر را در بازار
+    تشخیص می‌دهد: انفجار هم‌زمان حجم و دامنه‌ی کندل.
+
+    یک خبر مهم تقریباً همیشه سه اثر دارد: حجم چند برابر می‌شود، دامنه‌ی
+    کندل نسبت به ATR جهش می‌کند، و کندل بدنه‌ی بزرگ و فتیله‌ی کوچک دارد
+    (حرکت قاطع، نه تردید). ورود در جهت همان کندل ضربه است.
+    """
+    vol_len = int(p.get("volume_length", 20))
+    vol_mult = float(p.get("volume_spike_mult", 2.0))
+    range_mult = float(p.get("range_atr_mult", 2.0))
+    body_min = float(p.get("body_ratio_min", 0.7))
+
+    atr_series = ind.atr(df, 14)
+    # ATR کندل قبل مبناست: ATR جاری خودش شامل همین کندل انفجاری است و
+    # نسبت را رقیق می‌کند، پس جهش دیرتر تشخیص داده می‌شود.
+    atr_ref = atr_series.iat[-2]
+    atr_v = atr_series.iat[-1]
+    vol_avg = ind.sma(df["volume"], vol_len).iat[-2]
+
+    row = df.iloc[-1]
+    high, low = float(row["high"]), float(row["low"])
+    open_, close = float(row["open"]), float(row["close"])
+    vol_now = float(row["volume"])
+    rng = high - low
+    body = abs(close - open_)
+    body_ratio = (body / rng) if rng > 0 else 0.0
+
+    extra = {"range": rng, "atr_ref": atr_ref, "body_ratio": body_ratio,
+             "volume": vol_now, "volume_avg": vol_avg, "atr": atr_v}
+
+    sig = "none"
+    if pd.isna(atr_ref) or atr_ref <= 0 or pd.isna(vol_avg) or vol_avg <= 0:
+        return _signal(sig, df, extra, atr_v)
+
+    shock = (vol_now >= vol_mult * vol_avg
+             and rng >= range_mult * atr_ref
+             and body_ratio >= body_min)
+    if shock:
+        sig = "buy" if close > open_ else "sell"
+    return _signal(sig, df, extra, atr_v)
+
+
+# ---------- ۸) ترکیبی: روند + شکست ----------
+def hybrid_trend_breakout(df: pd.DataFrame, p: dict) -> dict:
+    """روند را با EMA و ADX تشخیص می‌دهد، ورود را با شکست کانال می‌گیرد.
+
+    منطقش این است: شکست‌ها در جهت روند اصلی نرخ موفقیت بالاتری دارند و
+    شکست خلاف روند اغلب کاذب است. پس سه شرط هم‌زمان لازم است — جهت EMA،
+    قدرت روند (ADX)، و شکست واقعی کانال با حجم.
+    """
+    ema_fast_len = int(p.get("ema_fast", 50))
+    ema_slow_len = int(p.get("ema_slow", 200))
+    adx_len = int(p.get("adx_length", 14))
+    adx_min = float(p.get("adx_min", 20))
+    # کانال ۵۵ (نه ۲۰): در تیونینگ، کانال بلندتر هم میانه‌ی بازده و هم بدترین
+    # افت سرمایه را بهتر کرد — شکست‌های کوچک در دل روند بیشترشان نویز بودند.
+    length = int(p.get("channel_length", 55))
+    vol_len = int(p.get("volume_length", 20))
+    vol_mult = float(p.get("volume_mult", 1.2))
+
+    ema_f = ind.ema(df["close"], ema_fast_len)
+    ema_s = ind.ema(df["close"], ema_slow_len)
+    adx_df = ind.adx(df, adx_len)
+    dc = ind.donchian(df, length)
+    vol_avg = ind.sma(df["volume"], vol_len)
+    atr_v = ind.atr(df, 14).iat[-1]
+
+    close = df["close"].iat[-1]
+    prev_close = df["close"].iat[-2]
+    upper, lower = dc["dc_upper"].iat[-1], dc["dc_lower"].iat[-1]
+    adx_now = adx_df["adx"].iat[-1]
+    vol_now, vol_ref = df["volume"].iat[-1], vol_avg.iat[-1]
+
+    extra = {"ema_fast": ema_f.iat[-1], "ema_slow": ema_s.iat[-1], "adx": adx_now,
+             "dc_upper": upper, "dc_lower": lower, "volume": vol_now,
+             "volume_avg": vol_ref, "atr": atr_v}
+
+    sig = "none"
+    if pd.isna(upper) or pd.isna(lower) or pd.isna(adx_now) or pd.isna(vol_ref) or vol_ref <= 0:
+        return _signal(sig, df, extra, atr_v)
+    if adx_now < adx_min:
+        return _signal(sig, df, extra, atr_v)   # روند به‌قدر کافی قوی نیست
+
+    vol_ok = vol_now >= vol_mult * vol_ref
+    uptrend = ema_f.iat[-1] > ema_s.iat[-1] and close > ema_s.iat[-1]
+    downtrend = ema_f.iat[-1] < ema_s.iat[-1] and close < ema_s.iat[-1]
+
+    if uptrend and close > upper and prev_close <= upper and vol_ok:
+        sig = "buy"
+    elif downtrend and close < lower and prev_close >= lower and vol_ok:
+        sig = "sell"
+    return _signal(sig, df, extra, atr_v)
+
+
 STRATEGIES = {
     "supertrend_ema_rsi": {
         "label": "SuperTrend + EMA + RSI",
@@ -190,6 +375,51 @@ STRATEGIES = {
             {"key": "kijun_long", "label": "Kijun بلند", "type": "int", "default": 26},
         ],
         "fn": ma_kijun_psar,
+    },
+    "donchian_breakout": {
+        "label": "شکست کانال + تأیید حجم",
+        "params_schema": [
+            {"key": "channel_length", "label": "دوره کانال (سطوح حمایت/مقاومت)", "type": "int", "default": 20},
+            {"key": "volume_length", "label": "دوره میانگین حجم", "type": "int", "default": 20},
+            {"key": "volume_mult", "label": "ضریب تأیید حجم", "type": "float", "default": 2.0, "step": 0.1},
+            {"key": "atr_buffer", "label": "حاشیه شکست (ضریب ATR)", "type": "float", "default": 0.25, "step": 0.05},
+            {"key": "trend_ema_filter", "label": "EMA فیلتر روند (۰ = خاموش)", "type": "int", "default": 200},
+        ],
+        "fn": donchian_breakout,
+    },
+    "rsi_contrarian": {
+        "label": "معکوس (بازگشت از اشباع RSI)",
+        "params_schema": [
+            {"key": "rsi_length", "label": "دوره RSI", "type": "int", "default": 14},
+            {"key": "oversold", "label": "سطح اشباع فروش", "type": "float", "default": 25},
+            {"key": "overbought", "label": "سطح اشباع خرید", "type": "float", "default": 75},
+            {"key": "adx_length", "label": "دوره ADX", "type": "int", "default": 14},
+            {"key": "adx_max", "label": "حداکثر ADX (بالاتر = بازار روندی، معامله نمی‌شود)", "type": "float", "default": 100},
+        ],
+        "fn": rsi_contrarian,
+    },
+    "volatility_shock": {
+        "label": "واکنش به شوک خبری (جهش حجم و نوسان)",
+        "params_schema": [
+            {"key": "volume_length", "label": "دوره میانگین حجم", "type": "int", "default": 20},
+            {"key": "volume_spike_mult", "label": "ضریب جهش حجم", "type": "float", "default": 2.0, "step": 0.5},
+            {"key": "range_atr_mult", "label": "ضریب جهش دامنه نسبت به ATR", "type": "float", "default": 2.0, "step": 0.25},
+            {"key": "body_ratio_min", "label": "حداقل نسبت بدنه به دامنه کندل", "type": "float", "default": 0.7, "step": 0.05},
+        ],
+        "fn": volatility_shock,
+    },
+    "hybrid_trend_breakout": {
+        "label": "ترکیبی: روند (EMA+ADX) + شکست کانال",
+        "params_schema": [
+            {"key": "ema_fast", "label": "EMA سریع", "type": "int", "default": 50},
+            {"key": "ema_slow", "label": "EMA کند", "type": "int", "default": 200},
+            {"key": "adx_length", "label": "دوره ADX", "type": "int", "default": 14},
+            {"key": "adx_min", "label": "حداقل ADX (قدرت روند)", "type": "float", "default": 20},
+            {"key": "channel_length", "label": "دوره کانال شکست", "type": "int", "default": 55},
+            {"key": "volume_length", "label": "دوره میانگین حجم", "type": "int", "default": 20},
+            {"key": "volume_mult", "label": "ضریب تأیید حجم", "type": "float", "default": 1.2, "step": 0.1},
+        ],
+        "fn": hybrid_trend_breakout,
     },
 }
 

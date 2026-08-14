@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}{{ t("learn.title") }} | CryptoPulse{% endblock %}
+
+{% block head %}
+<style>
+  .learn-card > summary { list-style: none; cursor: pointer; }
+  .learn-card > summary::-webkit-details-marker { display: none; }
+  .learn-card > summary .chev { transition: transform .2s; }
+  .learn-card[open] > summary .chev { transform: rotate(90deg); }
+  [dir="rtl"] .learn-card > summary .chev { transform: rotate(180deg); }
+  [dir="rtl"] .learn-card[open] > summary .chev { transform: rotate(90deg); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+  <h2 class="font-headline text-2xl font-bold text-on-surface">{{ t("learn.title") }}</h2>
+  <p class="text-on-surface-variant text-sm mt-1 max-w-3xl leading-6">{{ t("learn.subtitle") }}</p>
+</div>
+
+<!-- مفاهیم پایه -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+  {% for key, icon in [("risk", "shield"), ("sltp", "target"), ("paper", "science"), ("backtest", "history")] %}
+  <div class="glass-card rounded-2xl p-5">
+    <div class="flex items-center gap-2 mb-2">
+      <span class="material-symbols-outlined text-primary text-xl">{{ icon }}</span>
+      <h3 class="font-bold text-on-surface text-sm">{{ t("learn.basic." ~ key ~ ".title") }}</h3>
+    </div>
+    <p class="text-on-surface-variant text-xs leading-6">{{ t("learn.basic." ~ key ~ ".body") }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- هشدار کلی -->
+<div class="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5 mb-8">
+  <div class="flex items-start gap-3">
+    <span class="material-symbols-outlined text-amber-500">warning</span>
+    <div>
+      <h3 class="font-bold text-amber-500 text-sm mb-1">{{ t("learn.disclaimer.title") }}</h3>
+      <p class="text-on-surface-variant text-xs leading-6">{{ t("learn.disclaimer.body") }}</p>
+    </div>
+  </div>
+</div>
+
+<h3 class="font-headline text-lg font-bold text-on-surface mb-1">{{ t("learn.strategies_title") }}</h3>
+<p class="text-on-surface-variant text-xs mb-4">{{ t("learn.strategies_hint") }}</p>
+
+<div class="flex flex-col gap-3" id="stratCards">
+  <div class="text-center text-on-surface-variant py-8 text-sm">{{ t("common.loading") }}</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ترتیب عمداً ثابت است: اول چهار استراتژی روندی/بازگشتیِ قدیمی، بعد چهارتای
+// جدید. کلیدها با رجیستری بک‌اند یکی هستند.
+const STRAT_KEYS = [
+  'supertrend_ema_rsi', 'macd_trend', 'bollinger_rsi', 'ma_kijun_psar',
+  'donchian_breakout', 'rsi_contrarian', 'volatility_shock', 'hybrid_trend_breakout',
+];
+const STRAT_ICON = {
+  supertrend_ema_rsi: 'trending_up', macd_trend: 'waves', bollinger_rsi: 'compress',
+  ma_kijun_psar: 'stacked_line_chart', donchian_breakout: 'open_in_full',
+  rsi_contrarian: 'swap_vert', volatility_shock: 'bolt', hybrid_trend_breakout: 'hub',
+};
+// برچسب نوع بازار مناسب هر استراتژی — برای اینکه کاربر سریع بفهمد کدام
+// استراتژی در کدام شرایط کار می‌کند.
+const STRAT_REGIME = {
+  supertrend_ema_rsi: 'trend', macd_trend: 'trend', bollinger_rsi: 'range',
+  ma_kijun_psar: 'trend', donchian_breakout: 'volatile', rsi_contrarian: 'range',
+  volatility_shock: 'volatile', hybrid_trend_breakout: 'trend',
+};
+const REGIME_STYLE = {
+  trend: 'bg-buy/10 text-buy border-buy/20',
+  range: 'bg-info-blue/10 text-info-blue border-info-blue/25',
+  volatile: 'bg-gold/10 text-gold border-gold/25',
+};
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// چند جمله عمداً یک کلمه‌ی کلیدی را بین * گذاشته‌اند («بسته شود» در برابر
+// «لمس کند») چون تفاوتشان اصل مطلب است. اول escape می‌کنیم بعد پررنگ، تا
+// متن کاتالوگ نتواند HTML تزریق کند.
+function emph(s) {
+  return esc(s).replace(/\*([^*]+)\*/g, '<strong class="text-on-surface">$1</strong>');
+}
+
+function paramRows(schema) {
+  if (!schema || !schema.length) return '';
+  const rows = schema.map(p => `<tr>
+      <td class="text-xs">${esc(p.label)}</td>
+      <td class="num text-xs" dir="ltr">${esc(p.default)}</td>
+    </tr>`).join('');
+  return `<div class="mt-4">
+    <div class="text-xs font-bold text-on-surface mb-2">${t('learn.default_params')}</div>
+    <div class="overflow-x-auto"><table class="of-table">
+      <thead><tr><th>${t('learn.param')}</th><th>${t('learn.value')}</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function card(st) {
+  const k = st.key;
+  const regime = STRAT_REGIME[k] || 'trend';
+  const steps = ['how1', 'how2', 'how3']
+    .map(n => t('learn.s.' + k + '.' + n))
+    .filter(s => s && s.indexOf('learn.s.') !== 0);
+  return `<details class="learn-card glass-card rounded-2xl overflow-hidden">
+    <summary class="p-5 flex items-center gap-3">
+      <span class="material-symbols-outlined text-primary">${STRAT_ICON[k] || 'insights'}</span>
+      <div class="flex-1 min-w-0">
+        <div class="font-bold text-on-surface text-sm">${esc(st.label)}</div>
+        <div class="text-on-surface-variant text-xs mt-0.5">${t('learn.s.' + k + '.goal')}</div>
+      </div>
+      <span class="px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${REGIME_STYLE[regime]}">
+        ${t('learn.regime.' + regime)}
+      </span>
+      <span class="material-symbols-outlined text-on-surface-variant chev">chevron_right</span>
+    </summary>
+    <div class="px-5 pb-5 pt-0 border-t border-outline-variant/20">
+      <div class="mt-4">
+        <div class="text-xs font-bold text-on-surface mb-2">${t('learn.how_title')}</div>
+        <ol class="text-on-surface-variant text-xs leading-6 space-y-1 list-decimal ms-5">
+          ${steps.map(s => `<li>${emph(s)}</li>`).join('')}
+        </ol>
+      </div>
+      <div class="mt-4">
+        <div class="text-xs font-bold text-on-surface mb-1">${t('learn.best_title')}</div>
+        <p class="text-on-surface-variant text-xs leading-6">${t('learn.s.' + k + '.best')}</p>
+      </div>
+      <div class="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+        <div class="text-xs font-bold text-amber-500 mb-1">${t('learn.tip_title')}</div>
+        <p class="text-on-surface-variant text-xs leading-6">${t('learn.s.' + k + '.tip')}</p>
+      </div>
+      ${paramRows(st.params_schema)}
+    </div>
+  </details>`;
+}
+
+async function loadLearn() {
+  const box = document.getElementById('stratCards');
+  try {
+    const strategies = await callApi('/api/strategies');
+    const byKey = {};
+    strategies.forEach(s => { byKey[s.key] = s; });
+    // اول کلیدهای شناخته‌شده به ترتیب، بعد هر استراتژی تازه‌ای که رجیستری
+    // دارد ولی اینجا فهرست نشده — تا اضافه‌شدن استراتژی جدید صفحه را نشکند.
+    const ordered = STRAT_KEYS.filter(k => byKey[k])
+      .concat(strategies.filter(s => STRAT_KEYS.indexOf(s.key) === -1).map(s => s.key));
+    box.innerHTML = ordered.map(k => card(byKey[k])).join('');
+  } catch (e) {
+    box.innerHTML = `<div class="text-center text-sell text-sm py-8">${t('common.error_prefix')}${esc(e.message)}</div>`;
+  }
+}
+
+loadLearn();
+</script>
+{% endblock %}
