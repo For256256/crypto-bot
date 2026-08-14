@@ -727,5 +727,20 @@
   "learn.s.hybrid_trend_breakout.how2": "如果趋势不够强——ADX 偏低——即使发生突破也完全不开仓。",
   "learn.s.hybrid_trend_breakout.how3": "只有通道突破才入场，且只顺着主趋势方向；逆势突破会被忽略。",
   "learn.s.hybrid_trend_breakout.best": "阶梯式上涨（或下跌）、回调短促的强趋势。",
-  "learn.s.hybrid_trend_breakout.tip": "三重过滤同时生效意味着信号更少但质量更高。若想获得更多信号，应先降低 ADX，而不是降低成交量倍数。"
+  "learn.s.hybrid_trend_breakout.tip": "三重过滤同时生效意味着信号更少但质量更高。若想获得更多信号，应先降低 ADX，而不是降低成交量倍数。",
+  "strategy.adaptive_regime.label": "自动：根据市场状况选择策略",
+  "strategy.param.adx_trend_min": "趋势行情阈值（ADX 高于）",
+  "strategy.param.adx_range_max": "震荡行情阈值（ADX 低于）",
+  "strategy.param.enable_shock": "响应新闻冲击（1 = 开启，0 = 关闭）",
+  "learn.regime.auto": "全部行情",
+  "learn.s.adaptive_regime.goal": "不再由您选择策略，而是由系统识别市场类型并运行与之匹配的策略",
+  "learn.s.adaptive_regime.how1": "ADX 衡量趋势强度并对市场分类：高于趋势阈值为趋势行情，低于震荡阈值为震荡行情。",
+  "learn.s.adaptive_regime.how2": "系统据此委派：趋势行情用 SuperTrend + EMA + RSI；震荡行情用逆势（RSI）；而成交量与振幅的突然跳升则交给新闻冲击反应，它的优先级高于前两者。",
+  "learn.s.adaptive_regime.how3": "两个阈值之间存在一段*死区*，在其中不开任何仓位。这是刻意设计：若只用单一阈值，ADX 在该数值附近来回波动会让机器人每隔几根K线就在两套相反的逻辑之间跳来跳去。",
+  "learn.s.adaptive_regime.best": "当您不确定接下来是趋势还是震荡行情，或者不想手动切换策略时。对于行为不断变化的品种或周期，收益最明显。",
+  "learn.s.adaptive_regime.tip": "这并非万能，我们如实报告实测结果。在 18 组真实数据上，自动模式优于它所替代的趋势策略（中位数 −0.86% → +0.04%），但并未超过同一数据上表现最好的固定策略（逆势，+0.84%）。原因很明显：那段时期以震荡为主，事后看纯震荡策略自然胜出。自动模式的价值在于您*事先*并不知道接下来的行情形态——它是防止跑错策略的保险，而不是利润倍增器。另外请注意，状态识别天生滞后，因为 ADX 由历史数据计算。",
+  "dash.regime.trend": "趋势",
+  "dash.regime.range": "震荡",
+  "dash.regime.shock": "冲击",
+  "dash.regime.unclear": "不明"
 }

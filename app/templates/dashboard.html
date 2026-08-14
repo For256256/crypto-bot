@@ -591,6 +591,20 @@ function signalBadge(sig) {
 }
 
 // ---------- رندر ----------
+// استراتژی خودکار رژیم تشخیص‌داده‌شده را همراه سیگنال برمی‌گرداند. نشان‌دادنش
+// مهم است، وگرنه کاربر نمی‌فهمد چرا ربات این تصمیم را گرفته یا چرا ساکت است.
+const REGIME_BADGE = {
+  trend:   'bg-buy/10 text-buy',
+  range:   'bg-info-blue/10 text-info-blue',
+  shock:   'bg-gold/10 text-gold',
+  unclear: 'bg-surface-variant text-on-surface-variant',
+};
+function regimeBadge(sig) {
+  if (!sig || !sig.regime || sig.regime === 'none') return '';
+  const cls = REGIME_BADGE[sig.regime] || REGIME_BADGE.unclear;
+  return `<span class="ms-1 px-1.5 py-0.5 rounded text-[9px] font-bold ${cls}">${t('dash.regime.' + sig.regime)}</span>`;
+}
+
 function renderSymbolCard(acc, sym, sig, uid) {
   const stLabel = (strategiesCache.find(x => x.key === sym.strategy) || {}).label || sym.strategy;
   const rows = [];
@@ -612,7 +626,7 @@ function renderSymbolCard(acc, sym, sig, uid) {
       ${signalBadge(sig)}
     </div>
     <div class="p-4 flex-grow">
-      <p class="text-[10px] text-center text-primary/60 mb-3 leading-tight">${stLabel}</p>
+      <p class="text-[10px] text-center text-primary/60 mb-3 leading-tight">${stLabel}${regimeBadge(sig)}</p>
       <div class="space-y-1.5">${rowsHtml || `<div class="text-center text-[11px] text-on-surface-variant py-3">${t('dash.start_bot_for_data')}</div>`}</div>
       <div class="mt-3">${sparklineSvg(sig ? sig.spark : null, sig ? sig.signal : null, uid)}</div>
     </div>

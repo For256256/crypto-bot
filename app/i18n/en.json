@@ -727,5 +727,20 @@
   "learn.s.hybrid_trend_breakout.how2": "If the trend is not strong enough — a low ADX — no trade is taken at all, even when a breakout happens.",
   "learn.s.hybrid_trend_breakout.how3": "Entry comes only from a channel breakout, and only in the direction of that main trend; counter-trend breakouts are ignored.",
   "learn.s.hybrid_trend_breakout.best": "Strong trends that climb (or fall) in steps with short pullbacks.",
-  "learn.s.hybrid_trend_breakout.tip": "Three simultaneous filters mean fewer but higher-quality signals. If you want more signals, lower ADX first rather than the volume multiplier."
+  "learn.s.hybrid_trend_breakout.tip": "Three simultaneous filters mean fewer but higher-quality signals. If you want more signals, lower ADX first rather than the volume multiplier.",
+  "strategy.adaptive_regime.label": "Automatic: pick the strategy from market conditions",
+  "strategy.param.adx_trend_min": "Trending-market threshold (ADX above)",
+  "strategy.param.adx_range_max": "Ranging-market threshold (ADX below)",
+  "strategy.param.enable_shock": "React to news shocks (1 = on, 0 = off)",
+  "learn.regime.auto": "All markets",
+  "learn.s.adaptive_regime.goal": "Instead of you choosing the strategy, the system detects the market type and runs the strategy that suits it",
+  "learn.s.adaptive_regime.how1": "ADX measures trend strength and classifies the market: above the trending threshold → trending market; below the ranging threshold → ranging market.",
+  "learn.s.adaptive_regime.how2": "Based on that class the work is delegated: trending → SuperTrend + EMA + RSI; ranging → Contrarian (RSI); and a sudden volume and range spike → News shock reaction, which takes priority over both.",
+  "learn.s.adaptive_regime.how3": "Between the two thresholds there is a *dead band* where no trade is taken. This is deliberate: with a single threshold, ADX oscillating around that number would make the bot flip between two opposite logics every few bars.",
+  "learn.s.adaptive_regime.best": "When you do not know whether the market ahead will trend or range, or when you do not want to switch strategies by hand. It helps most on a symbol or timeframe whose behaviour keeps changing.",
+  "learn.s.adaptive_regime.tip": "This is not magic, and we report its measurement honestly. Across 18 real datasets the automatic mode beat the trend strategy it replaces (median −0.86% → +0.04%), but it did not beat the best fixed strategy on that same data (Contrarian, +0.84%). The reason is plain: that period was mostly ranging, so in hindsight a pure range strategy wins. Automatic mode earns its keep when you do *not* know in advance what the market ahead looks like — it is insurance against running the wrong strategy, not a profit multiplier. Note too that regime detection lags by nature, since ADX is computed from past data.",
+  "dash.regime.trend": "Trending",
+  "dash.regime.range": "Ranging",
+  "dash.regime.shock": "Shock",
+  "dash.regime.unclear": "Unclear"
 }

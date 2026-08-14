@@ -727,5 +727,20 @@
   "learn.s.hybrid_trend_breakout.how2": "Trend yeterince güçlü değilse — ADX düşükse — kırılım gerçekleşse bile hiç işlem açılmaz.",
   "learn.s.hybrid_trend_breakout.how3": "Giriş yalnızca kanal kırılımıyla ve yalnızca ana trend yönünde yapılır; trend karşıtı kırılımlar dikkate alınmaz.",
   "learn.s.hybrid_trend_breakout.best": "Kısa geri çekilmelerle basamak basamak yükselen (veya düşen) güçlü trendler.",
-  "learn.s.hybrid_trend_breakout.tip": "Üç filtrenin aynı anda çalışması daha az ama daha kaliteli sinyal demektir. Daha fazla sinyal istiyorsanız hacim çarpanını değil, önce ADX'i düşürün."
+  "learn.s.hybrid_trend_breakout.tip": "Üç filtrenin aynı anda çalışması daha az ama daha kaliteli sinyal demektir. Daha fazla sinyal istiyorsanız hacim çarpanını değil, önce ADX'i düşürün.",
+  "strategy.adaptive_regime.label": "Otomatik: stratejiyi piyasa koşullarına göre seç",
+  "strategy.param.adx_trend_min": "Trendli piyasa eşiği (ADX üstü)",
+  "strategy.param.adx_range_max": "Yatay piyasa eşiği (ADX altı)",
+  "strategy.param.enable_shock": "Haber şoklarına tepki ver (1 = açık, 0 = kapalı)",
+  "learn.regime.auto": "Tüm piyasalar",
+  "learn.s.adaptive_regime.goal": "Stratejiyi siz seçmek yerine, sistem piyasa tipini tespit edip ona uygun stratejiyi çalıştırır",
+  "learn.s.adaptive_regime.how1": "ADX trend gücünü ölçer ve piyasayı sınıflandırır: trend eşiğinin üstü trendli piyasa, yatay eşiğin altı yatay piyasa.",
+  "learn.s.adaptive_regime.how2": "Bu sınıfa göre iş devredilir: trendli → SuperTrend + EMA + RSI; yatay → Ters yön (RSI); hacim ve aralıkta ani sıçrama → haber şoku tepkisi, ki bu ikisinin de önüne geçer.",
+  "learn.s.adaptive_regime.how3": "İki eşik arasında hiç işlem açılmayan bir *ölü bant* vardır. Bu bilinçlidir: tek bir eşikle, o sayının etrafında salınan ADX botun birkaç mumda bir iki zıt mantık arasında zıplamasına yol açardı.",
+  "learn.s.adaptive_regime.best": "Önünüzdeki piyasanın trendli mi yatay mı olacağını bilmediğinizde ya da stratejiyi elle değiştirmek istemediğinizde. Davranışı sürekli değişen bir sembol veya periyotta en çok işe yarar.",
+  "learn.s.adaptive_regime.tip": "Bu sihir değildir ve ölçümünü dürüstçe aktarıyoruz. 18 gerçek veri kümesinde otomatik mod, yerine geçtiği trend stratejisini geçti (medyan −%0,86 → +%0,04), ancak aynı veride en iyi sabit stratejiyi (Ters yön, +%0,84) geçemedi. Nedeni açık: o dönem çoğunlukla yataydı, dolayısıyla geriye bakıldığında saf bir yatay strateji kazanır. Otomatik modun değeri, önünüzdeki piyasanın nasıl olacağını *önceden* bilmediğinizde ortaya çıkar — kârı katlayan bir araç değil, yanlış stratejiyi çalıştırmaya karşı bir sigortadır. Ayrıca rejim tespiti doğası gereği gecikmelidir, çünkü ADX geçmiş veriden hesaplanır.",
+  "dash.regime.trend": "Trendli",
+  "dash.regime.range": "Yatay",
+  "dash.regime.shock": "Şok",
+  "dash.regime.unclear": "Belirsiz"
 }
