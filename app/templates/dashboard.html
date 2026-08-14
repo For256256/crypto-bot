@@ -66,12 +66,12 @@
       <div><label class="lbl">{{ t("dash.max_open_positions") }}</label><input id="f_max_open_positions" class="field mono-num" dir="ltr" type="number" value="2"></div>
       <div><label class="lbl">{{ t("dash.max_daily_loss") }}</label><input id="f_max_daily_loss_percent" class="field mono-num" dir="ltr" type="number" step="0.5" value="5"></div>
       <div><label class="lbl">{{ t("dash.poll_interval") }}</label><input id="f_poll_interval_seconds" class="field mono-num" dir="ltr" type="number" value="60"></div>
-      <div class="flex items-center gap-2 pt-5"><input type="checkbox" id="f_recycle_on_new_signal" class="of-switch"><label for="f_recycle_on_new_signal" class="text-xs text-on-surface-variant">{{ t("dash.recycle") }}</label></div>
-      <div class="flex items-center gap-2 pt-5"><input type="checkbox" id="f_accept_webhook" class="of-switch" checked><label for="f_accept_webhook" class="text-xs text-on-surface-variant">{{ t("dash.accept_webhook") }}</label></div>
+      <div class="flex items-center gap-2 pt-5"><label class="switch"><input type="checkbox" id="f_recycle_on_new_signal"><span class="switch-track"><span class="switch-thumb"></span></span></label><label for="f_recycle_on_new_signal" class="text-xs text-on-surface-variant">{{ t("dash.recycle") }}</label></div>
+      <div class="flex items-center gap-2 pt-5"><label class="switch"><input type="checkbox" id="f_accept_webhook" checked><span class="switch-track"><span class="switch-thumb"></span></span></label><label for="f_accept_webhook" class="text-xs text-on-surface-variant">{{ t("dash.accept_webhook") }}</label></div>
     </div>
     <div class="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
       <div class="flex items-center gap-2">
-        <input type="checkbox" id="f_invert_signals" class="of-switch">
+        <label class="switch"><input type="checkbox" id="f_invert_signals"><span class="switch-track"><span class="switch-thumb"></span></span></label>
         <label for="f_invert_signals" class="text-xs font-bold text-amber-500">{{ t("dash.invert_signals") }}</label>
       </div>
       <p class="text-[10px] text-on-surface-variant mt-2 leading-5">{{ t("dash.invert_signals_hint") }}</p>
@@ -90,7 +90,7 @@
     <p class="text-[11px] text-on-surface-variant mb-4">{{ t("dash.bulk_note") | safe }}</p>
     <div class="space-y-4">
       <div class="flex items-center gap-3">
-        <input type="checkbox" id="b_use_timeframe" class="of-switch" checked>
+        <label class="switch"><input type="checkbox" id="b_use_timeframe" checked><span class="switch-track"><span class="switch-thumb"></span></span></label>
         <label class="text-sm flex-1" for="b_use_timeframe">{{ t("common.timeframe") }}</label>
         <select id="b_timeframe" class="field !w-32">
           <option value="1m">{{ t("common.tf_1m") }}</option><option value="5m">{{ t("common.tf_5m") }}</option><option value="15m">{{ t("common.tf_15m") }}</option>
@@ -100,20 +100,20 @@
       </div>
       <div>
         <div class="flex items-center gap-3 mb-2">
-          <input type="checkbox" id="b_use_strategy" class="of-switch" onchange="document.getElementById('bulkParamsBox').style.display=this.checked?'grid':'none'">
+          <label class="switch"><input type="checkbox" id="b_use_strategy" onchange="document.getElementById('bulkParamsBox').style.display=this.checked?'grid':'none'"><span class="switch-track"><span class="switch-thumb"></span></span></label>
           <label class="text-sm flex-1" for="b_use_strategy">{{ t("dash.bulk_strategy_params") }}</label>
           <select id="b_strategy" class="field !w-56" onchange="renderBulkStrategyParams()"></select>
         </div>
         <div id="bulkParamsBox" class="grid grid-cols-2 sm:grid-cols-3 gap-3" style="display:none"></div>
       </div>
       <div class="flex items-center gap-3">
-        <input type="checkbox" id="b_use_leverage" class="of-switch">
+        <label class="switch"><input type="checkbox" id="b_use_leverage"><span class="switch-track"><span class="switch-thumb"></span></span></label>
         <label class="text-sm flex-1" for="b_use_leverage">{{ t("dash.bulk_leverage") }}</label>
         <input id="b_leverage" class="field mono-num !w-32" dir="ltr" type="number" placeholder="{{ t('common.auto') }}">
       </div>
       <div>
         <div class="flex items-center gap-3 mb-2">
-          <input type="checkbox" id="b_use_qty" class="of-switch" onchange="document.getElementById('bulkQtyBox').style.display=this.checked?'grid':'none'">
+          <label class="switch"><input type="checkbox" id="b_use_qty" onchange="document.getElementById('bulkQtyBox').style.display=this.checked?'grid':'none'"><span class="switch-track"><span class="switch-thumb"></span></span></label>
           <label class="text-sm flex-1" for="b_use_qty">{{ t("dash.bulk_qty_limits") }}</label>
         </div>
         <div id="bulkQtyBox" class="grid grid-cols-3 gap-3" style="display:none">
@@ -634,9 +634,9 @@ function renderSymbolCard(acc, sym, sig, uid) {
       <button class="flex-1 py-1.5 rounded-lg border border-outline-variant/50 text-[11px] hover:bg-surface-variant transition-colors flex items-center justify-center gap-1" onclick="openSymbolModal('${acc.id}','${sym.symbol}')">
         <span class="material-symbols-outlined text-[14px]">edit</span> ${t('common.edit')}
       </button>
-      <button class="py-1.5 px-2 rounded-lg border border-outline-variant/50 text-[11px] hover:bg-surface-variant transition-colors" onclick="toggleSymbol('${acc.id}','${sym.symbol}',${!sym.enabled})" title="${sym.enabled ? t('common.disable') : t('common.enable')}">
-        <span class="material-symbols-outlined text-[14px]">${sym.enabled ? 'toggle_on' : 'toggle_off'}</span>
-      </button>
+      <span class="py-1.5 px-2 rounded-lg border border-outline-variant/50 flex items-center" title="${sym.enabled ? t('common.disable') : t('common.enable')}">
+        ${switchHtml(`${sym.enabled ? 'checked' : ''} onchange="toggleSymbol('${acc.id}','${sym.symbol}',this.checked)"`, 'sm')}
+      </span>
       <button class="py-1.5 px-2 rounded-lg border border-sell/30 text-sell text-[11px] hover:bg-sell/10 transition-colors" onclick="deleteSymbol('${acc.id}','${sym.symbol}')" title="${t('common.delete')}">
         <span class="material-symbols-outlined text-[14px]">delete</span>
       </button>

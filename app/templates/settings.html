@@ -152,7 +152,10 @@
         <div><label class="lbl">{{ t("set.smtp_host") }}</label><input id="em_host" class="field mono-num" dir="ltr" placeholder="smtp.example.com"></div>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="lbl">{{ t("set.smtp_port") }}</label><input id="em_port" class="field mono-num" dir="ltr" type="number" value="587"></div>
-          <div class="flex items-end pb-1"><label class="flex items-center gap-2 text-xs"><input type="checkbox" id="em_tls" class="of-switch" checked> STARTTLS</label></div>
+          <div class="flex items-end pb-1 gap-2">
+            <label class="switch"><input type="checkbox" id="em_tls" checked><span class="switch-track"><span class="switch-thumb"></span></span></label>
+            <label for="em_tls" class="text-xs cursor-pointer">STARTTLS</label>
+          </div>
         </div>
         <div><label class="lbl">{{ t("set.smtp_user") }}</label><input id="em_user" class="field mono-num" dir="ltr"></div>
         <div><label class="lbl">{{ t("set.smtp_password") }}</label><input id="em_password" class="field mono-num" dir="ltr" type="password" placeholder="{{ t('set.smtp_password_ph') }}"></div>
@@ -187,16 +190,62 @@
       <div class="space-y-4" id="notifBox">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3"><span class="material-symbols-outlined text-on-surface-variant">mail</span><div><div class="text-sm">{{ t("auth.email") }}</div><div class="text-[10px] text-on-surface-variant">{{ t("set.notify_email_desc") }}</div></div></div>
-          <input type="checkbox" id="n_email" class="of-switch" onchange="saveNotif()" {{ '' if user.role == 'admin' else 'disabled' }}>
+          <label class="switch"><input type="checkbox" id="n_email" onchange="saveNotif()" {{ '' if user.role == 'admin' else 'disabled' }}><span class="switch-track"><span class="switch-thumb"></span></span></label>
         </div>
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3"><span class="material-symbols-outlined text-on-surface-variant">sms</span><div><div class="text-sm">{{ t("set.notify_sms") }}</div><div class="text-[10px] text-on-surface-variant">{{ t("set.notify_sms_desc") }}</div></div></div>
-          <input type="checkbox" id="n_sms" class="of-switch" onchange="saveNotif()" {{ '' if user.role == 'admin' else 'disabled' }}>
+          <label class="switch"><input type="checkbox" id="n_sms" onchange="saveNotif()" {{ '' if user.role == 'admin' else 'disabled' }}><span class="switch-track"><span class="switch-thumb"></span></span></label>
         </div>
       </div>
       <p class="text-[10px] text-on-surface-variant mt-4 border-t border-outline-variant/20 pt-3 leading-5">
         {{ t("set.notify_note") }}
       </p>
+    </div>
+
+    <!-- پشتیبان‌گیری و بازیابی -->
+    <div class="glass-card rounded-2xl p-6">
+      <h3 class="font-headline font-bold mb-1 flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary">backup</span> {{ t("set.backup_title") }}
+      </h3>
+      <p class="text-[11px] text-on-surface-variant mb-4 leading-6">{{ t("set.backup_desc") }}</p>
+
+      <div class="rounded-lg border border-gold/30 bg-gold/5 p-3 mb-4">
+        <p class="text-[11px] text-on-surface-variant leading-6">
+          <span class="text-gold font-bold">{{ t("set.backup_nokeys_title") }}</span>
+          {{ t("set.backup_nokeys") }}
+        </p>
+      </div>
+
+      <div class="flex flex-wrap gap-2 mb-5">
+        <button class="btn-primary-of flex items-center gap-2" onclick="downloadBackup()">
+          <span class="material-symbols-outlined text-base">download</span> {{ t("set.backup_download") }}
+        </button>
+        <button class="btn-ghost flex items-center gap-2" onclick="document.getElementById('restoreFile').click()">
+          <span class="material-symbols-outlined text-base">upload</span> {{ t("set.backup_restore") }}
+        </button>
+        <input type="file" id="restoreFile" accept="application/json,.json" class="hidden" onchange="onRestoreFile(this)">
+      </div>
+
+      <div class="border-t border-outline-variant/20 pt-4">
+        <div class="text-xs font-bold text-on-surface mb-2">{{ t("set.backup_mode_title") }}</div>
+        <div class="space-y-2">
+          <label class="flex items-start gap-2 cursor-pointer">
+            <input type="radio" name="restoreMode" value="new" checked class="mt-1 accent-primary">
+            <span class="text-[11px] text-on-surface-variant leading-5">
+              <span class="text-on-surface font-bold">{{ t("set.backup_mode_new") }}</span> —
+              {{ t("set.backup_mode_new_desc") }}
+            </span>
+          </label>
+          <label class="flex items-start gap-2 cursor-pointer">
+            <input type="radio" name="restoreMode" value="merge" class="mt-1 accent-primary">
+            <span class="text-[11px] text-on-surface-variant leading-5">
+              <span class="text-sell font-bold">{{ t("set.backup_mode_merge") }}</span> —
+              {{ t("set.backup_mode_merge_desc") }}
+            </span>
+          </label>
+        </div>
+      </div>
+      <div id="restoreResult" class="mt-3"></div>
     </div>
 
     <div class="glass-card rounded-2xl p-6 border-gold/30">
@@ -358,7 +407,7 @@ async function loadTelegramCard() {
           <span>${t('set.telegram_connected')}</span></div>
         <div class="flex items-center justify-between mb-3">
           <span>${t('set.telegram_notify')}</span>
-          <input type="checkbox" id="n_tg_personal" class="of-switch" ${st.notify_telegram ? 'checked' : ''} onchange="saveTelegramNotifyPref()">
+          <label class="switch"><input type="checkbox" id="n_tg_personal" ${st.notify_telegram ? 'checked' : ''} onchange="saveTelegramNotifyPref()"><span class="switch-track"><span class="switch-thumb"></span></span></label>
         </div>
         <button class="btn-ghost w-full !py-2 text-xs !text-sell !border-sell/40" onclick="unlinkTelegram()">${t('set.telegram_unlink')}</button>`;
     } else {
@@ -573,6 +622,46 @@ function syncThemeSwitcher() {
   });
 }
 syncThemeSwitcher();
+
+// ---------- پشتیبان‌گیری ----------
+// ناوبری مستقیم به endpoint، چون پاسخ خودش Content-Disposition دارد و کوکی
+// سشن هم روی same-origin فرستاده می‌شود. نیازی به blob و لینک موقت نیست.
+function downloadBackup() {
+  window.location.href = '/api/backup';
+}
+
+function restoreMode() {
+  const el = document.querySelector('input[name="restoreMode"]:checked');
+  return el ? el.value : 'new';
+}
+
+async function onRestoreFile(input) {
+  const file = input.files && input.files[0];
+  input.value = '';                     // تا انتخاب دوباره‌ی همان فایل هم رویداد بدهد
+  if (!file) return;
+  const box = document.getElementById('restoreResult');
+  const mode = restoreMode();
+  if (mode === 'merge' && !confirm(t('set.backup_merge_confirm'))) return;
+
+  let payload;
+  try {
+    payload = JSON.parse(await file.text());
+  } catch (e) {
+    box.innerHTML = `<div class="text-[11px] text-sell">${t('set.backup_bad_file')}</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="text-[11px] text-on-surface-variant">${t('common.loading')}</div>`;
+  try {
+    const r = await callApi('/api/backup/restore', 'POST', {payload: payload, mode: mode});
+    const parts = [];
+    if (r.created && r.created.length) parts.push(t('set.backup_created', {n: r.created.length}));
+    if (r.updated && r.updated.length) parts.push(t('set.backup_updated', {n: r.updated.length}));
+    box.innerHTML = `<div class="text-[11px] text-buy leading-5">${parts.join(' · ')}<br>${t('set.backup_relogin')}</div>`;
+    toast(t('set.backup_restored'));
+  } catch (e) {
+    box.innerHTML = `<div class="text-[11px] text-sell">${t('common.error_prefix')}${e.message}</div>`;
+  }
+}
 
 loadAll().catch(e => toast(t('common.error_prefix') + e.message, true));
 </script>

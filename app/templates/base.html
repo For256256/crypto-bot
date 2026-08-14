@@ -150,37 +150,66 @@ tailwind.config = {
   .btn-primary-of:hover { box-shadow: 0 0 16px rgba(0,220,229,.4); }
   .btn-buy { background: #4edea3; color: #002113; border-radius: 0.25rem; font-weight: 700; padding: 0.5rem 1.5rem; font-size: .85rem; cursor: pointer; border: none; }
   .btn-sell { background: #f43f5e; color: #fff; border-radius: 0.25rem; font-weight: 700; padding: 0.5rem 1.5rem; font-size: .85rem; cursor: pointer; border: none; }
-  /* سوئیچ — ریست کامل ظاهر بومی چک‌باکس لازم است؛ بدون پیشوندهای -webkit/-moz
-     بعضی مرورگرها مربع و تیک بومی را هم روی سوئیچ می‌کشند. flex-shrink هم لازم
-     است وگرنه در ردیف‌های flex سوئیچ له می‌شود و روی متن برچسب می‌افتد. */
-  .of-switch {
-    -webkit-appearance: none; -moz-appearance: none; appearance: none;
-    position: relative; display: inline-block; vertical-align: middle;
-    flex: 0 0 auto; width: 40px; min-width: 40px; height: 22px;
-    margin: 0; padding: 0; border: 0; outline: 0;
-    background-color: rgb(var(--c-surface-variant)); background-image: none;
-    border-radius: 9999px; cursor: pointer;
-    /* حلقه‌ی داخلی لازم است: در تم روشن ریلِ خاموش تقریباً هم‌رنگ پس‌زمینه
-       است و بدون آن سوئیچ خاموش دیده نمی‌شود. inset است تا اندازه عوض نشود. */
-    box-shadow: inset 0 0 0 1px rgb(var(--c-on-surface) / 0.22);
-    transition: background-color .2s, box-shadow .2s;
+  /* ---------- سوئیچ ----------
+     نسخه‌ی قبلی خودِ <input> را استایل می‌داد و به appearance:none تکیه داشت.
+     مشکلش این بود که اگر آن یک اعلان به هر دلیلی اعمال نمی‌شد (کش قدیمی CSS
+     روی موبایل، موتور قدیمی)، مرورگر چک‌باکس بومی را هم می‌کشید و نتیجه یک
+     مستطیل آبی با تیک سفید زیر دستگیره می‌شد.
+
+     حالا input کاملاً پنهان است و چیزی که دیده می‌شود دو <span> ساده است.
+     هیچ مرورگری برای span ظاهر بومی ندارد، پس آن حالت خراب اصلاً ممکن نیست.
+     input هنوز در DOM است و focusable می‌ماند، پس id، label for، checked و
+     onchange دقیقاً مثل قبل کار می‌کنند. */
+  .switch {
+    display: inline-flex; align-items: center; flex: 0 0 auto;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    /* ناحیه‌ی لمس بزرگ‌تر از خود سوئیچ، برای موبایل */
+    padding: 4px; margin: -4px;
   }
-  /* بعضی موتورها علامت تیک بومی را با ::before می‌کشند */
-  .of-switch::before { content: none; display: none; }
-  .of-switch:checked { background-color: rgb(var(--c-buy)); box-shadow: none; }
-  /* رنگ دستگیره باید با حالت عوض شود: ریل خاموش خنثی است (روشن در تم تیره،
-     تیره در تم روشن) و ریل روشن سبز است — که در تم تیره روشن و در تم روشن
-     تیره است. پس on-surface برای خاموش و surface برای روشن، در هر دو تم
-     کنتراست می‌دهد. */
-  .of-switch::after {
-    content: ''; position: absolute; top: 3px; inset-inline-start: 3px;
-    width: 16px; height: 16px; background: rgb(var(--c-on-surface));
-    border-radius: 9999px; box-shadow: 0 1px 3px rgba(0,0,0,.35);
-    transition: inset-inline-start .2s, background-color .2s;
+  /* پنهان اما در دسترس صفحه‌خوان و قابل فوکوس با کیبورد */
+  .switch > input {
+    position: absolute; width: 1px; height: 1px; margin: -1px;
+    padding: 0; border: 0; overflow: hidden; white-space: nowrap;
+    clip: rect(0 0 0 0); clip-path: inset(50%);
   }
-  .of-switch:checked::after { inset-inline-start: 21px; background: rgb(var(--c-surface)); }
-  .of-switch:focus-visible { outline: 2px solid rgb(var(--c-primary)); outline-offset: 2px; }
-  .of-switch:disabled { opacity: .5; cursor: not-allowed; }
+  .switch-track {
+    position: relative; display: block; flex: 0 0 auto;
+    width: 44px; min-width: 44px; height: 26px; border-radius: 9999px;
+    background: rgb(var(--c-surface-variant));
+    /* حلقه‌ی داخلی: در تم روشن ریلِ خاموش تقریباً هم‌رنگ پس‌زمینه است */
+    box-shadow: inset 0 0 0 1px rgb(var(--c-on-surface) / 0.20);
+    transition: background-color .22s cubic-bezier(.4,0,.2,1), box-shadow .22s;
+  }
+  .switch-thumb {
+    position: absolute; top: 3px; inset-inline-start: 3px;
+    width: 20px; height: 20px; border-radius: 9999px;
+    background: rgb(var(--c-on-surface));
+    box-shadow: 0 1px 3px rgba(0,0,0,.4);
+    transition: inset-inline-start .22s cubic-bezier(.4,0,.2,1),
+                background-color .22s, width .12s;
+  }
+  .switch > input:checked + .switch-track {
+    background: rgb(var(--c-buy));
+    box-shadow: 0 0 0 1px rgb(var(--c-buy) / .35), 0 0 12px rgb(var(--c-buy) / .35);
+  }
+  /* دستگیره باید با هر دو ریل کنتراست بدهد: ریل خاموش خنثی است و ریل روشن
+     سبز — که در تم تیره روشن و در تم روشن تیره است. پس on-surface برای
+     خاموش و surface برای روشن، در هر دو تم جواب می‌دهد. */
+  .switch > input:checked + .switch-track .switch-thumb {
+    inset-inline-start: 21px; background: rgb(var(--c-surface));
+  }
+  /* بازخورد لمسی: دستگیره موقع فشردن کمی کش می‌آید */
+  .switch:active .switch-thumb { width: 24px; }
+  .switch > input:focus-visible + .switch-track {
+    outline: 2px solid rgb(var(--c-primary)); outline-offset: 2px;
+  }
+  .switch > input:disabled + .switch-track { opacity: .45; }
+  .switch:has(> input:disabled) { cursor: not-allowed; }
+  /* نسخه‌ی کوچک، برای جاهایی که فضا کم است */
+  .switch.sm .switch-track { width: 36px; min-width: 36px; height: 21px; }
+  .switch.sm .switch-thumb { width: 15px; height: 15px; top: 3px; }
+  .switch.sm > input:checked + .switch-track .switch-thumb { inset-inline-start: 18px; }
+  .switch.sm:active .switch-thumb { width: 19px; }
   /* مودال */
   .modal-bg { display: none; position: fixed; inset: 0; background: rgba(6,14,32,.75); backdrop-filter: blur(6px); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
   .modal-bg.open { display: flex; }
@@ -348,6 +377,16 @@ function fmtDateTime(iso, withSeconds) {
     return d.toLocaleDateString(window.DATE_LOCALE) + ' ' +
            d.toLocaleTimeString(window.DATE_LOCALE, opts);
   } catch (e) { return String(iso).slice(0, 16).replace('T', ' '); }
+}
+
+// سازنده‌ی مارک‌آپ سوئیچ برای جاهایی که با جاوااسکریپت ساخته می‌شوند، تا
+// ساختار دقیقاً همان چیزی بماند که CSS انتظار دارد (input بلافاصله قبل از
+// .switch-track). attrs هرچه لازم است: id، checked، onchange، disabled…
+function switchHtml(attrs, cls) {
+  return '<label class="switch ' + (cls || '') + '">'
+       + '<input type="checkbox" ' + (attrs || '') + '>'
+       + '<span class="switch-track"><span class="switch-thumb"></span></span>'
+       + '</label>';
 }
 
 function toggleLangMenu(ev) {
