@@ -166,8 +166,10 @@ tailwind.config = {
     /* ناحیه‌ی لمس بزرگ‌تر از خود سوئیچ، برای موبایل */
     padding: 4px; margin: -4px;
   }
-  /* پنهان اما در دسترس صفحه‌خوان و قابل فوکوس با کیبورد */
-  .switch > input {
+  /* پنهان اما در دسترس صفحه‌خوان و قابل فوکوس با کیبورد.
+     عمداً display:none نیست: بعضی مرورگرها روی ورودیِ display:none نه فوکوس
+     می‌دهند و نه (برای input[type=file]) پنجره‌ی انتخاب فایل را باز می‌کنند. */
+  .switch > input, .vis-hidden {
     position: absolute; width: 1px; height: 1px; margin: -1px;
     padding: 0; border: 0; overflow: hidden; white-space: nowrap;
     clip: rect(0 0 0 0); clip-path: inset(50%);
@@ -387,6 +389,13 @@ function switchHtml(attrs, cls) {
        + '<input type="checkbox" ' + (attrs || '') + '>'
        + '<span class="switch-track"><span class="switch-thumb"></span></span>'
        + '</label>';
+}
+
+// رفتن به معامله‌ی واقعی همیشه کد دو مرحله‌ای می‌خواهد. prompt عمداً ساده
+// است: این کد فقط همان لحظه اعتبار دارد و جایی ذخیره نمی‌شود.
+function promptOtp() {
+  const code = prompt(t('auth.otp_prompt'));
+  return code === null ? null : code.trim();
 }
 
 function toggleLangMenu(ev) {

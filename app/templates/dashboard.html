@@ -330,6 +330,11 @@ async function saveAccount() {
     toast(t('dash.live_needs_token'), true);
     return;
   }
+  if (payload.trading_mode === 'live') {
+    const otp = promptOtp();
+    if (otp === null) return;          // انصراف کاربر
+    payload.otp = otp;
+  }
   try {
     if (editingAccountId) await callApi('/api/accounts/' + editingAccountId, 'PUT', payload);
     else await callApi('/api/accounts', 'POST', payload);
@@ -378,8 +383,13 @@ async function switchMode(id, current) {
     ? t('dash.switch_live_confirm')
     : t('dash.switch_paper_confirm');
   if (!askConfirm(warn)) return;
+  let otp = '';
+  if (target === 'live') {
+    otp = promptOtp();
+    if (otp === null) return;          // انصراف کاربر
+  }
   try {
-    await callApi(`/api/accounts/${id}/trading-mode?mode=${target}`, 'POST');
+    await callApi(`/api/accounts/${id}/trading-mode?mode=${target}&otp=${encodeURIComponent(otp)}`, 'POST');
     toast(t('dash.mode_changed'));
     refresh();
   } catch (e) { toast(t('common.error_prefix') + e.message, true); }

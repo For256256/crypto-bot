@@ -32,7 +32,19 @@ USER_DEFAULTS = {
     "telegram_link_code": None,
     "telegram_link_code_expires": None,
     "notify_telegram": True,
+    # تأیید ایمیل
+    "email_verified": False,
+    "email_code": None,
+    "email_code_expires": None,
+    "email_code_sent_at": None,
+    # ورود دو مرحله‌ای (TOTP) — برای فعال‌کردن معامله‌ی واقعی لازم است
+    "totp_secret": None,
+    "totp_enabled": False,
+    "recovery_codes": [],        # فقط هشِ کدها ذخیره می‌شود، نه خودشان
 }
+
+EMAIL_CODE_TTL_MINUTES = 15
+EMAIL_CODE_RESEND_SECONDS = 60
 
 
 def is_valid_email(email: str) -> bool:
@@ -199,7 +211,162 @@ def find_by_link_code(code: str) -> dict | None:
 
 
 def public_view(user: dict) -> dict:
-    return {k: v for k, v in user.items() if k not in ("password_hash", "telegram_link_code")}
+    # totp_secret و کدهای بازیابی هرگز از API بیرون نمی‌روند: با دانستن secret
+    # می‌شود کدهای دو مرحله‌ای را خودت تولید کرد، یعنی ۲FA بی‌معنا می‌شود.
+    hidden = ("password_hash", "telegram_link_code", "totp_secret",
+              "recovery_codes", "email_code")
+    return {k: v for k, v in user.items() if k not in hidden}
+
+
+# ---------- تأیید ایمیل ----------
+def _expired(iso: str | None) -> bool:
+    if not iso:
+        return True
+    try:
+        return datetime.fromisoformat(iso) < datetime.now(timezone.utc)
+    except ValueError:
+        return True
+
+
+def set_email_code(user_id: str) -> str | None:
+    """کد ۶ رقمی تازه می‌سازد. اگر هنوز فاصله‌ی مجاز ارسال مجدد نگذشته باشد
+    None برمی‌گرداند تا endpoint بتواند جلوی اسپم را بگیرد."""
+    with _lock:
+        store = _load()
+        for u in store["users"]:
+            if u["id"] != user_id:
+                continue
+            last = u.get("email_code_sent_at")
+            if last:
+                try:
+                    delta = (datetime.now(timezone.utc) - datetime.fromisoformat(last)).total_seconds()
+                    if delta < EMAIL_CODE_RESEND_SECONDS:
+                        return None
+                except ValueError:
+                    pass
+            code = f"{secrets.randbelow(10**6):06d}"
+            now = datetime.now(timezone.utc)
+            u["email_code"] = _hash_password(code)   # کد هم مثل رمز هش می‌شود
+            u["email_code_expires"] = (now + timedelta(minutes=EMAIL_CODE_TTL_MINUTES)).isoformat(timespec="seconds")
+            u["email_code_sent_at"] = now.isoformat(timespec="seconds")
+            _save(store)
+            return code
+        raise KeyError("کاربر پیدا نشد")
+
+
+def verify_email_code(user_id: str, code: str) -> bool:
+    code = (code or "").strip()
+    with _lock:
+        store = _load()
+        for u in store["users"]:
+            if u["id"] != user_id:
+                continue
+            if u.get("email_verified"):
+                return True
+            stored = u.get("email_code")
+            if not stored or _expired(u.get("email_code_expires")):
+                return False
+            if not _verify_password(code, stored):
+                return False
+            u["email_verified"] = True
+            u["email_code"] = None
+            u["email_code_expires"] = None
+            _save(store)
+            return True
+        raise KeyError("کاربر پیدا نشد")
+
+
+def migrate_pre_verification_users() -> int:
+    """کاربرانی که پیش از افزوده‌شدن تأیید ایمیل ساخته شده‌اند کلید
+    email_verified را ندارند. بدون این مهاجرت، بعد از آپدیت همه‌ی آن‌ها —
+    از جمله ادمین — پشت صفحه‌ی تأیید قفل می‌شدند. ایدمپوتنت است."""
+    with _lock:
+        store = _load()
+        n = 0
+        for u in store["users"]:
+            if "email_verified" not in u:
+                u["email_verified"] = True
+                n += 1
+        if n:
+            _save(store)
+        return n
+
+
+def set_email_verified(user_id: str, verified: bool) -> dict:
+    """برای ادمین — تأیید دستی وقتی کاربر به ایمیلش دسترسی ندارد."""
+    with _lock:
+        store = _load()
+        for u in store["users"]:
+            if u["id"] == user_id:
+                u["email_verified"] = bool(verified)
+                if verified:
+                    u["email_code"] = None
+                    u["email_code_expires"] = None
+                _save(store)
+                return u
+        raise KeyError("کاربر پیدا نشد")
+
+
+# ---------- ورود دو مرحله‌ای ----------
+def set_totp_secret(user_id: str, secret: str) -> dict:
+    """secret را ذخیره می‌کند ولی هنوز فعالش نمی‌کند — فعال‌سازی فقط بعد از
+    اینکه کاربر یک کد درست از اپلیکیشن وارد کند انجام می‌شود، وگرنه ممکن است
+    کسی خودش را از حساب بیرون بیندازد."""
+    with _lock:
+        store = _load()
+        for u in store["users"]:
+            if u["id"] == user_id:
+                u["totp_secret"] = secret
+                u["totp_enabled"] = False
+                _save(store)
+                return u
+        raise KeyError("کاربر پیدا نشد")
+
+
+def enable_totp(user_id: str, recovery_hashes: list) -> dict:
+    with _lock:
+        store = _load()
+        for u in store["users"]:
+            if u["id"] == user_id:
+                if not u.get("totp_secret"):
+                    raise ValueError("ابتدا ورود دو مرحله‌ای را راه‌اندازی کنید.")
+                u["totp_enabled"] = True
+                u["recovery_codes"] = list(recovery_hashes)
+                _save(store)
+                return u
+        raise KeyError("کاربر پیدا نشد")
+
+
+def disable_totp(user_id: str) -> dict:
+    with _lock:
+        store = _load()
+        for u in store["users"]:
+            if u["id"] == user_id:
+                u["totp_secret"] = None
+                u["totp_enabled"] = False
+                u["recovery_codes"] = []
+                _save(store)
+                return u
+        raise KeyError("کاربر پیدا نشد")
+
+
+def consume_recovery_code(user_id: str, code: str) -> bool:
+    """کد بازیابی یک‌بارمصرف است: بعد از استفاده از فهرست حذف می‌شود."""
+    code = (code or "").strip().replace("-", "").lower()
+    if not code:
+        return False
+    with _lock:
+        store = _load()
+        for u in store["users"]:
+            if u["id"] != user_id:
+                continue
+            for h in list(u.get("recovery_codes") or []):
+                if _verify_password(code, h):
+                    u["recovery_codes"].remove(h)
+                    _save(store)
+                    return True
+            return False
+        raise KeyError("کاربر پیدا نشد")
 
 
 def ensure_admin_seed(default_username: str, default_password: str) -> dict | None:

@@ -24,6 +24,7 @@ from app.core import telegram
 from app.core import mailer
 from app.core import i18n
 from app.core import backup
+from app.core import twofa
 from app.core.errors import ApiError
 from app.core.exchanges.toobit import normalize_symbol
 
@@ -69,6 +70,11 @@ async def _not_authenticated_handler(request: Request, exc: auth.NotAuthenticate
     return RedirectResponse(f"/login?next={request.url.path}", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@app.exception_handler(auth.EmailNotVerified)
+async def _email_unverified_handler(request: Request, exc: auth.EmailNotVerified):
+    return RedirectResponse("/verify-email", status_code=status.HTTP_303_SEE_OTHER)
+
+
 def render(request: Request, template: str, user: dict | None = None, **ctx):
     """تنها نقطه‌ی رندر تمپلیت‌ها — زبان، جهت (rtl/ltr) و تابع t() را یک‌جا تزریق
     می‌کند تا هیچ صفحه‌ای بدون i18n از قلم نیفتد."""
@@ -95,6 +101,8 @@ async def on_startup():
         admin = next((u for u in users.list_users() if u.get("role") == "admin"), None)
     if admin is not None:
         config_store.migrate_owner_less_accounts(admin["id"])
+    # کاربران قدیمی نباید بعد از آپدیت پشت صفحه‌ی تأیید ایمیل قفل شوند
+    users.migrate_pre_verification_users()
     bot_manager.sync_from_config()
     bot_manager.start_background_tasks()
     asyncio.create_task(telegram.poll_updates_loop())
@@ -118,6 +126,8 @@ class AccountIn(BaseModel):
     invert_signals: bool = False
     accept_webhook: bool = True
     enabled: bool = True
+    # کد ورود دو مرحله‌ای — فقط وقتی لازم است که حساب live باشد
+    otp: Optional[str] = None
 
 
 class SymbolIn(BaseModel):
@@ -173,6 +183,25 @@ async def register_page(request: Request):
     return render(request, "register.html")
 
 
+async def _send_email_code(user: dict) -> bool:
+    """کد تأیید تازه می‌سازد و ایمیل می‌کند. False یعنی هنوز فاصله‌ی مجاز
+    ارسال مجدد نگذشته است."""
+    code = users.set_email_code(user["id"])
+    if code is None:
+        return False
+    lang = i18n.user_lang(user)
+    subject = i18n.translate(lang, "mail.verify_subject")
+    body = i18n.translate(lang, "mail.verify_body", code=code,
+                          minutes=users.EMAIL_CODE_TTL_MINUTES)
+    if mailer.is_configured():
+        asyncio.create_task(mailer.send_email(user.get("email") or "", subject, body))
+    else:
+        # بدون SMTP ایمیلی نمی‌رود؛ کد را در لاگ سرور می‌گذاریم تا ادمین
+        # بتواند دستی به کاربر بدهد و کسی پشت این صفحه گیر نکند.
+        print(f"[crypto-bot] SMTP تنظیم نشده — کد تأیید {user.get('username')}: {code}")
+    return True
+
+
 @app.post("/register")
 async def register_submit(request: Request, payload: RegisterIn):
     try:
@@ -180,9 +209,107 @@ async def register_submit(request: Request, payload: RegisterIn):
     except ValueError as e:
         raise ApiError(400, _VALUE_ERROR_KEYS.get(str(e), ""), str(e))
     request.session["user_id"] = user["id"]
+    await _send_email_code(user)
     asyncio.create_task(telegram.notify_admin(
         i18n.translate(i18n.for_admin(), "notify.new_user", username=user["username"])))
+    return {"ok": True, "verify_required": auth.email_verification_required()}
+
+
+# ---------- تأیید ایمیل ----------
+class EmailCodeIn(BaseModel):
+    code: str
+
+
+@app.get("/verify-email", response_class=HTMLResponse)
+async def verify_email_page(request: Request):
+    user = auth.get_current_user(request)
+    if user is None:
+        return RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
+    if auth.is_verified(user):
+        return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+    return render(request, "verify_email.html", user, active="")
+
+
+@app.post("/api/verify-email")
+async def verify_email_submit(body: EmailCodeIn, user: dict = Depends(auth.require_session)):
+    if users.verify_email_code(user["id"], body.code):
+        return {"ok": True}
+    raise ApiError(400, "err.email_code_invalid", "کد تأیید درست نیست یا منقضی شده است.")
+
+
+@app.post("/api/verify-email/resend")
+async def verify_email_resend(user: dict = Depends(auth.require_session)):
+    if auth.is_verified(user):
+        return {"ok": True, "already": True}
+    if not await _send_email_code(user):
+        raise ApiError(429, "err.email_code_wait",
+                       "کمی صبر کنید و دوباره درخواست دهید.")
     return {"ok": True}
+
+
+# ---------- ورود دو مرحله‌ای ----------
+class OtpIn(BaseModel):
+    code: str
+
+
+@app.get("/api/2fa/status")
+async def twofa_status(user: dict = Depends(auth.require_user)):
+    return {
+        "enabled": bool(user.get("totp_enabled")),
+        "pending": bool(user.get("totp_secret") and not user.get("totp_enabled")),
+        "recovery_left": len(user.get("recovery_codes") or []),
+    }
+
+
+@app.post("/api/2fa/setup")
+async def twofa_setup(user: dict = Depends(auth.require_user)):
+    """secret تازه می‌سازد ولی فعالش نمی‌کند. تا وقتی کاربر یک کد درست وارد
+    نکرده، هیچ چیزی عوض نمی‌شود — وگرنه کسی که QR را اسکن نکرده خودش را از
+    معامله‌ی واقعی محروم می‌کند."""
+    if user.get("totp_enabled"):
+        raise ApiError(400, "err.2fa_already", "ورود دو مرحله‌ای از قبل فعال است.")
+    secret = twofa.generate_secret()
+    users.set_totp_secret(user["id"], secret)
+    return {
+        "secret": secret,
+        "uri": twofa.provisioning_uri(secret, user.get("username") or user["id"]),
+    }
+
+
+@app.post("/api/2fa/enable")
+async def twofa_enable(body: OtpIn, user: dict = Depends(auth.require_user)):
+    secret = user.get("totp_secret")
+    if not secret:
+        raise ApiError(400, "err.2fa_setup_first", "ابتدا ورود دو مرحله‌ای را راه‌اندازی کنید.")
+    if not twofa.verify(secret, body.code):
+        raise ApiError(400, "err.otp_invalid", "کد ورود دو مرحله‌ای درست نیست.")
+    codes = twofa.generate_recovery_codes()
+    hashes = [users._hash_password(twofa.normalize_recovery(c)) for c in codes]
+    users.enable_totp(user["id"], hashes)
+    # تنها باری است که کدهای بازیابی به‌صورت متن ساده دیده می‌شوند
+    return {"ok": True, "recovery_codes": codes}
+
+
+@app.post("/api/2fa/disable")
+async def twofa_disable(body: OtpIn, user: dict = Depends(auth.require_user)):
+    """غیرفعال‌کردن هم کد می‌خواهد، وگرنه هرکسی که به سشن باز دسترسی پیدا کند
+    می‌تواند اول ۲FA را خاموش کند و بعد حساب را live کند."""
+    if not user.get("totp_enabled"):
+        return {"ok": True}
+    code = (body.code or "").strip()
+    if not (twofa.verify(user.get("totp_secret") or "", code)
+            or users.consume_recovery_code(user["id"], twofa.normalize_recovery(code))):
+        raise ApiError(400, "err.otp_invalid", "کد ورود دو مرحله‌ای درست نیست.")
+    live = [a for a in config_store.list_accounts(user["id"])
+            if a.get("trading_mode") == "live"]
+    users.disable_totp(user["id"])
+    # حساب‌های واقعی بدون ۲FA نباید فعال بمانند، وگرنه غیرفعال‌کردن ۲FA
+    # راهی می‌شود برای دور زدن همین محافظ.
+    for a in live:
+        config_store.update_account(a["id"], {"trading_mode": "paper"})
+    if live:
+        bot_manager.sync_from_config()
+    return {"ok": True, "reverted_to_paper": [a["name"] for a in live]}
 
 
 # ---------- زبان ----------
@@ -242,6 +369,10 @@ async def dashboard(request: Request):
     user = auth.get_current_user(request)
     if user is None:
         return render(request, "landing.html")
+    # این route عمداً Depends(require_user_page) ندارد چون برای مهمان صفحه‌ی
+    # معرفی را نشان می‌دهد؛ پس گیت تأیید ایمیل را باید خودمان صدا بزنیم.
+    if not auth.is_verified(user):
+        return RedirectResponse("/verify-email", status_code=status.HTTP_303_SEE_OTHER)
     return render(request, "dashboard.html", user, active="dashboard")
 
 
@@ -942,16 +1073,37 @@ def _owned_account(account_id: str, user: dict) -> dict:
     return account
 
 
-def _assert_can_go_live(user: dict):
-    """ادمین محدودیت ندارد؛ کاربر عادی بدون توکن فعال نمی‌تواند حساب را live کند."""
-    if user.get("role") == "admin":
-        return
-    if not tokens.has_active_token(user["id"]):
+def _assert_can_go_live(user: dict, otp: str | None = None):
+    """دو شرط برای رفتن به معامله‌ی واقعی:
+
+    ۱) توکن فعال‌سازی (ادمین از این یکی معاف است — همیشه بوده).
+    ۲) ورود دو مرحله‌ای فعال + یک کد معتبر همین لحظه. این یکی *شامل ادمین
+       هم می‌شود*: کل هدف این است که اگر سشن کسی دزدیده شد، مهاجم نتواند
+       پول واقعی را وارد معامله کند، و حساب ادمین جذاب‌ترین هدف است.
+    """
+    if user.get("role") != "admin" and not tokens.has_active_token(user["id"]):
         raise ApiError(
             403, "err.live_needs_token",
             "برای معامله‌ی واقعی (live) نیاز به توکن فعال‌سازی دارید — "
             "از صفحه‌ی پشتیبانی (واحد مالی) درخواست خرید توکن کنید.",
         )
+
+    if not user.get("totp_enabled"):
+        raise ApiError(
+            403, "err.live_needs_2fa",
+            "برای فعال‌کردن معامله‌ی واقعی باید ابتدا ورود دو مرحله‌ای را "
+            "از صفحه‌ی تنظیمات فعال کنید.",
+        )
+
+    code = (otp or "").strip()
+    if not code:
+        raise ApiError(403, "err.otp_required", "کد ورود دو مرحله‌ای را وارد کنید.")
+    # کد بازیابی هم پذیرفته می‌شود تا کاربری که گوشی‌اش را گم کرده قفل نشود
+    if twofa.verify(user.get("totp_secret") or "", code):
+        return
+    if users.consume_recovery_code(user["id"], twofa.normalize_recovery(code)):
+        return
+    raise ApiError(403, "err.otp_invalid", "کد ورود دو مرحله‌ای درست نیست.")
 
 
 # ---------- پشتیبان‌گیری و بازیابی ----------
@@ -995,8 +1147,8 @@ async def get_accounts(user: dict = Depends(auth.require_user)):
 @app.post("/api/accounts")
 async def create_account(payload: AccountIn, user: dict = Depends(auth.require_user)):
     if payload.trading_mode == "live":
-        _assert_can_go_live(user)
-    account = config_store.add_account(payload.dict(), owner_id=user["id"])
+        _assert_can_go_live(user, payload.otp)
+    account = config_store.add_account(payload.dict(exclude={"otp"}), owner_id=user["id"])
     bot_manager.sync_from_config()
     return account
 
@@ -1020,9 +1172,9 @@ async def duplicate_account(account_id: str, user: dict = Depends(auth.require_u
 async def edit_account(account_id: str, payload: AccountIn, user: dict = Depends(auth.require_user)):
     _owned_account(account_id, user)
     if payload.trading_mode == "live":
-        _assert_can_go_live(user)
+        _assert_can_go_live(user, payload.otp)
     try:
-        account = config_store.update_account(account_id, payload.dict())
+        account = config_store.update_account(account_id, payload.dict(exclude={"otp"}))
     except KeyError as e:
         raise HTTPException(404, str(e))
     bot_manager.sync_from_config()
@@ -1030,13 +1182,14 @@ async def edit_account(account_id: str, payload: AccountIn, user: dict = Depends
 
 
 @app.post("/api/accounts/{account_id}/trading-mode")
-async def set_trading_mode(account_id: str, mode: str, user: dict = Depends(auth.require_user)):
+async def set_trading_mode(account_id: str, mode: str, otp: str = "",
+                           user: dict = Depends(auth.require_user)):
     """سوییچ paper/live از داشبورد. برای اعمال، حساب باید متوقف و دوباره شروع شود."""
     _owned_account(account_id, user)
     if mode not in ("paper", "live"):
         raise ApiError(400, "err.mode_paper_live", "حالت باید paper یا live باشد")
     if mode == "live":
-        _assert_can_go_live(user)
+        _assert_can_go_live(user, otp)
     try:
         account = config_store.update_account(account_id, {"trading_mode": mode})
     except KeyError as e:

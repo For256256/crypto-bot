@@ -15,6 +15,13 @@ def _settings() -> dict:
     return app_settings.get_settings().get("email") or {}
 
 
+def is_configured() -> bool:
+    """آیا SMTP تنظیم شده است؟ تأیید ایمیل فقط وقتی اجباری می‌شود که پاسخ
+    این تابع True باشد — وگرنه سروری که هنوز SMTP ندارد همه‌ی کاربران تازه
+    را پشت صفحه‌ای قفل می‌کند که هیچ‌وقت کدش نمی‌رسد."""
+    return bool((_settings().get("smtp_host") or "").strip())
+
+
 def _send_sync(cfg: dict, to_address: str, subject: str, body: str) -> bool:
     host = (cfg.get("smtp_host") or "").strip()
     if not host or not to_address:
