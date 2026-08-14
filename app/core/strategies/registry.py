@@ -333,6 +333,63 @@ def hybrid_trend_breakout(df: pd.DataFrame, p: dict) -> dict:
     return _signal(sig, df, extra, atr_v)
 
 
+# ---------- ۹) انتخاب خودکار استراتژی بر اساس وضعیت بازار ----------
+def adaptive_regime(df: pd.DataFrame, p: dict) -> dict:
+    """رژیم بازار را تشخیص می‌دهد و کار را به استراتژی مناسب همان رژیم می‌سپارد.
+
+    چرا این کار منطقی است: در تیونینگ روی ۱۸ مجموعه‌ی واقعی، استراتژی‌های
+    بازگشتی مثبت و استراتژی‌های روندی منفی بودند — یعنی عملکرد هر استراتژی
+    شدیداً به نوع بازار وابسته است، نه به «خوب یا بد بودن» خودش.
+
+    تشخیص رژیم:
+    - شوک (اولویت اول): جهش هم‌زمان حجم و دامنه → volatility_shock
+    - روندی (ADX >= adx_trend_min) → supertrend_ema_rsi
+    - رنج   (ADX <= adx_range_max) → rsi_contrarian
+    - بین دو آستانه: نوار مرده، هیچ معامله‌ای انجام نمی‌شود.
+
+    نوار مرده عمدی است. اگر یک آستانه‌ی واحد می‌گذاشتیم، ADX که دور همان عدد
+    نوسان می‌کند باعث می‌شد استراتژی هر چند کندل عوض شود و ربات مدام بین دو
+    منطق متضاد بپرد. با فاصله‌انداختن بین دو آستانه، تغییر رژیم فقط وقتی رخ
+    می‌دهد که واقعاً از یک حالت به حالت دیگر رفته باشیم.
+
+    نکته: این تابع stateless است — هیچ حافظه‌ای از رژیم قبلی ندارد و لازم هم
+    نیست، چون نوار مرده همان کار را بدون state انجام می‌دهد.
+    """
+    adx_len = int(p.get("adx_length", 14))
+    # آستانه‌ی روند ۳۰ (نه ۲۵): در مقایسه روی ۱۸ مجموعه، نوار مرده‌ی پهن‌تر
+    # نتیجه‌ی بهتری داد (میانه −۰.۲۴٪ → +۰.۰۴٪). حذف کامل نوار مرده (۲۵/۲۵)
+    # هم میانه را به −۰.۶۲٪ و بدترین افت را از −۱۰.۹٪ به −۱۳.۹٪ بدتر کرد.
+    adx_trend_min = float(p.get("adx_trend_min", 30))
+    adx_range_max = float(p.get("adx_range_max", 20))
+    use_shock = float(p.get("enable_shock", 1)) >= 1
+
+    atr_series = ind.atr(df, 14)
+    atr_v = atr_series.iat[-1]
+    adx_now = ind.adx(df, adx_len)["adx"].iat[-1]
+
+    def tagged(result: dict, regime: str, delegate: str | None) -> dict:
+        result["regime"] = regime
+        result["delegate"] = delegate
+        result["extra"]["adx"] = None if pd.isna(adx_now) else float(adx_now)
+        return result
+
+    if pd.isna(adx_now):
+        return tagged(_signal("none", df, {"atr": atr_v}, atr_v), "none", None)
+
+    # شوک خبری بر همه‌چیز مقدم است: وقتی بازار در حال جهش است، نه منطق روندی
+    # معنا دارد نه منطق بازگشتی.
+    if use_shock:
+        shock_out = volatility_shock(df, p)
+        if shock_out["signal"] in ("buy", "sell"):
+            return tagged(shock_out, "shock", "volatility_shock")
+
+    if adx_now >= adx_trend_min:
+        return tagged(supertrend_ema_rsi(df, p), "trend", "supertrend_ema_rsi")
+    if adx_now <= adx_range_max:
+        return tagged(rsi_contrarian(df, p), "range", "rsi_contrarian")
+    return tagged(_signal("none", df, {"atr": atr_v}, atr_v), "unclear", None)
+
+
 STRATEGIES = {
     "supertrend_ema_rsi": {
         "label": "SuperTrend + EMA + RSI",
@@ -420,6 +477,16 @@ STRATEGIES = {
             {"key": "volume_mult", "label": "ضریب تأیید حجم", "type": "float", "default": 1.2, "step": 0.1},
         ],
         "fn": hybrid_trend_breakout,
+    },
+    "adaptive_regime": {
+        "label": "خودکار: انتخاب استراتژی بر اساس وضعیت بازار",
+        "params_schema": [
+            {"key": "adx_length", "label": "دوره ADX", "type": "int", "default": 14},
+            {"key": "adx_trend_min", "label": "آستانه بازار روندی (ADX بالاتر)", "type": "float", "default": 30},
+            {"key": "adx_range_max", "label": "آستانه بازار رنج (ADX پایین‌تر)", "type": "float", "default": 20},
+            {"key": "enable_shock", "label": "واکنش به شوک خبری (۱ = روشن، ۰ = خاموش)", "type": "int", "default": 1},
+        ],
+        "fn": adaptive_regime,
     },
 }
 

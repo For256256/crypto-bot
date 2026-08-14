@@ -54,11 +54,15 @@
 <script>
 // ترتیب عمداً ثابت است: اول چهار استراتژی روندی/بازگشتیِ قدیمی، بعد چهارتای
 // جدید. کلیدها با رجیستری بک‌اند یکی هستند.
+// حالت خودکار عمداً اول لیست است — برای کاربری که نمی‌داند کدام استراتژی را
+// انتخاب کند، همین نقطه‌ی شروع درست است.
 const STRAT_KEYS = [
+  'adaptive_regime',
   'supertrend_ema_rsi', 'macd_trend', 'bollinger_rsi', 'ma_kijun_psar',
   'donchian_breakout', 'rsi_contrarian', 'volatility_shock', 'hybrid_trend_breakout',
 ];
 const STRAT_ICON = {
+  adaptive_regime: 'auto_mode',
   supertrend_ema_rsi: 'trending_up', macd_trend: 'waves', bollinger_rsi: 'compress',
   ma_kijun_psar: 'stacked_line_chart', donchian_breakout: 'open_in_full',
   rsi_contrarian: 'swap_vert', volatility_shock: 'bolt', hybrid_trend_breakout: 'hub',
@@ -66,6 +70,7 @@ const STRAT_ICON = {
 // برچسب نوع بازار مناسب هر استراتژی — برای اینکه کاربر سریع بفهمد کدام
 // استراتژی در کدام شرایط کار می‌کند.
 const STRAT_REGIME = {
+  adaptive_regime: 'auto',
   supertrend_ema_rsi: 'trend', macd_trend: 'trend', bollinger_rsi: 'range',
   ma_kijun_psar: 'trend', donchian_breakout: 'volatile', rsi_contrarian: 'range',
   volatility_shock: 'volatile', hybrid_trend_breakout: 'trend',
@@ -74,6 +79,7 @@ const REGIME_STYLE = {
   trend: 'bg-buy/10 text-buy border-buy/20',
   range: 'bg-info-blue/10 text-info-blue border-info-blue/25',
   volatile: 'bg-gold/10 text-gold border-gold/25',
+  auto: 'bg-primary/10 text-primary border-primary/25',
 };
 
 function esc(s) {
