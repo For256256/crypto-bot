@@ -789,5 +789,6 @@
   "set.backup_restored": "بازیابی انجام شد",
   "err.backup_invalid": "فایل پشتیبان معتبر نیست.",
   "err.backup_empty": "فایل پشتیبان هیچ حسابی ندارد.",
-  "err.backup_mode": "حالت بازیابی نامعتبر است."
+  "err.backup_mode": "حالت بازیابی نامعتبر است.",
+  "set.backup_drop_hint": "فایل را اینجا رها کنید، یا برای انتخاب بزنید"
 }

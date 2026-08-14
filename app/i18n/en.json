@@ -789,5 +789,6 @@
   "set.backup_restored": "Restore complete",
   "err.backup_invalid": "That is not a valid backup file.",
   "err.backup_empty": "The backup file contains no accounts.",
-  "err.backup_mode": "Invalid restore mode."
+  "err.backup_mode": "Invalid restore mode.",
+  "set.backup_drop_hint": "Drop the file here, or tap to choose"
 }

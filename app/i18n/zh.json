@@ -789,5 +789,6 @@
   "set.backup_restored": "恢复完成",
   "err.backup_invalid": "这不是有效的备份文件。",
   "err.backup_empty": "备份文件中没有任何账户。",
-  "err.backup_mode": "恢复模式无效。"
+  "err.backup_mode": "恢复模式无效。",
+  "set.backup_drop_hint": "将文件拖到此处，或点击选择"
 }

@@ -789,5 +789,6 @@
   "set.backup_restored": "Geri yükleme tamamlandı",
   "err.backup_invalid": "Bu geçerli bir yedek dosyası değil.",
   "err.backup_empty": "Yedek dosyasında hiç hesap yok.",
-  "err.backup_mode": "Geçersiz geri yükleme modu."
+  "err.backup_mode": "Geçersiz geri yükleme modu.",
+  "set.backup_drop_hint": "Dosyayı buraya bırakın veya seçmek için dokunun"
 }

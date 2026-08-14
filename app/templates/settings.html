@@ -216,15 +216,23 @@
         </p>
       </div>
 
-      <div class="flex flex-wrap gap-2 mb-5">
-        <button class="btn-primary-of flex items-center gap-2" onclick="downloadBackup()">
-          <span class="material-symbols-outlined text-base">download</span> {{ t("set.backup_download") }}
-        </button>
-        <button class="btn-ghost flex items-center gap-2" onclick="document.getElementById('restoreFile').click()">
-          <span class="material-symbols-outlined text-base">upload</span> {{ t("set.backup_restore") }}
-        </button>
-        <input type="file" id="restoreFile" accept="application/json,.json" class="hidden" onchange="onRestoreFile(this)">
-      </div>
+      <button class="btn-primary-of flex items-center gap-2 mb-4" onclick="downloadBackup()">
+        <span class="material-symbols-outlined text-base">download</span> {{ t("set.backup_download") }}
+      </button>
+
+      <!-- ناحیه‌ی بارگذاری. عمداً خودِ <label> است و ورودی فایل داخلش:
+           این‌طور کلیک به‌صورت بومی پنجره‌ی انتخاب فایل را باز می‌کند و به
+           فراخوانی .click() از جاوااسکریپت نیازی نیست — که بعضی مرورگرهای
+           موبایل روی ورودیِ display:none نادیده می‌گیرند. -->
+      <label id="restoreDrop"
+        class="block rounded-xl border-2 border-dashed border-outline-variant/50 p-5 text-center cursor-pointer
+               hover:border-primary/60 hover:bg-primary/5 transition-colors mb-4">
+        <input type="file" id="restoreFile" accept="application/json,.json" class="vis-hidden" onchange="onRestoreFile(this)">
+        <span class="material-symbols-outlined text-primary text-3xl">upload_file</span>
+        <div class="text-sm font-bold text-on-surface mt-1">{{ t("set.backup_restore") }}</div>
+        <div class="text-[11px] text-on-surface-variant mt-1">{{ t("set.backup_drop_hint") }}</div>
+        <div id="restoreFileName" class="text-[11px] text-primary mt-1 mono-num" dir="ltr"></div>
+      </label>
 
       <div class="border-t border-outline-variant/20 pt-4">
         <div class="text-xs font-bold text-on-surface mb-2">{{ t("set.backup_mode_title") }}</div>
@@ -635,11 +643,32 @@ function restoreMode() {
   return el ? el.value : 'new';
 }
 
-async function onRestoreFile(input) {
+function onRestoreFile(input) {
   const file = input.files && input.files[0];
   input.value = '';                     // تا انتخاب دوباره‌ی همان فایل هم رویداد بدهد
-  if (!file) return;
+  if (file) handleRestoreFile(file);
+}
+
+// کشیدن و رها کردن فایل روی همان ناحیه — برای دسکتاپ راحت‌تر از انتخاب فایل است
+(function setupRestoreDrop() {
+  const drop = document.getElementById('restoreDrop');
+  if (!drop) return;
+  const on = e => { e.preventDefault(); drop.classList.add('!border-primary', 'bg-primary/10'); };
+  const off = () => drop.classList.remove('!border-primary', 'bg-primary/10');
+  drop.addEventListener('dragover', on);
+  drop.addEventListener('dragenter', on);
+  drop.addEventListener('dragleave', off);
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); off();
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) handleRestoreFile(f);
+  });
+})();
+
+async function handleRestoreFile(file) {
   const box = document.getElementById('restoreResult');
+  const nameBox = document.getElementById('restoreFileName');
+  if (nameBox) nameBox.textContent = file.name;
   const mode = restoreMode();
   if (mode === 'merge' && !confirm(t('set.backup_merge_confirm'))) return;
 
