@@ -57,6 +57,14 @@
           <label class="lbl">{{ t("common.strategy") }}</label>
           <select id="bt_strategy" class="field"></select>
         </div>
+        <div class="col-span-2 md:col-span-2">
+          <label class="lbl">{{ t("str.backtest_reversal") }}</label>
+          <select id="bt_reversal" class="field">
+            <option value="none">{{ t("dash.reversal_none") }}</option>
+            <option value="profitable">{{ t("dash.reversal_profitable") }}</option>
+            <option value="always">{{ t("dash.reversal_always") }}</option>
+          </select>
+        </div>
         <div class="col-span-2 md:col-span-4 flex items-center gap-2">
           <label class="switch"><input type="checkbox" id="bt_invert"><span class="switch-track"><span class="switch-thumb"></span></span></label>
           <label for="bt_invert" class="text-xs text-on-surface-variant">{{ t("str.backtest_invert") }}</label>
@@ -265,7 +273,9 @@ function btStatsHtml(s) {
     <div class="bg-surface-container-low rounded-lg p-3 text-center"><div class="text-[10px] text-on-surface-variant mb-1">${t('str.pf_maxdd')}</div><div class="mono-num text-lg font-bold" dir="ltr">${pf} <span class="text-xs text-sell">/ ${fmt(s.max_drawdown_pct, 1)}${t('common.pct')}</span></div></div>
   </div>`
   + (s.inverted ? `<div class="text-[11px] text-amber-500 border border-amber-500/40 bg-amber-500/10 rounded-lg px-3 py-2 mb-3">${t('str.backtest_inverted_note')}</div>` : '')
-  + `<div class="text-[10px] text-on-surface-variant mb-3">${t('str.backtest_fees', {fees: fmt(s.total_fees || 0)})}</div>`;
+  + `<div class="text-[10px] text-on-surface-variant mb-3">${t('str.backtest_fees', {fees: fmt(s.total_fees || 0)})}`
+  + (s.win_loss_ratio ? ` · ${t('str.backtest_wl', {ratio: fmt(s.win_loss_ratio, 2), need: fmt((100 - s.win_rate) / (s.win_rate || 1), 2)})}` : '')
+  + `</div>`;
 }
 
 function btChartSvg(curve) {
@@ -298,6 +308,7 @@ async function runBacktest() {
     strategy: document.getElementById('bt_strategy').value,
     strategy_params: {},
     invert: document.getElementById('bt_invert').checked,
+    reversal_policy: document.getElementById('bt_reversal').value,
   };
   btn.disabled = true;
   box.innerHTML = `<div class="text-center text-on-surface-variant text-sm py-10">${t('str.running_backtest')}</div>`;

@@ -29,7 +29,10 @@ RISK_PCT = 1.0  # ٪ریسک هر معامله از اکوییتی جاری — 
 
 
 def run_backtest(df: pd.DataFrame, strategy_key: str, params: dict | None = None,
-                 invert: bool = False, sl_tp_atr_mult: float = DEFAULT_SL_TP_ATR_MULT) -> dict:
+                 invert: bool = False, sl_tp_atr_mult: float = DEFAULT_SL_TP_ATR_MULT,
+                 reversal_policy: str = "none") -> dict:
+    """reversal_policy باید با تنظیم همان حساب یکی باشد؛ پیش‌فرضش هم مثل
+    پیش‌فرض حساب‌هاست تا بک‌تستِ بدون پارامتر، رفتار واقعی ربات را نشان بدهد."""
     if df is None or len(df) < WARMUP + 20:
         raise ValueError("داده‌ی کندل برای بک‌تست کافی نیست (حداقل ~۲۳۰ کندل).")
 
@@ -93,7 +96,16 @@ def run_backtest(df: pd.DataFrame, strategy_key: str, params: dict | None = None
                 side = "sell" if side == "buy" else "buy"
             wanted = "long" if side == "buy" else "short"
             if position is not None and position["side"] != wanted:
-                close_position(close, when, "reversal")
+                # دقیقاً همان سیاستی که موتور واقعی اعمال می‌کند، وگرنه نتیجه‌ی
+                # بک‌تست با رفتار ربات یکی نیست. (تا پیش از این، بک‌تست همیشه
+                # معکوس می‌کرد در حالی که موتور فقط پوزیشن سودده را می‌بست.)
+                if reversal_policy == "always":
+                    close_position(close, when, "reversal")
+                elif reversal_policy == "profitable":
+                    direction = 1 if position["side"] == "long" else -1
+                    floating = (close - position["entry"]) * direction * position["qty"]
+                    if floating > 0:
+                        close_position(close, when, "reversal")
             if position is None:
                 atr_v = atr_series.iat[i]
                 if pd.notna(atr_v) and atr_v > 0:
@@ -140,6 +152,13 @@ def run_backtest(df: pd.DataFrame, strategy_key: str, params: dict | None = None
             "end_equity": equity,
             "total_fees": total_fees,
             "inverted": bool(invert),
+            "reversal_policy": reversal_policy,
+            # میانگین برد و باخت و نسبتشان: نرخ برد به‌تنهایی گمراه‌کننده است.
+            # با نرخ برد W، سربه‌سر شدن نیاز دارد نسبت ≥ (1-W)/W باشد.
+            "avg_win": (gross_profit / len(wins)) if wins else 0.0,
+            "avg_loss": (-gross_loss / len(losses)) if losses else 0.0,
+            "win_loss_ratio": ((gross_profit / len(wins)) / (gross_loss / len(losses)))
+                              if wins and losses else None,
         },
         "equity_curve": curve,
         "trades": trades[-50:],

@@ -830,5 +830,12 @@
   "set.2fa_disable_warn": "Disabling this returns all of your live accounts to paper mode.",
   "set.2fa_disable_confirm": "Disabling two-factor authentication returns all of your live accounts to paper mode. Continue?",
   "set.2fa_disabled": "Two-factor authentication disabled.",
-  "set.2fa_reverted": "Two-factor authentication disabled, and these accounts returned to paper mode: {names}"
+  "set.2fa_reverted": "Two-factor authentication disabled, and these accounts returned to paper mode: {names}",
+  "dash.reversal_policy": "On an opposite-direction signal",
+  "dash.reversal_none": "Neither — leave the position to its own stop-loss / take-profit",
+  "dash.reversal_profitable": "Close and reverse only if the position is in profit",
+  "dash.reversal_always": "Always close and reverse",
+  "dash.reversal_hint": "What to do when a position is open and a signal arrives in the opposite direction. 'Only if in profit' closes winners early but lets losers run to the full stop — that makes the average loss larger than the average win, so even a high win rate can end up negative. The default, 'Neither', is symmetric.",
+  "str.backtest_reversal": "Reversal policy for the backtest",
+  "str.backtest_wl": "Average win-to-loss ratio: {ratio} (at this win rate, breaking even needs at least {need})"
 }

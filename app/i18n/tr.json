@@ -830,5 +830,12 @@
   "set.2fa_disable_warn": "Devre dışı bırakmak tüm gerçek hesaplarınızı kâğıt moduna döndürür.",
   "set.2fa_disable_confirm": "İki adımlı doğrulamayı kapatmak tüm gerçek hesaplarınızı kâğıt moduna döndürür. Devam edilsin mi?",
   "set.2fa_disabled": "İki adımlı doğrulama devre dışı bırakıldı.",
-  "set.2fa_reverted": "İki adımlı doğrulama kapatıldı ve şu hesaplar kâğıt moduna döndü: {names}"
+  "set.2fa_reverted": "İki adımlı doğrulama kapatıldı ve şu hesaplar kâğıt moduna döndü: {names}",
+  "dash.reversal_policy": "Ters yönde sinyal geldiğinde",
+  "dash.reversal_none": "Hiçbiri — pozisyon kendi zarar durdur / kâr al seviyesine bırakılsın",
+  "dash.reversal_profitable": "Yalnızca kârdaysa kapat ve ters çevir",
+  "dash.reversal_always": "Her zaman kapat ve ters çevir",
+  "dash.reversal_hint": "Açık pozisyon varken ters yönde sinyal geldiğinde ne yapılacağı. 'Yalnızca kârdaysa' seçeneği kazançları erken kapatır ama zararları tam stopa kadar bırakır; bu da ortalama zararı ortalama kazançtan büyük yapar ve yüksek kazanma oranıyla bile sonuç negatif çıkabilir. Varsayılan 'Hiçbiri' simetriktir.",
+  "str.backtest_reversal": "Geriye dönük test için ters çevirme politikası",
+  "str.backtest_wl": "Ortalama kazanç/kayıp oranı: {ratio} (bu kazanma oranında başabaş için en az {need} gerekir)"
 }

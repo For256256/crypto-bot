@@ -830,5 +830,12 @@
   "set.2fa_disable_warn": "停用后，您所有的实盘账户都将恢复为模拟模式。",
   "set.2fa_disable_confirm": "停用双重验证会将您所有实盘账户恢复为模拟模式。是否继续？",
   "set.2fa_disabled": "双重验证已停用。",
-  "set.2fa_reverted": "双重验证已停用，以下账户已恢复为模拟模式：{names}"
+  "set.2fa_reverted": "双重验证已停用，以下账户已恢复为模拟模式：{names}",
+  "dash.reversal_policy": "收到反方向信号时",
+  "dash.reversal_none": "都不平仓——让持仓自己走到止损/止盈",
+  "dash.reversal_profitable": "仅在持仓盈利时平仓并反手",
+  "dash.reversal_always": "总是平仓并反手",
+  "dash.reversal_hint": "当已有持仓且出现反方向信号时的处理方式。「仅盈利时」会过早了结盈利，却让亏损跑到完整止损——这会使平均亏损大于平均盈利，即便胜率很高最终也可能是负的。默认的「都不平仓」是对称的。",
+  "str.backtest_reversal": "回测的反手策略",
+  "str.backtest_wl": "平均盈亏比：{ratio}（在当前胜率下，保本至少需要 {need}）"
 }
