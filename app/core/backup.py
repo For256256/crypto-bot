@@ -24,7 +24,9 @@ VERSION = 1
 
 # این کلیدها هرگز نه صادر می‌شوند و نه از فایل واردشده پذیرفته می‌شوند.
 SENSITIVE_KEYS = {"api_key", "api_secret", "webhook_token"}
-IDENTITY_KEYS = {"id", "owner_id", "is_suggested"}
+# was_running وضعیت لحظه‌ای اجراست، نه تنظیمات. اگر وارد بکاپ می‌شد، حساب
+# بازیابی‌شده خودش شروع به کار می‌کرد — که کاربر انتظارش را ندارد.
+IDENTITY_KEYS = {"id", "owner_id", "is_suggested", "was_running"}
 SKIP_KEYS = SENSITIVE_KEYS | IDENTITY_KEYS
 
 
