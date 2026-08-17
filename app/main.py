@@ -28,7 +28,7 @@ from app.core import twofa
 from app.core.errors import ApiError
 from app.core.exchanges.toobit import normalize_symbol
 
-app = FastAPI(title="CryptoPulse — Toobit / Tabdeal Futures")
+app = FastAPI(title="cplusepro — Toobit / Tabdeal Futures")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
@@ -865,7 +865,7 @@ class EmailSettingsIn(BaseModel):
     smtp_user: str = ""
     smtp_password: str = ""
     from_address: str = ""
-    from_name: str = "CryptoPulse"
+    from_name: str = "cplusepro"
     use_tls: bool = True
 
 
@@ -1169,7 +1169,7 @@ async def download_backup(user: dict = Depends(auth.require_user)):
     وبهوک عمداً داخلش نیست — توضیحش در app/core/backup.py آمده."""
     data = backup.export_for_owner(user["id"], user.get("username", ""))
     stamp = data["exported_at"][:10]
-    filename = f"cryptopulse-backup-{stamp}.json"
+    filename = f"cplusepro-backup-{stamp}.json"
     return JSONResponse(
         data,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},

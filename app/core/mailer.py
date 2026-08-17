@@ -30,7 +30,7 @@ def _send_sync(cfg: dict, to_address: str, subject: str, body: str) -> bool:
     user = (cfg.get("smtp_user") or "").strip()
     password = cfg.get("smtp_password") or ""
     from_addr = (cfg.get("from_address") or user).strip()
-    from_name = cfg.get("from_name") or "CryptoPulse"
+    from_name = cfg.get("from_name") or "cplusepro"
 
     msg = MIMEText(body, "plain", "utf-8")
     msg["Subject"] = str(Header(subject, "utf-8"))

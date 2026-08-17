@@ -19,7 +19,12 @@ from datetime import datetime, timezone
 
 from app.core import config_store
 
-FORMAT = "cryptopulse-backup"
+FORMAT = "cplusepro-backup"
+# شناسه‌ی نسخه‌های قبل از تغییر نام برند. فایل‌های پشتیبانی که کاربران از قبل
+# دانلود کرده‌اند این شناسه را دارند و باید همچنان قابل بازیابی بمانند — پس
+# موقع خواندن هر دو پذیرفته می‌شوند، ولی خروجی جدید همیشه با نام تازه است.
+LEGACY_FORMATS = {"cryptopulse-backup"}
+ACCEPTED_FORMATS = {FORMAT} | LEGACY_FORMATS
 VERSION = 1
 
 # این کلیدها هرگز نه صادر می‌شوند و نه از فایل واردشده پذیرفته می‌شوند.
@@ -64,7 +69,7 @@ def validate(payload: dict) -> list:
     """فهرست حساب‌های معتبر داخل فایل. ValueError اگر فایل اصلاً بکاپ نباشد."""
     if not isinstance(payload, dict):
         raise ValueError("فایل پشتیبان معتبر نیست.")
-    if payload.get("format") != FORMAT:
+    if payload.get("format") not in ACCEPTED_FORMATS:
         raise ValueError("فایل پشتیبان معتبر نیست.")
     accounts = payload.get("accounts")
     if not isinstance(accounts, list) or not accounts:
