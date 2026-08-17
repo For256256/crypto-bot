@@ -12,6 +12,17 @@
 #   REPO_BRANCH  برنچ نصب (پیش‌فرض: main)
 #   INSTALL_DIR  مسیر نصب روی سرور (پیش‌فرض: /opt/crypto-bot)
 #   SERVICE_NAME نام سرویس systemd (پیش‌فرض: crypto-bot)
+#
+# راه‌اندازی روی دامنه با HTTPS (nginx + گواهی رایگان Let's Encrypt):
+#
+#   sudo DOMAIN=example.com LETSENCRYPT_EMAIL=you@example.com bash install-crypto-bot.sh
+#
+#   DOMAIN             دامنه‌ی سرویس. با دادن آن، nginx و گواهی TLS خودکار
+#                      راه‌اندازی می‌شوند و برنامه فقط روی 127.0.0.1 گوش می‌دهد.
+#   DOMAIN_ALIASES     دامنه‌های اضافی روی همان گواهی، با فاصله (مثلاً "www.example.com")
+#   LETSENCRYPT_EMAIL  ایمیل هشدار انقضای گواهی (الزامی وقتی DOMAIN داده شود)
+#
+# دامنه فقط یک‌بار لازم است داده شود؛ دفعات بعد از .env خوانده می‌شود.
 # ------------------------------------------------------------------------
 set -euo pipefail
 
@@ -19,6 +30,9 @@ REPO_URL="${REPO_URL:-https://github.com/for256256/crypto-bot.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/crypto-bot}"
 SERVICE_NAME="${SERVICE_NAME:-crypto-bot}"
+DOMAIN="${DOMAIN:-}"
+DOMAIN_ALIASES="${DOMAIN_ALIASES:-}"
+LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}"
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "این اسکریپت باید با sudo/root اجرا شود: sudo bash install-crypto-bot.sh" >&2
@@ -92,8 +106,119 @@ if ! grep -q '^SESSION_SECRET_KEY=.\+' .env 2>/dev/null; then
   fi
 fi
 
-DASHBOARD_PORT=$(grep -E '^DASHBOARD_PORT=' .env | tail -1 | cut -d= -f2)
+DASHBOARD_PORT=$(grep -E '^DASHBOARD_PORT=' .env | tail -1 | cut -d= -f2 || true)
 DASHBOARD_PORT="${DASHBOARD_PORT:-8891}"
+
+# ---------- دامنه و HTTPS ----------
+# نوشتن یک کلید در .env (جایگزینی اگر بود، افزودن اگر نبود)
+set_env() {
+  local key="$1" value="$2"
+  if grep -q "^${key}=" .env; then
+    sed -i "s#^${key}=.*#${key}=${value}#" .env
+  else
+    echo "${key}=${value}" >> .env
+  fi
+}
+
+# دامنه اگر این بار داده نشده، از PUBLIC_BASE_URL موجود در .env خوانده می‌شود،
+# تا آپدیت‌های بعدی بدون تکرار DOMAIN=… همان تنظیم را حفظ کنند.
+if [ -z "$DOMAIN" ]; then
+  # || true لازم است: با set -o pipefail، نبودن کلید در .env یعنی grep کد ۱
+  # برمی‌گرداند و set -e کل اسکریپت را همین‌جا می‌کشد — یعنی هر نصب قدیمی
+  # (که این کلید را ندارد) موقع آپدیت بی‌صدا نصفه‌کاره می‌ماند.
+  EXISTING_BASE=$(grep -E '^PUBLIC_BASE_URL=' .env 2>/dev/null | tail -1 | cut -d= -f2- || true)
+  if [ -n "${EXISTING_BASE:-}" ]; then
+    DOMAIN=$(echo "$EXISTING_BASE" | sed -e 's#^https\?://##' -e 's#/.*$##')
+    log "دامنه‌ی تنظیم‌شده‌ی قبلی از .env خوانده شد: ${DOMAIN}"
+  fi
+fi
+
+if [ -n "$DOMAIN" ]; then
+  if [ -z "$LETSENCRYPT_EMAIL" ] && [ ! -d "/etc/letsencrypt/live/${DOMAIN}" ]; then
+    echo "برای صدور گواهی TLS باید LETSENCRYPT_EMAIL هم داده شود:" >&2
+    echo "  sudo DOMAIN=${DOMAIN} LETSENCRYPT_EMAIL=you@example.com bash install-crypto-bot.sh" >&2
+    exit 1
+  fi
+
+  log "نصب nginx و certbot…"
+  if ! command -v nginx >/dev/null 2>&1 || ! command -v certbot >/dev/null 2>&1; then
+    apt-get update -y
+    apt-get install -y nginx certbot python3-certbot-nginx
+  fi
+
+  CERT_DOMAINS="-d ${DOMAIN}"
+  SERVER_NAMES="${DOMAIN}"
+  for alias in $DOMAIN_ALIASES; do
+    CERT_DOMAINS="${CERT_DOMAINS} -d ${alias}"
+    SERVER_NAMES="${SERVER_NAMES} ${alias}"
+  done
+
+  log "نوشتن پیکربندی nginx برای ${SERVER_NAMES}…"
+  # فقط بلاک HTTP نوشته می‌شود؛ بلاک HTTPS و ریدایرکت را خود certbot اضافه
+  # می‌کند. اجرای دوباره‌ی اسکریپت همین مسیر را تکرار می‌کند و certbot گواهی
+  # موجود را دوباره در همین فایل می‌نشاند — پس ایدمپوتنت است.
+  cat > "/etc/nginx/sites-available/${SERVICE_NAME}" <<EOF
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${SERVER_NAMES};
+
+    # بارگذاری فایل بکاپ تنظیمات
+    client_max_body_size 10m;
+
+    location / {
+        proxy_pass http://127.0.0.1:${DASHBOARD_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host              \$host;
+        proxy_set_header X-Real-IP         \$remote_addr;
+        proxy_set_header X-Forwarded-For   \$proxy_add_x_forwarded_for;
+        # بدون این هدر، برنامه فکر می‌کند درخواست http است و آدرس وبهوکی که
+        # به کاربر نشان می‌دهد http درمی‌آید.
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        # بعضی فراخوانی‌های صرافی کند هستند؛ مهلت پیش‌فرض ۶۰ ثانیه کم است.
+        proxy_read_timeout 120s;
+    }
+}
+EOF
+  ln -sf "/etc/nginx/sites-available/${SERVICE_NAME}" "/etc/nginx/sites-enabled/${SERVICE_NAME}"
+  rm -f /etc/nginx/sites-enabled/default
+  nginx -t
+  systemctl enable nginx >/dev/null 2>&1 || true
+  systemctl reload nginx || systemctl restart nginx
+
+  log "گرفتن/تمدید گواهی TLS برای ${SERVER_NAMES}…"
+  # اگر اینجا شکست خورد، تقریباً همیشه یعنی درخواست ACME به سرور نرسیده —
+  # روی کلادفلر ابر را موقتاً خاکستری (DNS only) کنید و دوباره اجرا کنید.
+  if certbot --nginx ${CERT_DOMAINS} \
+       --non-interactive --agree-tos --redirect --keep-until-expiring \
+       ${LETSENCRYPT_EMAIL:+--email "$LETSENCRYPT_EMAIL"}; then
+    log "گواهی TLS نصب شد ✅"
+  else
+    echo "" >&2
+    echo "صدور گواهی TLS ناموفق بود." >&2
+    echo "شایع‌ترین علت: درخواست Let's Encrypt به سرور نرسیده است." >&2
+    echo "در پنل کلادفلر رکورد ${DOMAIN} را موقتاً روی «DNS only» (ابر خاکستری)" >&2
+    echo "بگذارید، همین دستور را دوباره اجرا کنید، بعد ابر را نارنجی کنید." >&2
+    exit 1
+  fi
+
+  set_env "PUBLIC_BASE_URL" "https://${DOMAIN}"
+  log "PUBLIC_BASE_URL=https://${DOMAIN} در .env ثبت شد."
+
+  # پشت nginx، برنامه نباید مستقیم از بیرون در دسترس باشد؛ وگرنه همان داشبورد
+  # روی http://IP:PORT بدون TLS و بدون کلادفلر هم باز می‌ماند.
+  BIND_HOST="127.0.0.1"
+  UVICORN_EXTRA="--proxy-headers --forwarded-allow-ips 127.0.0.1"
+
+  if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "^Status: active"; then
+    log "باز کردن پورت‌های ۸۰ و ۴۴۳ در ufw…"
+    ufw allow 'Nginx Full' >/dev/null 2>&1 || true
+    ufw delete allow "${DASHBOARD_PORT}" >/dev/null 2>&1 || true
+  fi
+else
+  BIND_HOST="0.0.0.0"
+  UVICORN_EXTRA=""
+fi
 
 log "نصب/به‌روزرسانی سرویس systemd (${SERVICE_NAME})…"
 cat > "/etc/systemd/system/${SERVICE_NAME}.service" <<EOF
@@ -105,7 +230,7 @@ After=network.target
 Type=simple
 WorkingDirectory=${INSTALL_DIR}
 EnvironmentFile=${INSTALL_DIR}/.env
-ExecStart=${INSTALL_DIR}/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port ${DASHBOARD_PORT}
+ExecStart=${INSTALL_DIR}/venv/bin/uvicorn app.main:app --host ${BIND_HOST} --port ${DASHBOARD_PORT} ${UVICORN_EXTRA}
 Restart=always
 RestartSec=5
 
@@ -121,7 +246,14 @@ sleep 2
 if systemctl is-active --quiet "${SERVICE_NAME}"; then
   SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
   log "سرویس ${SERVICE_NAME} فعال است ✅"
-  echo "داشبورد: http://${SERVER_IP:-<IP-سرور>}:${DASHBOARD_PORT}"
+  if [ -n "$DOMAIN" ]; then
+    echo "داشبورد: https://${DOMAIN}"
+    echo "(برنامه فقط روی 127.0.0.1:${DASHBOARD_PORT} گوش می‌دهد و از بیرون فقط از راه nginx در دسترس است)"
+    echo "یادآوری: آدرس وبهوک TradingView حالا https://${DOMAIN}/webhook/tradingview/<شناسه‌ی حساب> است —"
+    echo "         آدرس تازه را از داشبورد هر حساب کپی و در Alertهای TradingView جایگزین کنید."
+  else
+    echo "داشبورد: http://${SERVER_IP:-<IP-سرور>}:${DASHBOARD_PORT}"
+  fi
   if [ "$FRESH_INSTALL" -eq 0 ]; then
     echo "به‌روزرسانی و ریستارت با موفقیت انجام شد."
   fi
