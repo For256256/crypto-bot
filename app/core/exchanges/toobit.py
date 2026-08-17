@@ -265,6 +265,22 @@ class ToobitDriver(ExchangeDriver):
                             pass
                 return default
 
+            def _pf_opt(*keys):
+                """مثل _pf ولی «تنظیم‌نشده» را None برمی‌گرداند نه صفر.
+                صرافی برای حد ضرر/سودِ تنظیم‌نشده معمولاً 0 یا "" می‌فرستد و
+                نمایش صفر به‌عنوان حد ضرر گمراه‌کننده است."""
+                for k in keys:
+                    v = p.get(k)
+                    if v in (None, "", "0", 0):
+                        continue
+                    try:
+                        f = float(v)
+                    except (TypeError, ValueError):
+                        continue
+                    if f > 0:
+                        return f
+                return None
+
             positions.append({
                 "id": str(p.get("positionId", p.get("id", f"{p.get('symbol')}-{side}"))),
                 "symbol": p.get("symbol", symbol),
@@ -275,6 +291,15 @@ class ToobitDriver(ExchangeDriver):
                 "leverage": _pf("leverage", default=1.0),
                 "profit": _pf("unrealizedPnL", "unrealisedPnl", "profit"),
                 "margin": _pf("margin", "positionMargin", "isolatedMargin"),
+                # حد ضرر/سود روی خودِ پوزیشن ست می‌شوند (اندپوینت trading-stop)،
+                # پس صرافی باید در پاسخ پوزیشن‌ها هم برشان گرداند. نام دقیق فیلد
+                # بین نسخه‌های API فرق می‌کند، برای همین چند نام محتمل امتحان
+                # می‌شود؛ اگر هیچ‌کدام نبود None می‌ماند و موتور از حافظه‌ی
+                # پشتیبان خودش استفاده می‌کند.
+                "stop_loss": _pf_opt("stopLoss", "stopLossPrice", "slPrice",
+                                     "stop_loss", "slTriggerPrice", "stopLossTriggerPrice"),
+                "take_profit": _pf_opt("takeProfit", "takeProfitPrice", "tpPrice",
+                                       "take_profit", "tpTriggerPrice", "takeProfitTriggerPrice"),
             })
         return positions
 

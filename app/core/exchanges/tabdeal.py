@@ -44,6 +44,22 @@ def normalize_symbol(raw: str) -> str:
     return s
 
 
+def _opt_price(raw: dict, *keys):
+    """قیمت اختیاری از پاسخ صرافی. «تنظیم‌نشده» را None برمی‌گرداند نه صفر،
+    چون نمایش صفر به‌عنوان حد ضرر گمراه‌کننده است."""
+    for k in keys:
+        v = raw.get(k)
+        if v in (None, "", "0", 0):
+            continue
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            continue
+        if f > 0:
+            return f
+    return None
+
+
 def to_tv_symbol(symbol: str) -> str:
     """نماد تبدیل از قبل با فرمت TradingView یکی است (BTCUSDT)."""
     return symbol
@@ -233,6 +249,11 @@ class TabdealDriver(ExchangeDriver):
                 # (مثل PaperDriver) — contractMultiplier در FAPI تبدیل مطرح نیست (همیشه ۱).
                 "profit": (mark_price - entry_price) * direction * qty,
                 "margin": 0.0,
+                # اگر صرافی حد ضرر/سود را برگرداند همان استفاده می‌شود؛ صفر و
+                # خالی یعنی تنظیم‌نشده، پس None می‌ماند تا موتور از حافظه‌ی
+                # پشتیبان خودش بخواند.
+                "stop_loss": _opt_price(p, "stopLoss", "stopLossPrice", "slPrice"),
+                "take_profit": _opt_price(p, "takeProfit", "takeProfitPrice", "tpPrice"),
             })
         return positions
 
