@@ -79,6 +79,9 @@ class AccountRunner:
         # مقادیر را برنمی‌گرداند، خودمان لحظه‌ی باز کردن نگه می‌داریم تا وقتی
         # پوزیشن در سمت صرافی بسته شد بتوانیم بفهمیم SL خورده یا TP.
         self._live_position_targets: dict = {}
+        # فقط یک‌بار درباره‌ی نبودن حد ضرر/سود هشدار می‌دهیم، وگرنه هر tick
+        # لاگ را پر می‌کند.
+        self._tpsl_diag_logged = False
 
     # ---------- لاگ ----------
     def log(self, message: str, level: str = "info"):
@@ -158,6 +161,7 @@ class AccountRunner:
         self.account_info = await self.driver.get_account_info()
         self.positions = await self.driver.get_open_positions()
         self.status, self.status_key = "فعال", "running"
+        self._diagnose_missing_targets()
 
         # ۲) ثبت نقطه‌ی اکوییتی (هر ۵ دقیقه)
         now_ts = loop.time()
@@ -179,6 +183,31 @@ class AccountRunner:
             if not sym_cfg.get("enabled", True):
                 continue
             await self._process_symbol(sym_cfg)
+
+    def _diagnose_missing_targets(self):
+        """اگر پوزیشن باز داریم ولی هیچ حد ضرر/سودی از هیچ منبعی پیدا نشد،
+        یک‌بار در لاگ می‌گوییم — وگرنه کاربر فقط خط تیره می‌بیند و نمی‌داند چرا."""
+        if self._tpsl_diag_logged or isinstance(self.driver, PaperDriver):
+            return
+        if not self.positions:
+            return
+        missing = []
+        for p in self.positions:
+            if p.get("stop_loss") or p.get("take_profit"):
+                continue
+            if position_targets.get_targets(self.account_id, p.get("symbol"), p.get("side")):
+                continue
+            missing.append(p.get("symbol"))
+        if not missing:
+            return
+        self._tpsl_diag_logged = True
+        self.log(
+            "حد ضرر/سود این پوزیشن‌ها پیدا نشد: " + "، ".join(m for m in missing if m) + ". "
+            "اگر روی خود صرافی برایشان حد ضرر/سود تنظیم نشده، همین درست است. "
+            "اگر تنظیم شده ولی اینجا خالی است، یعنی صرافی آن را در سفارش‌های "
+            "شرطی باز برنمی‌گرداند — این پیام را به پشتیبانی بدهید.",
+            "warn",
+        )
 
     # ---------- ثبت معاملات ----------
     async def _collect_closed_trades(self):

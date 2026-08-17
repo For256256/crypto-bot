@@ -70,6 +70,9 @@ class ToobitDriver(ExchangeDriver):
         self._last_price: dict[str, float] = {}
         self._exchange_info_cache: dict | None = None
         self._exchange_info_time: float = 0.0
+        # نوع سفارشی که TP/SL این حساب زیر آن برمی‌گردد؛ بعد از اولین پاسخ
+        # موفق کش می‌شود تا هر tick فقط یک درخواست بزنیم.
+        self._tpsl_order_type: str | None = None
 
     # ---------- زیرساخت HTTP و امضا ----------
     def _ensure_client(self) -> httpx.AsyncClient:
@@ -265,21 +268,6 @@ class ToobitDriver(ExchangeDriver):
                             pass
                 return default
 
-            def _pf_opt(*keys):
-                """مثل _pf ولی «تنظیم‌نشده» را None برمی‌گرداند نه صفر.
-                صرافی برای حد ضرر/سودِ تنظیم‌نشده معمولاً 0 یا "" می‌فرستد و
-                نمایش صفر به‌عنوان حد ضرر گمراه‌کننده است."""
-                for k in keys:
-                    v = p.get(k)
-                    if v in (None, "", "0", 0):
-                        continue
-                    try:
-                        f = float(v)
-                    except (TypeError, ValueError):
-                        continue
-                    if f > 0:
-                        return f
-                return None
 
             positions.append({
                 "id": str(p.get("positionId", p.get("id", f"{p.get('symbol')}-{side}"))),
@@ -291,17 +279,81 @@ class ToobitDriver(ExchangeDriver):
                 "leverage": _pf("leverage", default=1.0),
                 "profit": _pf("unrealizedPnL", "unrealisedPnl", "profit"),
                 "margin": _pf("margin", "positionMargin", "isolatedMargin"),
-                # حد ضرر/سود روی خودِ پوزیشن ست می‌شوند (اندپوینت trading-stop)،
-                # پس صرافی باید در پاسخ پوزیشن‌ها هم برشان گرداند. نام دقیق فیلد
-                # بین نسخه‌های API فرق می‌کند، برای همین چند نام محتمل امتحان
-                # می‌شود؛ اگر هیچ‌کدام نبود None می‌ماند و موتور از حافظه‌ی
-                # پشتیبان خودش استفاده می‌کند.
-                "stop_loss": _pf_opt("stopLoss", "stopLossPrice", "slPrice",
-                                     "stop_loss", "slTriggerPrice", "stopLossTriggerPrice"),
-                "take_profit": _pf_opt("takeProfit", "takeProfitPrice", "tpPrice",
-                                       "take_profit", "tpTriggerPrice", "takeProfitTriggerPrice"),
+                # طبق مستند رسمی، پاسخ پوزیشن‌ها اصلاً فیلد حد ضرر/سود ندارد.
+                # مقدارشان از سفارش‌های شرطیِ باز خوانده می‌شود (پایین‌تر).
+                "stop_loss": None,
+                "take_profit": None,
             })
+        await self._attach_targets(positions)
         return positions
+
+    async def _fetch_conditional_orders(self) -> list:
+        """سفارش‌های شرطی باز (همان چیزی که trading-stop می‌سازد).
+
+        نوع درست طبق مستند STOP_PROFIT_LOSS است، ولی بعضی حساب‌ها/نسخه‌ها
+        همان سفارش را زیر STOP برمی‌گردانند. برای اینکه هر tick دو درخواست
+        نزنیم، اولین نوعی که جواب داد روی همین درایور کش می‌شود.
+        """
+        types = [self._tpsl_order_type] if self._tpsl_order_type else ["STOP_PROFIT_LOSS", "STOP"]
+        for otype in types:
+            try:
+                data = await self._request("GET", "/api/v1/futures/openOrders",
+                                           {"type": otype, "limit": 500}, signed=True)
+            except ExchangeError:
+                continue
+            orders = data if isinstance(data, list) else data.get("orders", []) if isinstance(data, dict) else []
+            orders = [o for o in orders if isinstance(o, dict)]
+            if orders:
+                self._tpsl_order_type = otype
+                return orders
+        return []
+
+    async def _attach_targets(self, positions: list):
+        """حد ضرر/سود هر پوزیشن را از سفارش‌های شرطی باز پیدا و ضمیمه می‌کند.
+
+        تفکیک SL از TP از روی جهت پوزیشن و مقایسه‌ی قیمت تریگر با قیمت ورود
+        انجام می‌شود: برای Long، تریگرِ پایین‌تر از ورود حد ضرر است و بالاتر
+        حد سود؛ برای Short برعکس. خودِ صرافی این دو را با برچسب جدا از هم
+        متمایز نمی‌کند.
+        """
+        if not positions:
+            return
+        try:
+            orders = await self._fetch_conditional_orders()
+        except Exception:
+            return
+        if not orders:
+            return
+        by_symbol: dict = {}
+        for o in orders:
+            sym = o.get("symbol")
+            try:
+                trigger = float(o.get("stopPrice") or 0)
+            except (TypeError, ValueError):
+                continue
+            if not sym or trigger <= 0:
+                continue
+            by_symbol.setdefault(sym, []).append((trigger, str(o.get("side", "")).upper()))
+
+        for p in positions:
+            triggers = by_symbol.get(p["symbol"])
+            if not triggers:
+                continue
+            entry = p.get("entry_price") or 0
+            if entry <= 0:
+                continue
+            is_long = p["side"] == "long"
+            # سفارش‌های بستنِ همین جهت؛ اگر side نامشخص بود، همه را در نظر می‌گیریم
+            wanted_side = "SELL_CLOSE" if is_long else "BUY_CLOSE"
+            mine = [t for t, s in triggers if s in (wanted_side, "")] or [t for t, _ in triggers]
+            below = [t for t in mine if t < entry]
+            above = [t for t in mine if t > entry]
+            if is_long:
+                p["stop_loss"] = max(below) if below else None
+                p["take_profit"] = min(above) if above else None
+            else:
+                p["stop_loss"] = min(above) if above else None
+                p["take_profit"] = max(below) if below else None
 
     async def _exchange_info(self) -> dict:
         """پاسخ خام exchangeInfo با کش یک‌ساعته (لیست نمادها و فیلترها)."""
