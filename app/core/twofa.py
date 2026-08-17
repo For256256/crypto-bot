@@ -58,7 +58,7 @@ def verify(secret: str, code: str, at: float | None = None) -> bool:
     return False
 
 
-def provisioning_uri(secret: str, account_name: str, issuer: str = "cplusepro") -> str:
+def provisioning_uri(secret: str, account_name: str, issuer: str = "cpulsepro") -> str:
     """otpauth:// — همان چیزی که داخل کد QR می‌رود."""
     label = quote(f"{issuer}:{account_name}", safe="")
     return (f"otpauth://totp/{label}?secret={secret}&issuer={quote(issuer)}"

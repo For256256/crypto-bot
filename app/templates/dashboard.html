@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}cplusepro - {{ t("dash.title") }}{% endblock %}
+{% block title %}cpulsepro - {{ t("dash.title") }}{% endblock %}
 
 {% block content %}
 <!-- وضعیت توکن فعال‌سازی -->
@@ -88,6 +88,32 @@
     <div class="flex justify-end gap-2 mt-5">
       <button class="btn-ghost" onclick="closeModal('accountModalBg')">{{ t("common.cancel") }}</button>
       <button class="btn-primary-of" onclick="saveAccount()">{{ t("common.save") }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- مودال الزامات معامله‌ی واقعی -->
+<div class="modal-bg" id="liveReqModalBg">
+  <div class="modal-panel !p-0 overflow-hidden">
+    <div class="p-5 border-b border-outline-variant/15 bg-sell/5">
+      <div class="flex items-start gap-3">
+        <span class="material-symbols-outlined text-sell text-2xl shrink-0">gpp_maybe</span>
+        <div>
+          <h3 class="font-headline text-lg font-bold">{{ t("live.title") }}</h3>
+          <p class="text-xs text-on-surface-variant mt-1 leading-5">{{ t("live.subtitle") }}</p>
+        </div>
+      </div>
+      <p class="text-[11px] text-sell mt-3 leading-5 bg-sell/10 border border-sell/20 rounded-lg p-2.5">
+        {{ t("live.risk_note") }}
+      </p>
+    </div>
+    <div id="liveReqBody" class="p-5 max-h-[52vh] overflow-y-auto"></div>
+    <div class="p-5 pt-4 border-t border-outline-variant/15 bg-surface-container-low">
+      <p id="liveReqHint" class="text-[11px] text-on-surface-variant mb-3 text-center leading-5"></p>
+      <div class="flex justify-end gap-2">
+        <button class="btn-ghost" onclick="closeLiveReq(false)">{{ t("common.cancel") }}</button>
+        <button id="liveReqGo" class="btn-primary-of" onclick="closeLiveReq(true)">{{ t("live.continue") }}</button>
+      </div>
     </div>
   </div>
 </div>
@@ -342,12 +368,14 @@ async function saveAccount() {
     enabled: true,
   };
   if (!payload.name) { toast(t('dash.name_required'), true); return; }
-  if (payload.trading_mode === 'live' && (!payload.api_key || !payload.api_secret)) {
-    toast(t('dash.live_needs_keys'), true); return;
-  }
-  if (payload.trading_mode === 'live' && tokenStatus && !tokenStatus.is_admin && !tokenStatus.active) {
-    toast(t('dash.live_needs_token'), true);
-    return;
+  if (payload.trading_mode === 'live') {
+    // به‌جای سه پیام خطای جداگانه، همان صفحه‌ی الزامات با وضعیت هر مورد
+    const ok = await requireLiveReady({
+      exchange: payload.exchange,
+      hasKeys: !!(payload.api_key && payload.api_secret),
+      accountId: editingAccountId,
+    });
+    if (!ok) return;
   }
   if (payload.trading_mode === 'live') {
     const otp = promptOtp();
@@ -396,8 +424,111 @@ async function stopAccount(id) {
   catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
+// ---------- الزامات معامله‌ی واقعی ----------
+// قبل از هر مسیری که حساب را به LIVE می‌برد، یک صفحه‌ی شیشه‌ای نشان می‌دهد که
+// سه پیش‌نیاز را با وضعیت واقعی‌شان فهرست می‌کند و برای هرکدام راهنمای
+// گام‌به‌گام دارد. سرور همین‌ها را دوباره چک می‌کند (_assert_can_go_live)؛
+// این لایه فقط برای این است که کاربر با پیام خطای خشک روبه‌رو نشود.
+let liveReqResolve = null;
+
+function closeLiveReq(ok) {
+  closeModal('liveReqModalBg');
+  const fn = liveReqResolve;
+  liveReqResolve = null;
+  if (fn) fn(!!ok);
+}
+
+// از دکمه‌ی «وارد کردن کلید API» داخل مودال الزامات: مودال بسته می‌شود و فرم
+// همان حساب باز می‌ماند تا کاربر کلید را بچسباند. اگر هنوز حسابی ساخته نشده
+// (مسیر ساخت حساب جدید)، فقط مودال بسته می‌شود و فرم زیرش همان‌جاست.
+function editKeysFromLiveReq(accountId) {
+  // اگر فرم حساب همین حالا باز است (کاربر از دکمه‌ی ذخیره به اینجا رسیده)،
+  // نباید دوباره بازش کنیم — openAccountModal فرم را از نو پر می‌کند و هرچه
+  // کاربر تایپ کرده بود از بین می‌رود.
+  const formOpen = document.getElementById('accountModalBg').classList.contains('open');
+  closeLiveReq(false);
+  if (!formOpen) {
+    const acc = accountId ? accountsCache.find(a => a.id === accountId) : null;
+    if (acc) openAccountModal(acc); else return;
+  }
+  const el = document.getElementById('f_api_key');
+  if (el) { el.focus(); el.scrollIntoView({ block: 'center' }); }
+}
+
+function liveReqCard(state, icon, title, why, steps, btnLabel, btnAction, id) {
+  const badge = state
+    ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-buy/15 text-buy border border-buy/25 shrink-0">${t('live.done')}</span>`
+    : `<span class="text-[10px] px-2 py-0.5 rounded-full bg-gold/15 text-gold border border-gold/25 shrink-0">${t('live.todo')}</span>`;
+  const list = (steps || '').split('\n').filter(s => s.trim())
+    .map(s => `<li class="leading-6">${s}</li>`).join('');
+  return `<div class="glass-card rounded-xl p-4 mb-3">
+    <div class="flex items-start gap-3">
+      <span class="material-symbols-outlined ${state ? 'text-buy' : 'text-gold'} shrink-0">${state ? 'check_circle' : icon}</span>
+      <div class="min-w-0 flex-grow">
+        <div class="flex items-center justify-between gap-2">
+          <h4 class="font-bold text-sm">${title}</h4>${badge}
+        </div>
+        <p class="text-[11px] text-on-surface-variant mt-1 leading-5">${why}</p>
+        <div class="flex flex-wrap items-center gap-2 mt-2">
+          <button onclick="document.getElementById('${id}').classList.toggle('hidden')"
+            class="text-[11px] text-primary hover:underline flex items-center gap-1">
+            <span class="material-symbols-outlined text-sm">menu_book</span> ${t('live.guide_show')}
+          </button>
+          ${state ? '' : `<button onclick="${btnAction}" class="text-[11px] px-2.5 py-1 rounded-lg border border-primary/40 text-primary hover:bg-primary/10 transition-colors">${btnLabel}</button>`}
+        </div>
+        <ol id="${id}" class="hidden list-decimal text-[11px] text-on-surface-variant mt-3 ps-5 space-y-1 bg-surface-container-low rounded-lg p-3">${list}</ol>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function requireLiveReady(ctx) {
+  const body = document.getElementById('liveReqBody');
+  body.innerHTML = `<div class="text-center text-on-surface-variant py-10 text-sm">${t('common.loading')}</div>`;
+  document.getElementById('liveReqHint').textContent = '';
+  document.getElementById('liveReqGo').disabled = true;
+  openModal('liveReqModalBg');
+
+  let twofa = { enabled: false }, tok = { is_admin: false, active: false };
+  try {
+    [twofa, tok] = await Promise.all([callApi('/api/2fa/status'), callApi('/api/tokens/me')]);
+  } catch (e) {
+    // اگر وضعیت خوانده نشد، چیزی را «انجام‌شده» فرض نمی‌کنیم — کاربر راهنما را
+    // می‌بیند و در بدترین حالت سرور جلویش را می‌گیرد.
+  }
+
+  const isAdmin = !!tok.is_admin;
+  const okTwofa = !!twofa.enabled;
+  const okKeys  = !!ctx.hasKeys;
+  const okToken = isAdmin || !!tok.active;
+
+  const exSteps = ctx.exchange === 'tabdeal' ? t('live.r2_steps_tabdeal') : t('live.r2_steps_toobit');
+  body.innerHTML =
+    liveReqCard(okTwofa, 'lock', t('live.r1_title'), t('live.r1_why'), t('live.r1_steps'),
+                t('live.btn_2fa'), "location.href='/settings'", 'liveGuide1') +
+    liveReqCard(okKeys, 'key', t('live.r2_title'), t('live.r2_why'), exSteps,
+                t('live.btn_keys'), `editKeysFromLiveReq(${JSON.stringify(ctx.accountId || '')})`, 'liveGuide2') +
+    liveReqCard(okToken, 'confirmation_number', t('live.r3_title'),
+                isAdmin ? t('live.admin_note') : t('live.r3_why'), t('live.r3_steps'),
+                t('live.btn_token'), "location.href='/billing'", 'liveGuide3');
+
+  const ready = okTwofa && okKeys && okToken;
+  document.getElementById('liveReqGo').disabled = !ready;
+  document.getElementById('liveReqHint').textContent = ready ? t('live.ready_all') : t('live.blocked');
+  return new Promise(resolve => { liveReqResolve = resolve; });
+}
+
 async function switchMode(id, current) {
   const target = current === 'paper' ? 'live' : 'paper';
+  if (target === 'live') {
+    const acc = (accountsCache || []).find(a => a.id === id) || {};
+    const ok = await requireLiveReady({
+      exchange: acc.exchange,
+      hasKeys: !!(acc.api_key && acc.api_secret),
+      accountId: id,
+    });
+    if (!ok) return;
+  }
   const warn = target === 'live'
     ? t('dash.switch_live_confirm')
     : t('dash.switch_paper_confirm');
