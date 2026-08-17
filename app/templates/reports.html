@@ -246,13 +246,51 @@ function renderTradesTable() {
     pageBtns += `<button onclick="gotoPage(${p})" class="w-8 h-8 rounded border text-xs font-bold transition-all ${p === tradePage ? 'border-primary/30 bg-primary text-on-primary' : 'border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant'}">${p}</button>`;
     prev = p;
   }
-  return `<div class="overflow-x-auto"><table class="of-table">
+  // روی موبایل جدول ۹ ستونی اسکرول افقی می‌خواست. همان داده‌ها به‌صورت کارت
+  // چیده می‌شوند؛ جدول فقط از md به بالا نمایش داده می‌شود.
+  const mcell = (label, value, extraCls) => `
+    <div>
+      <div class="text-[10px] text-on-surface-variant mb-0.5">${label}</div>
+      <div class="mono-num text-xs ${extraCls || ''}" dir="ltr">${value}</div>
+    </div>`;
+
+  const cards = slice.map(tr => {
+    const r = Number(tr.realized || 0);
+    const cls = r >= 0 ? 'text-buy' : 'text-sell';
+    const side = tr.side === 'long'
+      ? '<span class="bg-buy/10 text-buy px-2 py-0.5 rounded text-[10px] font-bold border border-buy/20">LONG</span>'
+      : '<span class="bg-sell/10 text-sell px-2 py-0.5 rounded text-[10px] font-bold border border-sell/20">SHORT</span>';
+    const by = CLOSED_BY_LABELS[tr.closed_by] || tr.closed_by || '—';
+    const est = tr.estimated ? ' <span class="text-gold">≈</span>' : '';
+    const fee = tr.fee != null ? fmtNum(tr.fee) : '—';
+    return `<div class="border-b border-outline-variant/20 last:border-b-0 p-4">
+      <div class="flex items-center justify-between gap-2 mb-1">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="font-bold text-sm truncate">${tr.symbol || ''}</span>${side}
+        </div>
+        <span class="mono-num text-sm font-bold ${cls}" dir="ltr">${niceNum(r)}${est}</span>
+      </div>
+      <div class="text-[10px] text-on-surface-variant mb-3" dir="ltr">${fmtDateTime(tr.close_time)}</div>
+      <div class="grid grid-cols-3 gap-y-3 gap-x-2">
+        ${mcell(t('dash.th_qty'), fmtNum(tr.qty))}
+        ${mcell(t('rep.th_entry_price'), fmtNum(tr.entry_price))}
+        ${mcell(t('rep.th_exit_price'), fmtNum(tr.close_price))}
+        ${mcell(t('rep.th_closed_by'), by)}
+        ${mcell(t('common.fees'), fee)}
+      </div>
+    </div>`;
+  }).join('');
+
+  const emptyMsg = `<div class="text-center text-on-surface-variant py-8 text-sm">${t('rep.no_trades')}</div>`;
+
+  return `<div class="hidden md:block overflow-x-auto"><table class="of-table">
       <thead><tr><th>${t('rep.th_time')}</th><th>${t('common.symbol')}</th><th>${t('rep.th_type')}</th><th>${t('dash.th_qty')}</th><th>${t('rep.th_entry_price')}</th><th>${t('rep.th_exit_price')}</th><th>${t('rep.th_closed_by')}</th><th>${t('common.fees')}</th><th>${t('rep.th_net_usdt')}</th></tr></thead>
       <tbody>${rows || `<tr><td colspan="9" class="text-center text-on-surface-variant py-8">${t('rep.no_trades')}</td></tr>`}</tbody>
     </table></div>
-    <div class="px-5 py-4 flex flex-row-reverse justify-between items-center bg-surface-container-low border-t border-outline-variant/20">
+    <div class="md:hidden">${cards || emptyMsg}</div>
+    <div class="px-5 py-4 flex flex-row-reverse flex-wrap gap-2 justify-between items-center bg-surface-container-low border-t border-outline-variant/20">
       <span class="text-xs text-on-surface-variant">${t('rep.showing', {start: start, end: end, total: total})}</span>
-      <div class="flex gap-1">
+      <div class="flex gap-1 shrink-0">
         <button onclick="gotoPage(${tradePage - 1})" class="w-8 h-8 flex items-center justify-center rounded border border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant"><span class="material-symbols-outlined text-base">chevron_right</span></button>
         ${pageBtns}
         <button onclick="gotoPage(${tradePage + 1})" class="w-8 h-8 flex items-center justify-center rounded border border-outline-variant/30 text-on-surface-variant hover:bg-surface-variant"><span class="material-symbols-outlined text-base">chevron_left</span></button>
@@ -302,6 +340,26 @@ function renderAccountDetails() {
       <td class="num text-on-surface-variant text-[11px]">${niceNum(b.fees)}</td>
       <td class="num ${b.pnl >= 0 ? 'text-buy' : 'text-sell'} font-bold">${b.pnl >= 0 ? '+' : ''}${niceNum(b.pnl)}</td>
     </tr>`).join('');
+  // نسخه‌ی موبایل جدول «به تفکیک نماد» — بدون اسکرول افقی.
+  const symbolCards = bySymbol.map(b => {
+    const cls = b.pnl >= 0 ? 'text-buy' : 'text-sell';
+    const cell = (label, value, extraCls) => `
+      <div>
+        <div class="text-[10px] text-on-surface-variant mb-0.5">${label}</div>
+        <div class="mono-num text-xs ${extraCls || ''}" dir="ltr">${value}</div>
+      </div>`;
+    return `<div class="border-b border-outline-variant/20 last:border-b-0 py-3">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <span class="font-bold text-sm truncate">${b.symbol}</span>
+        <span class="mono-num text-sm font-bold ${cls}" dir="ltr">${b.pnl >= 0 ? '+' : ''}${niceNum(b.pnl)}</span>
+      </div>
+      <div class="grid grid-cols-3 gap-x-2">
+        ${cell(t('common.trades'), b.trades)}
+        ${cell(t('common.win_rate'), (b.trades ? fmt(b.wins / b.trades * 100, 1) : '0.0') + t('common.pct'))}
+        ${cell(t('common.fees'), niceNum(b.fees), 'text-on-surface-variant')}
+      </div>
+    </div>`;
+  }).join('');
   return `<div class="glass-card p-5 rounded-2xl mb-6">
     <h3 class="font-headline font-bold mb-3 flex items-center gap-2">
       <span class="material-symbols-outlined text-primary">summarize</span> ${t('rep.details')}
@@ -330,10 +388,11 @@ function renderAccountDetails() {
         ${row(t('rep.best_worst'), niceNum(s.best) + ' / ' + niceNum(s.worst))}
       </div>
     </div>
-    ${bySymbol.length ? `<div class="overflow-x-auto mt-4 pt-4 border-t border-outline-variant/10"><table class="of-table">
+    ${bySymbol.length ? `<div class="hidden md:block overflow-x-auto mt-4 pt-4 border-t border-outline-variant/10"><table class="of-table">
       <thead><tr><th>${t('common.symbol')}</th><th>${t('common.trades')}</th><th>${t('common.win_rate')}</th><th>${t('common.fees')}</th><th>${t('common.net_pnl')}</th></tr></thead>
       <tbody>${symbolRows}</tbody>
-    </table></div>` : ''}
+    </table></div>
+    <div class="md:hidden mt-4 pt-4 border-t border-outline-variant/10">${symbolCards}</div>` : ''}
   </div>`;
 }
 
