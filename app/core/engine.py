@@ -776,11 +776,50 @@ class BotManager:
                     pass
                 runner.driver = None
             raise
+        config_store.set_running_flag(account_id, True)
 
     async def stop_account(self, account_id: str):
         runner = self.runners.get(account_id)
         if runner is not None:
             await runner.stop()
+        # توقف خودکار واچ‌داگ (انقضای توکن) هم همین‌جا رد می‌شود و فلگ را پاک
+        # می‌کند — یعنی حساب واقعیِ متوقف‌شده خودش برنمی‌گردد و کاربر باید بعد
+        # از تمدید توکن آگاهانه دوباره روشنش کند. برای پول واقعی همین درست است.
+        config_store.set_running_flag(account_id, False)
+
+    async def resume_previously_running(self):
+        """ربات‌هایی که هنگام خاموش‌شدن سرویس در حال اجرا بودند را برمی‌گرداند.
+
+        فقط همان‌ها — حسابی که کاربر خودش متوقف کرده بود متوقف می‌ماند.
+        خطای یک حساب نباید جلوی بقیه را بگیرد، پس هر کدام جدا try می‌شود.
+        """
+        resumed, skipped = [], []
+        for cfg in config_store.list_previously_running():
+            aid = cfg["id"]
+            if not cfg.get("enabled", True):
+                continue
+            # حساب واقعی بدون توکن فعال نباید خودکار برگردد؛ وگرنه واچ‌داگ چند
+            # دقیقه بعد دوباره خاموشش می‌کند و فقط نویز تولید می‌شود.
+            if cfg.get("trading_mode") == "live":
+                owner_id = cfg.get("owner_id")
+                owner = users.get_user(owner_id) if owner_id else None
+                if owner is not None and owner.get("role") != "admin" \
+                        and not tokens.has_active_token(owner_id):
+                    config_store.set_running_flag(aid, False)
+                    skipped.append(cfg.get("name") or aid)
+                    continue
+            try:
+                await self.start_account(aid)
+                resumed.append(cfg.get("name") or aid)
+            except Exception as e:
+                runner = self.runners.get(aid)
+                if runner is not None:
+                    runner.log(f"بازگردانی خودکار بعد از ری‌استارت ناموفق بود: {e}", "error")
+        if resumed:
+            print(f"[crypto-bot] ربات {len(resumed)} حساب بعد از ری‌استارت خودکار برگشت: {', '.join(resumed)}")
+        if skipped:
+            print(f"[crypto-bot] برنگشت (توکن فعال ندارد): {', '.join(skipped)}")
+        return {"resumed": resumed, "skipped": skipped}
 
     async def start_all(self, owner_id: str | None = None):
         for cfg in config_store.list_accounts(owner_id):
@@ -790,6 +829,7 @@ class BotManager:
             if runner is not None and not runner.running:
                 try:
                     await runner.start()
+                    config_store.set_running_flag(cfg["id"], True)
                 except Exception as e:
                     runner.log(f"شروع ناموفق: {e}", "error")
 
@@ -799,6 +839,7 @@ class BotManager:
                 continue
             if runner.running:
                 await runner.stop()
+                config_store.set_running_flag(runner.cfg["id"], False)
 
     def refresh_symbols(self, account_id: str):
         """بعد از تغییر نمادها از API، cfg رانِر را از فایل تازه می‌کند."""

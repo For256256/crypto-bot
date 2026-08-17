@@ -106,6 +106,10 @@ async def on_startup():
     bot_manager.sync_from_config()
     bot_manager.start_background_tasks()
     asyncio.create_task(telegram.poll_updates_loop())
+    # ربات‌هایی که هنگام خاموش‌شدن سرویس (مثلاً موقع آپدیت) در حال اجرا بودند
+    # دوباره روشن می‌شوند — فقط همان‌ها. به‌صورت تسک پس‌زمینه، چون هر start
+    # چند فراخوانی شبکه به صرافی دارد و نباید بالا آمدن سرور را عقب بیندازد.
+    asyncio.create_task(bot_manager.resume_previously_running())
 
 
 class AccountIn(BaseModel):

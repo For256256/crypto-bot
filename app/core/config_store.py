@@ -46,6 +46,11 @@ ACCOUNT_DEFAULTS = {
     "invert_signals": False,
     "accept_webhook": True,
     "enabled": True,
+    # آیا ربات این حساب در لحظه‌ی خاموش‌شدن سرویس در حال اجرا بود؟ وضعیت اجرا
+    # فقط در حافظه بود، پس با هر ری‌استارت (مثلاً بعد از آپدیت) همه‌ی ربات‌ها
+    # خاموش می‌شدند و کاربر باید دستی روشنشان می‌کرد. این فلگ «قصد کاربر» را
+    # ماندگار می‌کند تا استارتاپ بتواند دقیقاً همان‌ها را برگرداند.
+    "was_running": False,
 }
 
 SYMBOL_DEFAULTS = {
@@ -125,6 +130,25 @@ def update_account(account_id: str, data: dict) -> dict:
                 _save(store)
                 return a
         raise KeyError("حساب پیدا نشد")
+
+
+def set_running_flag(account_id: str, running: bool) -> None:
+    """وضعیت «در حال اجرا بودن» را ماندگار می‌کند تا بعد از ری‌استارت سرویس
+    قابل بازگردانی باشد. عمداً سکوت می‌کند اگر حساب پیدا نشود: این تابع از دل
+    مسیر شروع/توقف ربات صدا زده می‌شود و نباید خودِ آن عملیات را بشکند."""
+    with _lock:
+        store = _load()
+        for a in store["accounts"]:
+            if a["id"] == account_id:
+                if a.get("was_running") == bool(running):
+                    return                      # بدون تغییر، بدون نوشتن روی دیسک
+                a["was_running"] = bool(running)
+                _save(store)
+                return
+
+
+def list_previously_running() -> list:
+    return [a for a in _load()["accounts"] if a.get("was_running")]
 
 
 def set_suggested(account_id: str, is_suggested: bool) -> dict:
