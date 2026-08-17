@@ -140,7 +140,28 @@ if [ -n "$DOMAIN" ]; then
     exit 1
   fi
 
+  # اگر چیز دیگری از قبل روی پورت ۸۰ نشسته، نباید کورکورانه nginx نصب/ریستارت
+  # کنیم — یا nginx بالا نمی‌آید، یا بدتر، سرویس دیگری را از کار می‌اندازیم.
+  # nginx خودش استثناست: در آن حالت فقط یک vhost کنار بقیه اضافه می‌شود.
+  PORT80_PROC=$(ss -ltnp 2>/dev/null | awk '$4 ~ /:80$/ {print $0}' | grep -o 'users:((\"[^\"]*' | head -1 | sed 's/.*((\"//' || true)
+  if [ -n "${PORT80_PROC:-}" ] && [ "$PORT80_PROC" != "nginx" ]; then
+    echo "" >&2
+    echo "پورت ۸۰ روی این سرور در اختیار «${PORT80_PROC}» است، نه nginx." >&2
+    echo "" >&2
+    echo "TradingView فقط پورت ۸۰ و ۴۴۳ را برای وبهوک قبول می‌کند، پس نمی‌شود" >&2
+    echo "این سرویس را روی پورت دیگری گذاشت. باید همان ${PORT80_PROC} درخواست‌های" >&2
+    echo "دامنه‌ی ${DOMAIN} را به http://127.0.0.1:${DASHBOARD_PORT} پروکسی کند." >&2
+    echo "" >&2
+    echo "اسکریپت اینجا متوقف شد تا به سرویس دیگر دست نزند." >&2
+    echo "برای نصب بدون بخش دامنه، همان دستور را بدون DOMAIN اجرا کنید." >&2
+    exit 1
+  fi
+
   log "نصب nginx و certbot…"
+  NGINX_WAS_INSTALLED=1
+  if ! command -v nginx >/dev/null 2>&1; then
+    NGINX_WAS_INSTALLED=0
+  fi
   if ! command -v nginx >/dev/null 2>&1 || ! command -v certbot >/dev/null 2>&1; then
     apt-get update -y
     apt-get install -y nginx certbot python3-certbot-nginx
@@ -181,7 +202,13 @@ server {
 }
 EOF
   ln -sf "/etc/nginx/sites-available/${SERVICE_NAME}" "/etc/nginx/sites-enabled/${SERVICE_NAME}"
-  rm -f /etc/nginx/sites-enabled/default
+  # سایت default فقط وقتی برداشته می‌شود که nginx را همین الان خودمان نصب کرده
+  # باشیم. اگر nginx از قبل بوده، ممکن است سرویس دیگری روی همین سرور از همان
+  # فایل استفاده کند و حذفش آن را از کار می‌اندازد. vhost ما بر اساس
+  # server_name انتخاب می‌شود، پس ماندن default هیچ تداخلی ایجاد نمی‌کند.
+  if [ "$NGINX_WAS_INSTALLED" -eq 0 ]; then
+    rm -f /etc/nginx/sites-enabled/default
+  fi
   nginx -t
   systemctl enable nginx >/dev/null 2>&1 || true
   systemctl reload nginx || systemctl restart nginx
