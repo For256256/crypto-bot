@@ -292,6 +292,7 @@
   "err.token_not_found": "Токен не найден",
   "err.unknown_strategy": "Неизвестная стратегия",
   "err.unsupported_exchange": "Неподдерживаемая биржа: {exchange}",
+  "err.exchange_lang_restricted": "Эта биржа доступна только пользователям с персидским языком интерфейса.",
   "err.unsupported_language": "Язык не поддерживается",
   "err.user_not_found": "Пользователь не найден",
   "err.username_short": "Имя пользователя должно содержать не менее 3 символов.",

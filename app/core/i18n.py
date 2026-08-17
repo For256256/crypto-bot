@@ -28,8 +28,30 @@ LANGUAGES = {
     "tr": {"native_name": "Türkçe",   "english_name": "Turkish", "dir": "ltr", "flag": "🇹🇷", "date_locale": "tr-TR"},
 }
 
+# ---- محدودیت زبانی صرافی‌ها ----
+# بعضی صرافی‌ها فقط برای کاربران یک زبان/بازار خاص معنا دارند. «تبدیل» یک صرافی
+# ایرانی است و رابط/پشتیبانی/احراز هویتش فارسی است، پس فقط به کاربرانی نشان داده
+# می‌شود که زبان رابطشان فارسی است. کلیدی که اینجا نیاید یعنی «برای همه‌ی زبان‌ها».
+EXCHANGE_LANGS: dict[str, set] = {
+    "tabdeal": {"fa"},
+}
+
+# ترتیب نمایش در لیست کشویی داشبورد
+ALL_EXCHANGES = ["toobit", "tabdeal"]
+
 _cache: dict[str, dict] = {}
 _lock = threading.Lock()
+
+
+def exchange_allowed(exchange: str | None, lang: str | None) -> bool:
+    """آیا این صرافی برای این زبان قابل انتخاب است؟"""
+    allowed = EXCHANGE_LANGS.get(str(exchange or ""))
+    return True if allowed is None else normalize(lang) in allowed
+
+
+def allowed_exchanges(lang: str | None) -> list:
+    """صرافی‌های قابل انتخاب برای این زبان — برای رندر لیست کشویی."""
+    return [ex for ex in ALL_EXCHANGES if exchange_allowed(ex, lang)]
 
 
 def is_supported(lang: str | None) -> bool:

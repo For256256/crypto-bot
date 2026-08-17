@@ -126,7 +126,7 @@ tailwind.config = { theme: { extend: { colors: {
     <div class="w-full md:w-1/2 flex flex-col gap-6 text-center md:text-start">
       <div class="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 rounded-full px-4 py-1.5 w-fit mx-auto md:mx-0">
         <span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
-        <span class="text-[11px] text-primary tracking-wider">Toobit · Tabdeal Futures</span>
+        <span class="text-[11px] text-primary tracking-wider">{% if "tabdeal" in allowed_exchanges %}Toobit · Tabdeal Futures{% else %}Toobit Futures{% endif %}</span>
       </div>
       <h1 class="font-headline text-3xl md:text-5xl font-extrabold leading-tight">
         {{ t("landing.hero_title_html") | safe }}
