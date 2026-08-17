@@ -19,11 +19,11 @@ from datetime import datetime, timezone
 
 from app.core import config_store
 
-FORMAT = "cplusepro-backup"
+FORMAT = "cpulsepro-backup"
 # شناسه‌ی نسخه‌های قبل از تغییر نام برند. فایل‌های پشتیبانی که کاربران از قبل
 # دانلود کرده‌اند این شناسه را دارند و باید همچنان قابل بازیابی بمانند — پس
 # موقع خواندن هر دو پذیرفته می‌شوند، ولی خروجی جدید همیشه با نام تازه است.
-LEGACY_FORMATS = {"cryptopulse-backup"}
+LEGACY_FORMATS = {"cryptopulse-backup", "cplusepro-backup"}
 ACCEPTED_FORMATS = {FORMAT} | LEGACY_FORMATS
 VERSION = 1
 
