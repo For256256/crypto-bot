@@ -22,6 +22,20 @@
 #   DOMAIN_ALIASES     دامنه‌های اضافی روی همان گواهی، با فاصله (مثلاً "www.example.com")
 #   LETSENCRYPT_EMAIL  ایمیل هشدار انقضای گواهی (الزامی وقتی DOMAIN داده شود)
 #
+# اگر روی این سرور از قبل یک پروکسی/پنل/کانتینر دیگر جلوی ۸۰ و ۴۴۳ نشسته
+# (Nginx Proxy Manager، Traefik، Apache، aaPanel و…) و خودتان دامنه و گواهی را
+# آنجا تنظیم می‌کنید، با SKIP_NGINX=1 فقط برنامه پیکربندی می‌شود:
+#
+#   sudo DOMAIN=example.com SKIP_NGINX=1 BIND_ADDRESS=172.17.0.1 \
+#        bash install-crypto-bot.sh
+#
+#   SKIP_NGINX=1   nginx/گواهی اصلاً دست‌کاری نمی‌شود؛ فقط PUBLIC_BASE_URL و
+#                  آدرس گوش‌دادن سرویس تنظیم می‌شوند.
+#   BIND_ADDRESS   آدرسی که برنامه روی آن گوش می‌دهد (پیش‌فرض 127.0.0.1).
+#                  اگر پروکسی جلویی داخل داکر است، 127.0.0.1 از داخل کانتینر
+#                  در دسترس نیست — آدرس گیت‌وی داکر (معمولاً 172.17.0.1) را
+#                  بدهید تا هم کانتینر برسد و هم از اینترنت باز نباشد.
+#
 # دامنه فقط یک‌بار لازم است داده شود؛ دفعات بعد از .env خوانده می‌شود.
 # ------------------------------------------------------------------------
 set -euo pipefail
@@ -33,6 +47,8 @@ SERVICE_NAME="${SERVICE_NAME:-crypto-bot}"
 DOMAIN="${DOMAIN:-}"
 DOMAIN_ALIASES="${DOMAIN_ALIASES:-}"
 LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}"
+SKIP_NGINX="${SKIP_NGINX:-}"
+BIND_ADDRESS="${BIND_ADDRESS:-}"
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "این اسکریپت باید با sudo/root اجرا شود: sudo bash install-crypto-bot.sh" >&2
@@ -122,38 +138,101 @@ set_env() {
 
 # دامنه اگر این بار داده نشده، از PUBLIC_BASE_URL موجود در .env خوانده می‌شود،
 # تا آپدیت‌های بعدی بدون تکرار DOMAIN=… همان تنظیم را حفظ کنند.
+# خواندن یک کلید از .env — || true لازم است: با set -o pipefail، نبودن کلید
+# یعنی grep کد ۱ برمی‌گرداند و set -e کل اسکریپت را همین‌جا می‌کشد، یعنی هر
+# نصب قدیمی (که این کلیدها را ندارد) موقع آپدیت بی‌صدا نصفه‌کاره می‌ماند.
+get_env() {
+  grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2- || true
+}
+
 if [ -z "$DOMAIN" ]; then
-  # || true لازم است: با set -o pipefail، نبودن کلید در .env یعنی grep کد ۱
-  # برمی‌گرداند و set -e کل اسکریپت را همین‌جا می‌کشد — یعنی هر نصب قدیمی
-  # (که این کلید را ندارد) موقع آپدیت بی‌صدا نصفه‌کاره می‌ماند.
-  EXISTING_BASE=$(grep -E '^PUBLIC_BASE_URL=' .env 2>/dev/null | tail -1 | cut -d= -f2- || true)
+  EXISTING_BASE=$(get_env PUBLIC_BASE_URL)
   if [ -n "${EXISTING_BASE:-}" ]; then
     DOMAIN=$(echo "$EXISTING_BASE" | sed -e 's#^https\?://##' -e 's#/.*$##')
     log "دامنه‌ی تنظیم‌شده‌ی قبلی از .env خوانده شد: ${DOMAIN}"
   fi
 fi
 
-if [ -n "$DOMAIN" ]; then
+# حالت پروکسی جلویی هم باید ماندگار باشد. بدون این، آپدیت ساده‌ی بعدی
+# (بدون هیچ متغیری) دامنه را از .env می‌خواند ولی SKIP_NGINX را فراموش
+# می‌کند و می‌رود سراغ نصب nginx و گرفتن پورت ۴۴۳ — یعنی دقیقاً همان
+# سرویسی که قرار بود دست‌نخورده بماند.
+if [ -z "$SKIP_NGINX" ]; then
+  SKIP_NGINX=$(get_env SKIP_NGINX)
+  [ -n "$SKIP_NGINX" ] && log "حالت پروکسی جلویی (SKIP_NGINX) از .env خوانده شد."
+fi
+if [ -z "$BIND_ADDRESS" ]; then
+  BIND_ADDRESS=$(get_env BIND_ADDRESS)
+fi
+
+if [ -n "$DOMAIN" ] && [ -n "$SKIP_NGINX" ]; then
+  # پروکسی جلویی مال خود کاربر است — nginx و گواهی اینجا اصلاً لمس نمی‌شوند.
+  log "حالت SKIP_NGINX — پیکربندی nginx/گواهی انجام نمی‌شود."
+  set_env "PUBLIC_BASE_URL" "https://${DOMAIN}"
+  BIND_HOST="${BIND_ADDRESS:-127.0.0.1}"
+  # تا آپدیت‌های بعدی بدون تکرار این متغیرها همین مسیر را بروند
+  set_env "SKIP_NGINX" "1"
+  set_env "BIND_ADDRESS" "${BIND_HOST}"
+  log "PUBLIC_BASE_URL=https://${DOMAIN} و حالت پروکسی جلویی در .env ثبت شد."
+  # forwarded-allow-ips روی * است چون در این حالت آدرس پروکسی جلویی را
+  # نمی‌دانیم (ممکن است IP یک کانتینر داکر باشد که هر ری‌استارت عوض می‌شود).
+  # امنیتش از راه در دسترس نبودن این پورت از اینترنت تأمین می‌شود، نه از
+  # راه فیلترکردن IP — پس BIND_ADDRESS نباید 0.0.0.0 باشد.
+  UVICORN_EXTRA="--proxy-headers --forwarded-allow-ips *"
+  if [ "$BIND_HOST" = "0.0.0.0" ]; then
+    echo "" >&2
+    echo "هشدار: BIND_ADDRESS=0.0.0.0 یعنی داشبورد روی http://<IP سرور>:${DASHBOARD_PORT}" >&2
+    echo "از کل اینترنت باز است و TLS و پروکسی جلویی دور زده می‌شوند." >&2
+    echo "پورت ${DASHBOARD_PORT} را حتماً در فایروال ببندید." >&2
+    echo "" >&2
+  fi
+elif [ -n "$DOMAIN" ]; then
   if [ -z "$LETSENCRYPT_EMAIL" ] && [ ! -d "/etc/letsencrypt/live/${DOMAIN}" ]; then
     echo "برای صدور گواهی TLS باید LETSENCRYPT_EMAIL هم داده شود:" >&2
     echo "  sudo DOMAIN=${DOMAIN} LETSENCRYPT_EMAIL=you@example.com bash install-crypto-bot.sh" >&2
     exit 1
   fi
 
-  # اگر چیز دیگری از قبل روی پورت ۸۰ نشسته، نباید کورکورانه nginx نصب/ریستارت
+  # صاحب یک پورت را برمی‌گرداند (خالی یعنی آزاد است).
+  port_owner() {
+    ss -ltnp 2>/dev/null | awk -v p=":$1\$" '$4 ~ p {print $0}' \
+      | grep -o 'users:((\"[^\"]*' | head -1 | sed 's/.*((\"//' || true
+  }
+
+  # اگر چیز دیگری از قبل روی ۸۰ یا ۴۴۳ نشسته، نباید کورکورانه nginx نصب/ریستارت
   # کنیم — یا nginx بالا نمی‌آید، یا بدتر، سرویس دیگری را از کار می‌اندازیم.
   # nginx خودش استثناست: در آن حالت فقط یک vhost کنار بقیه اضافه می‌شود.
-  PORT80_PROC=$(ss -ltnp 2>/dev/null | awk '$4 ~ /:80$/ {print $0}' | grep -o 'users:((\"[^\"]*' | head -1 | sed 's/.*((\"//' || true)
+  #
+  # ۴۴۳ جداگانه چک می‌شود و نه فقط برای احتیاط: certbot --nginx یک بلاک
+  # «listen 443 ssl» به کانفیگ اضافه می‌کند. اگر ۴۴۳ دست پروسه‌ی دیگری باشد،
+  # nginx موقع ریلود نمی‌تواند سوکت را بگیرد و کل nginx پایین می‌آید — یعنی
+  # سایت‌های دیگری هم که روی ۸۰ سرو می‌شدند با هم از کار می‌افتند.
+  PORT80_PROC=$(port_owner 80)
+  PORT443_PROC=$(port_owner 443)
+
+  BUSY_PORT=""
+  BUSY_PROC=""
   if [ -n "${PORT80_PROC:-}" ] && [ "$PORT80_PROC" != "nginx" ]; then
+    BUSY_PORT="۸۰"; BUSY_PROC="$PORT80_PROC"
+  elif [ -n "${PORT443_PROC:-}" ] && [ "$PORT443_PROC" != "nginx" ]; then
+    BUSY_PORT="۴۴۳"; BUSY_PROC="$PORT443_PROC"
+  fi
+
+  if [ -n "$BUSY_PORT" ]; then
     echo "" >&2
-    echo "پورت ۸۰ روی این سرور در اختیار «${PORT80_PROC}» است، نه nginx." >&2
+    echo "پورت ${BUSY_PORT} روی این سرور در اختیار «${BUSY_PROC}» است، نه nginx." >&2
     echo "" >&2
     echo "TradingView فقط پورت ۸۰ و ۴۴۳ را برای وبهوک قبول می‌کند، پس نمی‌شود" >&2
-    echo "این سرویس را روی پورت دیگری گذاشت. باید همان ${PORT80_PROC} درخواست‌های" >&2
-    echo "دامنه‌ی ${DOMAIN} را به http://127.0.0.1:${DASHBOARD_PORT} پروکسی کند." >&2
+    echo "این سرویس را روی پورت دیگری گذاشت. باید همان ${BUSY_PROC} درخواست‌های" >&2
+    echo "دامنه‌ی ${DOMAIN} را به http://127.0.0.1:${DASHBOARD_PORT} پروکسی کند" >&2
+    echo "و گواهی TLS همان دامنه را هم خودش نگه دارد." >&2
     echo "" >&2
     echo "اسکریپت اینجا متوقف شد تا به سرویس دیگر دست نزند." >&2
-    echo "برای نصب بدون بخش دامنه، همان دستور را بدون DOMAIN اجرا کنید." >&2
+    echo "" >&2
+    echo "بعد از اینکه در «${BUSY_PROC}» دامنه را به این سرویس وصل کردید،" >&2
+    echo "همین دستور را با SKIP_NGINX=1 اجرا کنید تا فقط برنامه تنظیم شود:" >&2
+    echo "  sudo DOMAIN=${DOMAIN} SKIP_NGINX=1 bash install-crypto-bot.sh" >&2
+    echo "(اگر پروکسی جلویی داخل داکر است: BIND_ADDRESS=172.17.0.1 را هم اضافه کنید)" >&2
     exit 1
   fi
 
