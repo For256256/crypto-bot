@@ -16,7 +16,7 @@ import math
 from collections import deque
 from datetime import datetime, timezone
 
-from app.core import config_store, history, tokens, users
+from app.core import config_store, history, position_targets, tokens, users
 from app.core.exchanges.base import ExchangeError
 from app.core.exchanges.factory import build_driver
 from app.core.exchanges.paper import PaperDriver
@@ -202,7 +202,10 @@ class AccountRunner:
             current_ids = {p["id"]: p for p in self.positions}
             for pid, prev in list(self._known_live_positions.items()):
                 if pid not in current_ids:
-                    targets = self._live_position_targets.pop(pid, None)
+                    targets = (self._live_position_targets.pop(pid, None)
+                               or position_targets.get_targets(self.account_id,
+                                                               prev.get("symbol"), prev.get("side")))
+                    position_targets.clear_targets(self.account_id, prev.get("symbol"), prev.get("side"))
                     closed_by = self._infer_closed_by(prev, targets)
                     gross = prev.get("profit") or 0.0
                     fee = await self._estimate_live_fee(prev["symbol"], prev.get("entry_price"),
@@ -291,6 +294,8 @@ class AccountRunner:
         })
         self._known_live_positions.pop(position.get("id"), None)
         self._live_position_targets.pop(position.get("id"), None)
+        position_targets.clear_targets(self.account_id, position.get("symbol"),
+                                       position.get("side"))
         emoji = "✅" if realized >= 0 else "🔴"
         label = {"SL": "حد ضرر", "TP": "حد سود", "manual": "دستی", "reversal": "تغییر جهت"}.get(closed_by, closed_by)
         self._notify_owner(f"{emoji} پوزیشن {position['symbol']} بسته شد ({label}) — سود/زیان: {realized:+.2f} USDT")
@@ -506,6 +511,10 @@ class AccountRunner:
                 self._live_position_targets[opened["id"]] = {
                     "stop_loss": stop_loss, "take_profit": take_profit,
                 }
+                # روی دیسک هم می‌ماند تا با توقف/شروع حساب یا ری‌استارت سرویس
+                # از بین نرود؛ کلید «نماد|جهت» است چون شناسه‌ی پوزیشن پایدار نیست.
+                position_targets.set_targets(self.account_id, symbol, opened["side"],
+                                             stop_loss, take_profit)
 
     async def _calc_qty(self, sym_cfg: dict, price: float, stop_loss: float, leverage: int = 1):
         """حجم = (اکوییتی × ٪ریسک) ÷ فاصله‌ی SL — سپس روی گام حجم صرافی گرد می‌شود
@@ -665,9 +674,16 @@ class AccountRunner:
         # می‌داریم، برای نمایش در داشبورد هم استفاده می‌شود.
         positions = []
         for p in self.positions:
-            targets = self._live_position_targets.get(p.get("id"))
-            if targets and not p.get("stop_loss") and not p.get("take_profit"):
-                p = {**p, "stop_loss": targets.get("stop_loss"), "take_profit": targets.get("take_profit")}
+            if not p.get("stop_loss") and not p.get("take_profit"):
+                # زنجیره‌ی جست‌وجو: پاسخ صرافی (بالا چک شد) → حافظه‌ی همین اجرا
+                # → حافظه‌ی ماندگار روی دیسک. مورد سوم همان چیزی است که بعد از
+                # توقف/شروع حساب یا ری‌استارت سرویس نجات‌دهنده است.
+                targets = (self._live_position_targets.get(p.get("id"))
+                           or position_targets.get_targets(self.account_id,
+                                                           p.get("symbol"), p.get("side")))
+                if targets:
+                    p = {**p, "stop_loss": targets.get("stop_loss"),
+                         "take_profit": targets.get("take_profit")}
             positions.append(p)
         return {
             "running": self.running,
