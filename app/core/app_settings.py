@@ -31,7 +31,7 @@ DEFAULTS = {
         "smtp_user": "",
         "smtp_password": "",
         "from_address": "",
-        "from_name": "CryptoPulse",
+        "from_name": "cplusepro",
         "use_tls": True,
     },
     "payment": {

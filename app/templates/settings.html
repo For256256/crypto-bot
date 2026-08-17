@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ t("set.title") }} | CryptoPulse{% endblock %}
+{% block title %}{{ t("set.title") }} | cplusepro{% endblock %}
 
 {% block head %}
 <!-- برای کد QR راه‌اندازی ورود دو مرحله‌ای. اگر بارگذاری نشود، کلید متنی
@@ -166,7 +166,7 @@
         <div><label class="lbl">{{ t("set.smtp_user") }}</label><input id="em_user" class="field mono-num" dir="ltr"></div>
         <div><label class="lbl">{{ t("set.smtp_password") }}</label><input id="em_password" class="field mono-num" dir="ltr" type="password" placeholder="{{ t('set.smtp_password_ph') }}"></div>
         <div><label class="lbl">{{ t("set.from_address") }}</label><input id="em_from_address" class="field mono-num" dir="ltr" placeholder="no-reply@example.com"></div>
-        <div><label class="lbl">{{ t("set.from_name") }}</label><input id="em_from_name" class="field" value="CryptoPulse"></div>
+        <div><label class="lbl">{{ t("set.from_name") }}</label><input id="em_from_name" class="field" value="cplusepro"></div>
         <button class="btn-ghost w-full !py-2 text-xs" onclick="saveEmailSettings()">{{ t("set.save_test") }}</button>
         <p id="em_status" class="text-[11px] text-on-surface-variant"></p>
       </div>
@@ -395,7 +395,7 @@ async function loadEmailAdminSettings() {
     document.getElementById('em_tls').checked = s.use_tls !== false;
     document.getElementById('em_user').value = s.smtp_user || '';
     document.getElementById('em_from_address').value = s.from_address || '';
-    document.getElementById('em_from_name').value = s.from_name || 'CryptoPulse';
+    document.getElementById('em_from_name').value = s.from_name || 'cplusepro';
     document.getElementById('em_status').textContent = s.smtp_host
       ? (s.smtp_password_set ? t('set.smtp_configured') : t('set.smtp_no_password')) : t('set.smtp_not_set');
   } catch (e) {}
@@ -409,7 +409,7 @@ async function saveEmailSettings() {
     smtp_user: document.getElementById('em_user').value.trim(),
     smtp_password: document.getElementById('em_password').value,
     from_address: document.getElementById('em_from_address').value.trim(),
-    from_name: document.getElementById('em_from_name').value.trim() || 'CryptoPulse',
+    from_name: document.getElementById('em_from_name').value.trim() || 'cplusepro',
   };
   if (!payload.smtp_host) { toast(t('set.smtp_host_required'), true); return; }
   try {
