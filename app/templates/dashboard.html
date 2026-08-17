@@ -803,13 +803,14 @@ function renderPositions() {
   const st = statusCache[acc.id] || {};
   const positions = st.positions || [];
   if (!positions.length) { box.innerHTML = ''; return; }
+  const sideBadge = p => p.side === 'long'
+    ? '<span class="bg-buy/10 text-buy px-2 py-0.5 rounded text-[11px] font-bold border border-buy/20">LONG</span>'
+    : '<span class="bg-sell/10 text-sell px-2 py-0.5 rounded text-[11px] font-bold border border-sell/20">SHORT</span>';
+
   const rows = positions.map(p => {
     const cls = (p.profit || 0) >= 0 ? 'text-buy' : 'text-sell';
-    const side = p.side === 'long'
-      ? '<span class="bg-buy/10 text-buy px-2 py-0.5 rounded text-[11px] font-bold border border-buy/20">LONG</span>'
-      : '<span class="bg-sell/10 text-sell px-2 py-0.5 rounded text-[11px] font-bold border border-sell/20">SHORT</span>';
     return `<tr class="hover:bg-surface-variant/20 transition-colors">
-      <td>${p.symbol}</td><td>${side}</td>
+      <td>${p.symbol}</td><td>${sideBadge(p)}</td>
       <td class="num">${fmtNum(p.qty)}</td><td class="num">${fmtNum(p.entry_price)}</td>
       <td class="num">${fmtNum(p.mark_price)}</td>
       <td class="num text-sell">${p.stop_loss != null ? fmtNum(p.stop_loss) : '—'}</td>
@@ -818,14 +819,49 @@ function renderPositions() {
       <td><button class="btn-ghost !py-1 !px-3 text-[11px] !border-sell/40 !text-sell" onclick="closePosition('${acc.id}','${p.id}','${p.symbol}')">${t('dash.close')}</button></td>
     </tr>`;
   }).join('');
+
+  // روی موبایل جدول ۹ ستونی ناچار اسکرول افقی می‌خواست. به‌جای آن هر پوزیشن
+  // یک کارت می‌شود تا همه‌ی اطلاعات بدون اسکرول جانبی دیده شود. جدول فقط از
+  // md به بالا نمایش داده می‌شود.
+  const cell = (label, value, extraCls) => `
+    <div>
+      <div class="text-[10px] text-on-surface-variant mb-0.5">${label}</div>
+      <div class="mono-num text-xs ${extraCls || ''}" dir="ltr">${value}</div>
+    </div>`;
+
+  const cards = positions.map(p => {
+    const cls = (p.profit || 0) >= 0 ? 'text-buy' : 'text-sell';
+    return `<div class="border-b border-outline-variant/20 last:border-b-0 p-4">
+      <div class="flex items-center justify-between gap-2 mb-3">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="font-bold text-sm truncate">${p.symbol}</span>
+          ${sideBadge(p)}
+        </div>
+        <span class="mono-num text-sm font-bold ${cls}" dir="ltr">${fmt(p.profit)}</span>
+      </div>
+      <div class="grid grid-cols-3 gap-y-3 gap-x-2">
+        ${cell(t('dash.th_qty'), fmtNum(p.qty))}
+        ${cell(t('dash.th_entry'), fmtNum(p.entry_price))}
+        ${cell(t('dash.th_current'), fmtNum(p.mark_price))}
+        ${cell(t('dash.th_sl'), p.stop_loss != null ? fmtNum(p.stop_loss) : '—', 'text-sell')}
+        ${cell(t('dash.th_tp'), p.take_profit != null ? fmtNum(p.take_profit) : '—', 'text-buy')}
+        <div class="flex items-end justify-end">
+          <button class="btn-ghost !py-1 !px-3 text-[11px] !border-sell/40 !text-sell"
+                  onclick="closePosition('${acc.id}','${p.id}','${p.symbol}')">${t('dash.close')}</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
   box.innerHTML = `<div class="glass-card rounded-2xl overflow-hidden mb-6">
     <div class="px-5 py-4 border-b border-outline-variant/20 bg-surface-container-low">
       <h3 class="font-headline font-bold flex items-center gap-2"><span class="material-symbols-outlined text-primary">candlestick_chart</span> ${t('dash.open_positions')}</h3>
     </div>
-    <div class="overflow-x-auto"><table class="of-table">
+    <div class="hidden md:block overflow-x-auto"><table class="of-table">
       <thead><tr><th>${t('common.symbol')}</th><th>${t('dash.th_side')}</th><th>${t('dash.th_qty')}</th><th>${t('dash.th_entry')}</th><th>${t('dash.th_current')}</th><th>${t('dash.th_sl')}</th><th>${t('dash.th_tp')}</th><th>${t('dash.th_pnl')}</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
+    <div class="md:hidden">${cards}</div>
   </div>`;
 }
 
