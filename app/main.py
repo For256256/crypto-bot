@@ -37,8 +37,12 @@ if not settings.SESSION_SECRET_KEY:
     print("[crypto-bot] هشدار: SESSION_SECRET_KEY تنظیم نشده — یک کلید موقت تصادفی ساخته شد "
           "(با هر ری‌استارت سرویس، همه‌ی کاربران باید دوباره لاگین کنند). "
           "SESSION_SECRET_KEY را در .env تنظیم کنید.")
+# https_only فقط وقتی روشن می‌شود که سرویس واقعاً پشت TLS باشد (PUBLIC_BASE_URL
+# با https، یا SESSION_COOKIE_SECURE دستی). روشن‌کردنش روی نصب بدون TLS یعنی
+# مرورگر کوکی را نمی‌فرستد و هیچ‌کس نمی‌تواند وارد شود.
 app.add_middleware(SessionMiddleware, secret_key=_session_secret, session_cookie="cbot_session",
-                   same_site="lax", max_age=2592000)
+                   same_site="lax", max_age=2592000,
+                   https_only=settings.SESSION_COOKIE_SECURE)
 
 
 # پیام‌های ValueError لایه‌ی ذخیره‌سازی (که خودشان فارسی‌اند) به کلید ترجمه نگاشت
@@ -337,7 +341,8 @@ async def set_language(lang: str, request: Request):
         users.set_lang(user["id"], lang)
     resp = JSONResponse({"ok": True, "lang": lang})
     resp.set_cookie(i18n.COOKIE_NAME, lang, max_age=i18n.COOKIE_MAX_AGE,
-                    samesite="lax", httponly=False)
+                    samesite="lax", httponly=False,
+                    secure=settings.SESSION_COOKIE_SECURE)
     return resp
 
 
@@ -1361,13 +1366,34 @@ async def reset_account_report(account_id: str, user: dict = Depends(auth.requir
     return history.reset_account(account_id)
 
 
+def _public_base(request: Request) -> str:
+    """آدرس پایه‌ای که کاربر با آن به سرویس وصل است — برای ساختن لینک وبهوک.
+
+    اگر PUBLIC_BASE_URL در .env تنظیم شده باشد (نصب پشت دامنه) همان برمی‌گردد.
+    وگرنه از خود درخواست ساخته می‌شود؛ در این حالت X-Forwarded-Proto در نظر
+    گرفته می‌شود، چون پشت nginx خودِ درخواست همیشه http است و بدون این، آدرس
+    وبهوک http درمی‌آمد و TradingView به ریدایرکت https می‌خورد.
+    """
+    if settings.PUBLIC_BASE_URL:
+        return settings.PUBLIC_BASE_URL
+    host = request.headers.get("host")
+    if not host:
+        return f"http://YOUR-SERVER-IP:{settings.DASHBOARD_PORT}"
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "http")
+    proto = proto.split(",")[0].strip() or "http"
+    return f"{proto}://{host}"
+
+
+def _webhook_url(request: Request, account_id: str) -> str:
+    return f"{_public_base(request)}/webhook/tradingview/{account_id}"
+
+
 # ---------- وبهوک اختصاصی هر حساب ----------
 @app.get("/api/accounts/{account_id}/webhook-info")
 async def account_webhook_info(account_id: str, request: Request, user: dict = Depends(auth.require_user)):
     """آدرس Webhook اختصاصی و نمونه‌ی پیام Alert در TradingView برای همین حساب."""
     account = _owned_account(account_id, user)
-    host = request.headers.get("host", f"YOUR-SERVER-IP:{settings.DASHBOARD_PORT}")
-    url = f"http://{host}/webhook/tradingview/{account_id}"
+    url = _webhook_url(request, account_id)
     sample = {
         "token": account.get("webhook_token", ""),
         "symbol": "{{ticker}}",
@@ -1384,8 +1410,7 @@ async def account_rotate_webhook_token(account_id: str, request: Request, user: 
     """تولید توکن وبهوک جدید برای همین حساب (توکن قبلی بلافاصله باطل می‌شود)."""
     _owned_account(account_id, user)
     new_token = config_store.rotate_webhook_token(account_id)
-    host = request.headers.get("host", f"YOUR-SERVER-IP:{settings.DASHBOARD_PORT}")
-    return {"token": new_token, "url": f"http://{host}/webhook/tradingview/{account_id}"}
+    return {"token": new_token, "url": _webhook_url(request, account_id)}
 
 
 # ---------- مدیریت نمادها در هر حساب ----------
