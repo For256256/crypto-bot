@@ -292,6 +292,7 @@
   "err.token_not_found": "Token not found",
   "err.unknown_strategy": "Unknown strategy",
   "err.unsupported_exchange": "Unsupported exchange: {exchange}",
+  "err.exchange_lang_restricted": "This exchange is available to Persian-language users only.",
   "err.unsupported_language": "Unsupported language",
   "err.user_not_found": "User not found",
   "err.username_short": "The username must be at least 3 characters.",

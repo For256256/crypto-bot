@@ -292,6 +292,7 @@
   "err.token_not_found": "توکن پیدا نشد",
   "err.unknown_strategy": "استراتژی ناشناخته است",
   "err.unsupported_exchange": "صرافی پشتیبانی‌نشده: {exchange}",
+  "err.exchange_lang_restricted": "این صرافی فقط برای کاربران فارسی‌زبان در دسترس است.",
   "err.unsupported_language": "زبان پشتیبانی نمی‌شود",
   "err.user_not_found": "کاربر پیدا نشد",
   "err.username_short": "نام کاربری باید حداقل ۳ کاراکتر باشد.",

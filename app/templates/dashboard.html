@@ -34,7 +34,7 @@
       <div><label class="lbl">{{ t("dash.account_name") }}</label><input id="f_name" class="field" placeholder="{{ t('dash.account_name_ph') }}"></div>
       <div><label class="lbl">{{ t("common.exchange") }}</label><select id="f_exchange" class="field" onchange="onExchangeChange()">
         <option value="toobit">Toobit</option>
-        <option value="tabdeal">{{ t("dash.exchange_tabdeal") }}</option>
+        {% if "tabdeal" in allowed_exchanges %}<option value="tabdeal">{{ t("dash.exchange_tabdeal") }}</option>{% endif %}
       </select></div>
       <div class="sm:col-span-2 text-[11px] text-gold hidden" id="f_exchange_warning">
         {{ t("dash.tabdeal_note") }}
@@ -286,7 +286,15 @@ function openAccountModal(acc) {
   document.getElementById('accountModalTitle').textContent = acc ? t('dash.account_edit', {name: acc.name}) : t('dash.account_new');
   const g = id => document.getElementById(id);
   g('f_name').value = acc ? acc.name : '';
-  g('f_exchange').value = acc ? acc.exchange : 'toobit';
+  // بعضی صرافی‌ها فقط در بعضی زبان‌ها در لیست هستند (تبدیل → فقط فارسی). اگر این
+  // حساب روی صرافی‌ای است که الان در لیست نیست، گزینه‌اش موقت اضافه می‌شود؛ وگرنه
+  // ذخیره‌ی ساده‌ی همین فرم صرافی حساب را بی‌سروصدا به Toobit عوض می‌کرد.
+  const exVal = acc ? (acc.exchange || 'toobit') : 'toobit';
+  const exSel = g('f_exchange');
+  if (exVal && !exSel.querySelector(`option[value="${exVal}"]`)) {
+    exSel.insertAdjacentHTML('beforeend', `<option value="${exVal}">${exVal}</option>`);
+  }
+  exSel.value = exVal;
   onExchangeChange();
   g('f_api_key').value = acc ? (acc.api_key || '') : '';
   g('f_api_secret').value = acc ? (acc.api_secret || '') : '';

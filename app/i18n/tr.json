@@ -292,6 +292,7 @@
   "err.token_not_found": "Jeton bulunamadı",
   "err.unknown_strategy": "Bilinmeyen strateji",
   "err.unsupported_exchange": "Desteklenmeyen borsa: {exchange}",
+  "err.exchange_lang_restricted": "Bu borsa yalnızca arayüz dili Farsça olan kullanıcılara açıktır.",
   "err.unsupported_language": "Desteklenmeyen dil",
   "err.user_not_found": "Kullanıcı bulunamadı",
   "err.username_short": "Kullanıcı adı en az 3 karakter olmalıdır.",

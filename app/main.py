@@ -87,6 +87,8 @@ def render(request: Request, template: str, user: dict | None = None, **ctx):
         "lang_dir": meta["dir"],
         "lang_meta": meta,
         "languages": i18n.language_options(),
+        # صرافی‌های قابل انتخاب در این زبان (تبدیل فقط فارسی)
+        "allowed_exchanges": i18n.allowed_exchanges(lang),
         "catalog": i18n.get_catalog(lang),
         "t": lambda key, **params: i18n.translate(lang, key, **params),
         **ctx,
@@ -664,16 +666,22 @@ def _suggested_view(acc: dict) -> dict:
 
 
 @app.get("/api/suggested-accounts")
-async def get_suggested_accounts(_: dict = Depends(auth.require_user)):
-    return [_suggested_view(a) for a in config_store.list_suggested()]
+async def get_suggested_accounts(request: Request, user: dict = Depends(auth.require_user)):
+    # حساب پیشنهادی روی صرافی‌ای که این زبان نمی‌بیند اصلاً نمایش داده نمی‌شود،
+    # وگرنه کاربر کارتی می‌بیند که کلیک روی «ساختن مشابه» آن ۴۰۳ می‌گیرد.
+    lang = i18n.resolve(request, user)
+    return [_suggested_view(a) for a in config_store.list_suggested()
+            if i18n.exchange_allowed(a.get("exchange", "toobit"), lang)]
 
 
 @app.post("/api/suggested-accounts/{account_id}/clone")
-async def clone_suggested_account(account_id: str, user: dict = Depends(auth.require_user)):
+async def clone_suggested_account(account_id: str, request: Request,
+                                  user: dict = Depends(auth.require_user)):
     """از یک حساب پیشنهادی، حساب مشابهی برای کاربر جاری می‌سازد."""
     src = config_store.get_account(account_id)
     if src is None or not src.get("is_suggested"):
         raise ApiError(404, "err.account_not_found", "حساب پیدا نشد")
+    _assert_exchange_allowed(src.get("exchange", "toobit"), request, user)
     account = config_store.clone_for_user(account_id, user["id"])
     bot_manager.sync_from_config()
     return account
@@ -944,9 +952,11 @@ _symbols_cache: dict = {}
 
 
 @app.get("/api/futures-symbols")
-async def futures_symbols(exchange: str = "toobit", force: bool = False, _: dict = Depends(auth.require_user)):
+async def futures_symbols(request: Request, exchange: str = "toobit", force: bool = False,
+                          user: dict = Depends(auth.require_user)):
     """لیست همه‌ی نمادهای قابل معامله در فیوچرز صرافی انتخاب‌شده — برای لیست کشویی داشبورد.
     endpoint عمومی صرافی است و نیازی به کلید API ندارد."""
+    _assert_exchange_allowed(exchange, request, user, allow_owned=True)
     import time as _time
     from app.core.exchanges.base import ExchangeError
     from app.core.exchanges.toobit import ToobitDriver
@@ -1080,6 +1090,35 @@ def _owned_account(account_id: str, user: dict) -> dict:
     return account
 
 
+def _assert_exchange_allowed(exchange: str, request: Request, user: dict,
+                             current: str | None = None, allow_owned: bool = False):
+    """بعضی صرافی‌ها فقط برای یک زبان نمایش داده می‌شوند (تبدیل → فقط فارسی).
+
+    این چک سمت سرور است چون پنهان‌کردن یک <option> در HTML جلوی درخواست مستقیم
+    به API را نمی‌گیرد. زبان از همان مسیری خوانده می‌شود که صفحه با آن رندر شده
+    (i18n.resolve) تا چیزی که کاربر می‌بیند و چیزی که سرور می‌پذیرد یکی باشد.
+
+    دو استثنا، تا کاربری که از قبل حساب تبدیل دارد با عوض‌کردن زبان قفل نشود:
+    - ``current``: صرافی فعلیِ همان حسابی که دارد ویرایش می‌شود (تغییری نمی‌دهد).
+    - ``allow_owned``: مسیرهای فقط-خواندنی مثل لیست نمادها، اگر کاربر دست‌کم یک
+      حساب روی این صرافی داشته باشد.
+
+    هیچ‌کدام برای *ساختن* حساب تازه فعال نیستند؛ آن‌جا محدودیت زبان قطعی است.
+    """
+    if current is not None and exchange == current:
+        return
+    if i18n.exchange_allowed(exchange, i18n.resolve(request, user)):
+        return
+    if allow_owned and any(a.get("exchange") == exchange
+                           for a in config_store.list_accounts(user["id"])):
+        return
+    raise ApiError(
+        403, "err.exchange_lang_restricted",
+        "این صرافی فقط برای کاربران فارسی‌زبان در دسترس است.",
+        exchange=exchange,
+    )
+
+
 def _assert_can_go_live(user: dict, otp: str | None = None):
     """دو شرط برای رفتن به معامله‌ی واقعی:
 
@@ -1152,7 +1191,9 @@ async def get_accounts(user: dict = Depends(auth.require_user)):
 
 
 @app.post("/api/accounts")
-async def create_account(payload: AccountIn, user: dict = Depends(auth.require_user)):
+async def create_account(payload: AccountIn, request: Request,
+                         user: dict = Depends(auth.require_user)):
+    _assert_exchange_allowed(payload.exchange, request, user)
     if payload.trading_mode == "live":
         _assert_can_go_live(user, payload.otp)
     account = config_store.add_account(payload.dict(exclude={"otp"}), owner_id=user["id"])
@@ -1176,8 +1217,10 @@ async def duplicate_account(account_id: str, user: dict = Depends(auth.require_u
 
 
 @app.put("/api/accounts/{account_id}")
-async def edit_account(account_id: str, payload: AccountIn, user: dict = Depends(auth.require_user)):
-    _owned_account(account_id, user)
+async def edit_account(account_id: str, payload: AccountIn, request: Request,
+                       user: dict = Depends(auth.require_user)):
+    existing = _owned_account(account_id, user)
+    _assert_exchange_allowed(payload.exchange, request, user, existing.get("exchange"))
     if payload.trading_mode == "live":
         _assert_can_go_live(user, payload.otp)
     try:
