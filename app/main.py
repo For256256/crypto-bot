@@ -791,15 +791,21 @@ async def admin_delete_user(user_id: str, admin: dict = Depends(auth.require_adm
         raise ApiError(400, "err.cannot_delete_admin", "کاربر ادمین از این مسیر حذف نمی‌شود.")
 
     accounts = config_store.list_accounts(user_id)
+    n_trades = 0
     for acc in accounts:
         await bot_manager.stop_account(acc["id"])
+        # تاریخچه با account_id کلید می‌خورد نه user_id، پس باید همین‌جا و
+        # قبل از پاک‌شدن پیکربندی برداشته شود — بعد از آن دیگر راهی برای
+        # فهمیدن اینکه کدام رکورد مال چه کسی بوده باقی نمی‌ماند.
+        n_trades += (history.reset_account(acc["id"]) or {}).get("trades_removed", 0)
         config_store.delete_account(acc["id"])
     n_tokens = tokens.delete_by_user(user_id)
     n_tickets = tickets.delete_by_user(user_id)
     users.delete_user(user_id)
     bot_manager.sync_from_config()
     return {"deleted": user_id, "username": target.get("username", ""),
-            "accounts": len(accounts), "tokens": n_tokens, "tickets": n_tickets}
+            "accounts": len(accounts), "tokens": n_tokens, "tickets": n_tickets,
+            "trades": n_trades}
 
 
 @app.delete("/api/admin/users/{user_id}/accounts")
@@ -820,6 +826,7 @@ async def admin_delete_user_accounts(user_id: str, admin: dict = Depends(auth.re
     mine = config_store.list_accounts(user_id)
     for acc in mine:
         await bot_manager.stop_account(acc["id"])
+        history.reset_account(acc["id"])
         config_store.delete_account(acc["id"])
     bot_manager.sync_from_config()
     return {"deleted": len(mine), "user_id": user_id}
@@ -963,10 +970,47 @@ async def put_email_settings(payload: EmailSettingsIn, _: dict = Depends(auth.re
     if not cfg["smtp_password"]:
         # اگر رمز خالی فرستاده شده، رمز قبلی حفظ می‌شود (برای جلوگیری از پاک‌شدن با ذخیره‌ی مجدد)
         cfg["smtp_password"] = (app_settings.get_settings().get("email") or {}).get("smtp_password", "")
-    if not await mailer.test_connection(cfg):
-        raise ApiError(400, "err.smtp_failed", "اتصال به سرور SMTP ناموفق بود — تنظیمات را بررسی کنید.")
+    ok, error = await mailer.test_connection(cfg)
+    if not ok:
+        # علت واقعی به ادمین برگردانده می‌شود؛ «ناموفق بود» به‌تنهایی یعنی
+        # باید کورکورانه میزبان و پورت و TLS را یکی‌یکی امتحان کند.
+        raise ApiError(400, "err.smtp_failed",
+                       f"اتصال به سرور SMTP ناموفق بود: {error}", reason=error)
     app_settings.update_settings({"email": cfg})
     return {"ok": True}
+
+
+@app.post("/api/admin/email-settings/test")
+async def send_test_email(admin: dict = Depends(auth.require_admin)):
+    """یک ایمیل واقعی به آدرس خودِ ادمین می‌فرستد.
+
+    تست اتصال فقط می‌گوید لاگین گرفت؛ نمی‌گوید نامه واقعاً تحویل داده می‌شود.
+    مشکل‌های SPF/DKIM و ردشدن آدرس فرستنده تازه در همین مرحله معلوم می‌شوند.
+    """
+    to = (admin.get("email") or "").strip()
+    if not to:
+        raise ApiError(400, "err.no_admin_email",
+                       "برای دریافت ایمیل آزمایشی، اول یک ایمیل در پروفایل خودتان ثبت کنید.")
+    if not mailer.is_configured():
+        raise ApiError(400, "err.smtp_unset", "ابتدا تنظیمات SMTP را ذخیره کنید.")
+    lang = i18n.user_lang(admin)
+    ok = await mailer.send_email(
+        to,
+        i18n.translate(lang, "mail.test_subject"),
+        i18n.translate(lang, "mail.test_body"),
+    )
+    status = mailer.last_status()
+    if not ok:
+        raise ApiError(400, "err.smtp_send_failed",
+                       f"ارسال ناموفق بود: {status.get('error') or ''}",
+                       reason=status.get("error") or "")
+    return {"ok": True, "to": to}
+
+
+@app.get("/api/admin/email-settings/status")
+async def email_last_status(_: dict = Depends(auth.require_admin)):
+    """نتیجه‌ی آخرین تلاش ارسال — برای اینکه خرابی SMTP بی‌صدا نماند."""
+    return mailer.last_status()
 
 
 @app.get("/api/settings/telegram/link-code")
@@ -1338,6 +1382,9 @@ async def set_trading_mode(account_id: str, mode: str, otp: str = "",
 async def remove_account(account_id: str, user: dict = Depends(auth.require_user)):
     _owned_account(account_id, user)
     await bot_manager.stop_account(account_id)
+    # حساب که رفت، تاریخچه‌اش دیگر در هیچ گزارشی دیده نمی‌شود و فقط فایل را
+    # بزرگ می‌کند؛ پس همراه خودش برداشته می‌شود.
+    history.reset_account(account_id)
     config_store.delete_account(account_id)
     bot_manager.sync_from_config()
     return {"deleted": account_id}

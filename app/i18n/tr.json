@@ -881,5 +881,16 @@
   "adm.delete_user_mismatch": "Kullanıcı adı eşleşmedi — hiçbir şey silinmedi.",
   "adm.user_deleted": "“{name}” kullanıcısı ve {n} hesabı silindi",
   "err.cannot_delete_self": "Kendi hesabınızı silemezsiniz.",
-  "err.cannot_delete_admin": "Yönetici kullanıcı buradan silinemez."
+  "err.cannot_delete_admin": "Yönetici kullanıcı buradan silinemez.",
+  "set.send_test_email": "Test e-postası gönder",
+  "set.sending": "Gönderiliyor…",
+  "set.test_email_sent": "Test e-postası {email} adresine gönderildi. Gelen kutunuzda yoksa spam klasörüne bakın.",
+  "set.last_send_ok": "Son gönderim başarılı oldu ({email}).",
+  "set.last_send_failed": "Son gönderim başarısız oldu: {error}",
+  "mail.test_subject": "Test e-postası — cpulsepro",
+  "mail.test_body": "Bu, cpulsepro panelinden gönderilen bir test mesajıdır.\n\nBunu aldıysanız SMTP ayarlarınız çalışıyor ve e-posta doğrulama kodları kullanıcılarınıza ulaşacak.",
+  "err.no_admin_email": "Test e-postası alabilmek için önce kendi profilinizde bir e-posta adresi tanımlayın.",
+  "err.smtp_unset": "Önce SMTP ayarlarınızı kaydedin.",
+  "err.smtp_send_failed": "E-posta gönderilemedi: {reason}",
+  "set.tls_hint": "Açık = 587 portunda STARTTLS (olağan seçim). Kapalı = 465 portunda örtük SSL. Her iki durumda da bağlantı şifrelidir."
 }
