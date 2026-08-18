@@ -874,5 +874,12 @@
   "adm.purge_accounts": "删除全部账户",
   "adm.purge_confirm": "确定删除用户「{name}」的全部 {n} 个账户？此操作无法撤销。",
   "adm.purge_done": "已删除 {n} 个账户",
-  "err.user_still_enabled": "只能清理已停用用户的账户。请先停用该用户。"
+  "err.user_still_enabled": "只能清理已停用用户的账户。请先停用该用户。",
+  "adm.delete_user": "删除用户",
+  "adm.delete_user_confirm": "确定彻底删除用户「{name}」？\n其 {n} 个交易账户、令牌与工单也将一并删除。此操作无法撤销。",
+  "adm.delete_user_type": "请准确输入用户名「{name}」以确认：",
+  "adm.delete_user_mismatch": "用户名不匹配 — 未删除任何内容。",
+  "adm.user_deleted": "已删除用户「{name}」及其 {n} 个账户",
+  "err.cannot_delete_self": "您不能删除自己的账户。",
+  "err.cannot_delete_admin": "无法从此处删除管理员用户。"
 }

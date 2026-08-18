@@ -770,6 +770,38 @@ async def admin_user_accounts(user: dict = Depends(auth.require_admin)):
     return sorted(out, key=lambda g: g["total_pnl"], reverse=True)
 
 
+@app.delete("/api/admin/users/{user_id}")
+async def admin_delete_user(user_id: str, admin: dict = Depends(auth.require_admin)):
+    """حذف کامل یک کاربر به‌همراه حساب‌ها، توکن‌ها و تیکت‌هایش.
+
+    دو محافظ که سمت سرور اعمال می‌شوند، نه فقط در رابط کاربری:
+    - ادمین نمی‌تواند خودش را پاک کند (وگرنه با یک کلیک از پنل بیرون می‌ماند).
+    - هیچ ادمینی از این مسیر پاک نمی‌شود؛ برداشتن دسترسی ادمین باید کار
+      آگاهانه‌ای روی فایل باشد، نه یک دکمه در فهرست کاربران.
+
+    ربات‌های در حال اجرای کاربر اول متوقف می‌شوند، وگرنه تسک‌شان بعد از
+    پاک‌شدن پیکربندی هم به کار ادامه می‌داد.
+    """
+    if user_id == admin["id"]:
+        raise ApiError(400, "err.cannot_delete_self", "نمی‌توانید حساب کاربری خودتان را حذف کنید.")
+    target = users.get_user(user_id)
+    if target is None:
+        raise ApiError(404, "err.user_not_found", "کاربر پیدا نشد")
+    if target.get("role") == "admin":
+        raise ApiError(400, "err.cannot_delete_admin", "کاربر ادمین از این مسیر حذف نمی‌شود.")
+
+    accounts = config_store.list_accounts(user_id)
+    for acc in accounts:
+        await bot_manager.stop_account(acc["id"])
+        config_store.delete_account(acc["id"])
+    n_tokens = tokens.delete_by_user(user_id)
+    n_tickets = tickets.delete_by_user(user_id)
+    users.delete_user(user_id)
+    bot_manager.sync_from_config()
+    return {"deleted": user_id, "username": target.get("username", ""),
+            "accounts": len(accounts), "tokens": n_tokens, "tickets": n_tickets}
+
+
 @app.delete("/api/admin/users/{user_id}/accounts")
 async def admin_delete_user_accounts(user_id: str, admin: dict = Depends(auth.require_admin)):
     """پاکسازی همه‌ی حساب‌های یک کاربر — فقط وقتی کاربر غیرفعال شده باشد.

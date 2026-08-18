@@ -874,5 +874,12 @@
   "adm.purge_accounts": "Delete all accounts",
   "adm.purge_confirm": "Delete all {n} accounts belonging to “{name}”? This cannot be undone.",
   "adm.purge_done": "{n} accounts deleted",
-  "err.user_still_enabled": "Only a disabled user's accounts can be purged. Disable the user first."
+  "err.user_still_enabled": "Only a disabled user's accounts can be purged. Disable the user first.",
+  "adm.delete_user": "Delete user",
+  "adm.delete_user_confirm": "Delete the user “{name}” completely?\nTheir {n} trading accounts, tokens and tickets will also be removed. This cannot be undone.",
+  "adm.delete_user_type": "To confirm, type the username “{name}” exactly:",
+  "adm.delete_user_mismatch": "The username did not match — nothing was deleted.",
+  "adm.user_deleted": "User “{name}” and {n} of their accounts were deleted",
+  "err.cannot_delete_self": "You cannot delete your own account.",
+  "err.cannot_delete_admin": "An admin user cannot be deleted from here."
 }

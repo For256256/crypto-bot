@@ -135,6 +135,10 @@ async function loadUsers() {
           <button class="btn-ghost !py-1 !px-2 text-[11px]" onclick="resetPassword('${u.id}','${u.username}')">${t('adm.reset_password')}</button>
           <button class="btn-ghost !py-1 !px-2 text-[11px] ${u.enabled ? '!text-sell !border-sell/40' : '!text-buy !border-buy/40'}"
             onclick="toggleUserEnabled('${u.id}', ${!u.enabled})">${u.enabled ? t('common.disable') : t('common.enable')}</button>
+          <button class="btn-ghost !py-1 !px-2 text-[11px] !text-sell !border-sell/40 flex items-center gap-1"
+            onclick="deleteUser('${u.id}', ${JSON.stringify(u.username)}, ${u.accounts_count})">
+            <span class="material-symbols-outlined text-sm">person_remove</span> ${t('adm.delete_user')}
+          </button>
         </div>` : ''}
       </td>
     </tr>`).join('') || `<tr><td colspan="7" class="text-center text-on-surface-variant py-8">${t('adm.no_users')}</td></tr>`;
@@ -301,6 +305,19 @@ async function deletePreset(id) {
   try {
     await callApi('/api/admin/presets/' + id, 'DELETE');
     loadPresets();
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
+}
+
+async function deleteUser(id, username, accountsCount) {
+  // تأیید دو مرحله‌ای: این کار برگشت‌ناپذیر است و حساب‌ها و تیکت‌ها را هم می‌برد.
+  if (!askConfirm(t('adm.delete_user_confirm', {name: username, n: accountsCount}))) return;
+  const typed = prompt(t('adm.delete_user_type', {name: username}));
+  if (typed === null) return;
+  if (typed.trim() !== username) { toast(t('adm.delete_user_mismatch'), true); return; }
+  try {
+    const r = await callApi('/api/admin/users/' + id, 'DELETE');
+    toast(t('adm.user_deleted', {name: r.username, n: r.accounts}));
+    await Promise.all([loadUsers(), loadUserAccounts()]);
   } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 

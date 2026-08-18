@@ -130,3 +130,14 @@ def close_ticket(ticket_id: str) -> dict | None:
                 _save(tickets)
                 return t
         return None
+
+
+def delete_by_user(user_id: str) -> int:
+    """پاک‌کردن همه‌ی تیکت‌های یک کاربر. تعداد حذف‌شده را برمی‌گرداند."""
+    with _lock:
+        items = _load()
+        keep = [t for t in items if t.get("user_id") != user_id]
+        n = len(items) - len(keep)
+        if n:
+            _save(keep)
+    return n
