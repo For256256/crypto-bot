@@ -131,12 +131,12 @@ async function loadUsers() {
       <td>
         ${u.role !== 'admin' ? `
         <div class="flex items-center gap-1.5 flex-wrap">
-          <button class="btn-ghost !py-1 !px-2 text-[11px]" onclick="openTokenModal('${u.id}','${u.username}')">${t('adm.issue_token')}</button>
-          <button class="btn-ghost !py-1 !px-2 text-[11px]" onclick="resetPassword('${u.id}','${u.username}')">${t('adm.reset_password')}</button>
+          <button class="btn-ghost !py-1 !px-2 text-[11px]" onclick="openTokenModal('${u.id}')">${t('adm.issue_token')}</button>
+          <button class="btn-ghost !py-1 !px-2 text-[11px]" onclick="resetPassword('${u.id}')">${t('adm.reset_password')}</button>
           <button class="btn-ghost !py-1 !px-2 text-[11px] ${u.enabled ? '!text-sell !border-sell/40' : '!text-buy !border-buy/40'}"
             onclick="toggleUserEnabled('${u.id}', ${!u.enabled})">${u.enabled ? t('common.disable') : t('common.enable')}</button>
           <button class="btn-ghost !py-1 !px-2 text-[11px] !text-sell !border-sell/40 flex items-center gap-1"
-            onclick="deleteUser('${u.id}', ${JSON.stringify(u.username)}, ${u.accounts_count})">
+            onclick="deleteUser('${u.id}')">
             <span class="material-symbols-outlined text-sm">person_remove</span> ${t('adm.delete_user')}
           </button>
         </div>` : ''}
@@ -152,7 +152,10 @@ async function toggleUserEnabled(userId, enabled) {
   } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
-async function resetPassword(userId, username) {
+async function resetPassword(userId) {
+  // نام از کش، نه از اتریبیوت — یک آپاستروف در نام کاربری کافی بود تا رشته‌ی
+  // جاوااسکریپت داخل onclick بسته شود و دکمه بی‌صدا بمیرد.
+  const username = ((usersCache || []).find(x => x.id === userId) || {}).username || '';
   if (!askConfirm(t('adm.reset_confirm', {name: username}))) return;
   try {
     const r = await callApi(`/api/admin/users/${userId}/reset-password`, 'POST', {});
@@ -160,7 +163,8 @@ async function resetPassword(userId, username) {
   } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
-function openTokenModal(userId, username) {
+function openTokenModal(userId) {
+  const username = ((usersCache || []).find(x => x.id === userId) || {}).username || '';
   issuingUserId = userId;
   document.getElementById('tk_username').textContent = username;
   document.getElementById('tk_days').value = 30;
@@ -308,7 +312,13 @@ async function deletePreset(id) {
   } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
-async function deleteUser(id, username, accountsCount) {
+async function deleteUser(id) {
+  // نام و تعداد از کش خوانده می‌شوند، نه از اتریبیوت onclick: گذاشتن یک رشته‌ی
+  // دلخواه داخل onclick="..." اتریبیوت را روی اولین نقل‌قول نصف می‌کند و دکمه
+  // بی‌صدا از کار می‌افتد — دقیقاً همان چیزی که اینجا اتفاق افتاده بود.
+  const u = (usersCache || []).find(x => x.id === id);
+  if (!u) return;
+  const username = u.username, accountsCount = u.accounts_count;
   // تأیید دو مرحله‌ای: این کار برگشت‌ناپذیر است و حساب‌ها و تیکت‌ها را هم می‌برد.
   if (!askConfirm(t('adm.delete_user_confirm', {name: username, n: accountsCount}))) return;
   const typed = prompt(t('adm.delete_user_type', {name: username}));
@@ -326,8 +336,11 @@ const MODE_PILL = acc => acc.trading_mode === 'live'
   ? `<span class="text-[10px] px-2 py-0.5 rounded bg-sell/20 text-sell">${t('common.mode_live')}</span>`
   : `<span class="text-[10px] px-2 py-0.5 rounded bg-info-blue/20 text-secondary-fixed-dim">${t('common.mode_paper')}</span>`;
 
+let userAccountsCache = [];
+
 async function loadUserAccounts() {
   const groups = await callApi('/api/admin/user-accounts');
+  userAccountsCache = groups;
   const box = document.getElementById('userAccountsList');
   if (!groups.length) {
     box.innerHTML = `<div class="glass-card rounded-xl p-8 text-center text-on-surface-variant text-sm">${t('adm.no_user_accounts')}</div>`;
@@ -351,7 +364,7 @@ async function loadUserAccounts() {
         <td class="num">${a.equity == null ? '—' : niceNum(a.equity)}</td>
         <td class="num font-bold ${pnlCls(a.net_pnl)}">${signed(a.net_pnl)}</td>
         <td>
-          <button onclick="adminDeleteAccount('${a.id}', ${JSON.stringify(a.name)})"
+          <button onclick="adminDeleteAccount('${a.id}')"
             title="${t('adm.delete_account')}"
             class="w-7 h-7 rounded border border-sell/30 text-sell hover:bg-sell/10 transition-colors flex items-center justify-center">
             <span class="material-symbols-outlined text-sm">delete</span>
@@ -361,7 +374,7 @@ async function loadUserAccounts() {
 
     // پاکسازی گروهی فقط برای کاربر غیرفعال — سرور هم همین را اجبار می‌کند.
     const purge = g.enabled ? '' : `
-      <button onclick="adminPurgeUser('${g.user_id}', ${JSON.stringify(g.username)}, ${g.accounts.length})"
+      <button onclick="adminPurgeUser('${g.user_id}')"
         class="text-[11px] px-2.5 py-1 rounded-lg border border-sell/40 text-sell hover:bg-sell/10 transition-colors flex items-center gap-1">
         <span class="material-symbols-outlined text-sm">delete_sweep</span> ${t('adm.purge_accounts')}
       </button>`;
@@ -395,8 +408,10 @@ async function loadUserAccounts() {
   }).join('');
 }
 
-async function adminDeleteAccount(id, name) {
-  if (!askConfirm(t('adm.delete_account_confirm', {name: name}))) return;
+async function adminDeleteAccount(id) {
+  const acc = userAccountsCache.flatMap(g => g.accounts).find(a => a.id === id);
+  if (!acc) return;
+  if (!askConfirm(t('adm.delete_account_confirm', {name: acc.name}))) return;
   try {
     await callApi('/api/accounts/' + id, 'DELETE');
     toast(t('adm.account_deleted'));
@@ -404,8 +419,10 @@ async function adminDeleteAccount(id, name) {
   } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
-async function adminPurgeUser(userId, username, count) {
-  if (!askConfirm(t('adm.purge_confirm', {name: username, n: count}))) return;
+async function adminPurgeUser(userId) {
+  const g = userAccountsCache.find(x => x.user_id === userId);
+  if (!g) return;
+  if (!askConfirm(t('adm.purge_confirm', {name: g.username, n: g.accounts.length}))) return;
   try {
     const r = await callApi(`/api/admin/users/${userId}/accounts`, 'DELETE');
     toast(t('adm.purge_done', {n: r.deleted}));
