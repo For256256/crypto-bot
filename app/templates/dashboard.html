@@ -391,7 +391,9 @@ async function saveAccount() {
   } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
-async function duplicateAccount(id, name) {
+async function duplicateAccount(id) {
+  // نام از کش خوانده می‌شود؛ گذاشتنش داخل onclick با یک آپاستروف می‌شکست.
+  const name = (accountsCache.find(a => a.id === id) || {}).name || '';
   if (!askConfirm(t('dash.duplicate_confirm', {name: name}))) return;
   try {
     const a = await callApi(`/api/accounts/${id}/duplicate`, 'POST');
@@ -401,7 +403,8 @@ async function duplicateAccount(id, name) {
   } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
-async function deleteAccount(id, name) {
+async function deleteAccount(id) {
+  const name = (accountsCache.find(a => a.id === id) || {}).name || '';
   if (!askConfirm(t('dash.account_delete_confirm', {name: name}))) return;
   try { await callApi('/api/accounts/' + id, 'DELETE'); toast(t('dash.account_deleted')); selectedAccountId = null; refresh(); }
   catch (e) { toast(t('common.error_prefix') + e.message, true); }
@@ -885,7 +888,7 @@ function renderAccountBar() {
       <div class="text-on-surface-variant text-[11px]">${engineStatusLabel(st)}</div>
     </div>
     <div class="flex flex-wrap gap-2">
-      <button class="flex items-center gap-1 px-3 py-2 rounded-lg border border-outline-variant/50 hover:bg-surface-variant transition-colors text-sm" onclick="duplicateAccount('${acc.id}','${acc.name}')">
+      <button class="flex items-center gap-1 px-3 py-2 rounded-lg border border-outline-variant/50 hover:bg-surface-variant transition-colors text-sm" onclick="duplicateAccount('${acc.id}')">
         <span class="material-symbols-outlined text-sm">content_copy</span> ${t('dash.copy_from_bot')}
       </button>
       <button class="flex items-center gap-1 px-3 py-2 rounded-lg border border-outline-variant/50 hover:bg-surface-variant transition-colors text-sm" onclick='openAccountModal(${JSON.stringify(acc).replace(/'/g, "&#39;")})'>
@@ -908,7 +911,7 @@ function renderAccountBar() {
         onclick="toggleSuggested('${acc.id}', ${!acc.is_suggested})">
         <span class="material-symbols-outlined text-sm">recommend</span> ${acc.is_suggested ? t('sugg.unmark') : t('sugg.mark')}
       </button>` : ''}
-      <button class="flex items-center gap-1 px-3 py-2 rounded-lg border border-sell/30 text-sell hover:bg-sell/10 transition-colors text-sm" onclick="deleteAccount('${acc.id}','${acc.name}')">
+      <button class="flex items-center gap-1 px-3 py-2 rounded-lg border border-sell/30 text-sell hover:bg-sell/10 transition-colors text-sm" onclick="deleteAccount('${acc.id}')">
         <span class="material-symbols-outlined text-sm">delete</span>
       </button>
     </div>
