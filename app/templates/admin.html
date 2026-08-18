@@ -316,6 +316,9 @@ async function loadUserAccounts() {
     box.innerHTML = `<div class="glass-card rounded-xl p-8 text-center text-on-surface-variant text-sm">${t('adm.no_user_accounts')}</div>`;
     return;
   }
+  const pnlCls = v => (v || 0) >= 0 ? 'text-buy' : 'text-sell';
+  const signed = v => ((v || 0) >= 0 ? '+' : '') + niceNum(v || 0);
+
   box.innerHTML = groups.map(g => {
     const rows = g.accounts.map(a => `
       <tr>
@@ -324,30 +327,73 @@ async function loadUserAccounts() {
         <td>${a.running ? `<span class="text-buy text-xs">${t('common.active')}</span>` : `<span class="text-on-surface-variant text-xs">${t('dash.stopped')}</span>`}</td>
         <td class="num">${a.symbols_count}</td>
         <td class="num">${a.open_positions}</td>
+        <td class="num">${a.trades || 0}</td>
+        <td class="num">${a.trades ? fmt(a.win_rate, 1) + t('common.pct') : '—'}</td>
+        <td class="num text-on-surface-variant text-[11px]">${niceNum(a.total_fees)}</td>
+        <td class="num text-sell text-[11px]">${a.max_drawdown_pct ? fmt(a.max_drawdown_pct, 1) + t('common.pct') : '—'}</td>
         <td class="num">${a.equity == null ? '—' : niceNum(a.equity)}</td>
-        <td class="num ${a.overall_profit_pct == null ? '' : (a.overall_profit_pct >= 0 ? 'text-buy' : 'text-sell')}">
-          ${a.overall_profit_pct == null ? '—' : (a.overall_profit_pct >= 0 ? '+' : '') + fmt(a.overall_profit_pct) + t('common.pct')}</td>
+        <td class="num font-bold ${pnlCls(a.net_pnl)}">${signed(a.net_pnl)}</td>
+        <td>
+          <button onclick="adminDeleteAccount('${a.id}', ${JSON.stringify(a.name)})"
+            title="${t('adm.delete_account')}"
+            class="w-7 h-7 rounded border border-sell/30 text-sell hover:bg-sell/10 transition-colors flex items-center justify-center">
+            <span class="material-symbols-outlined text-sm">delete</span>
+          </button>
+        </td>
       </tr>`).join('');
+
+    // پاکسازی گروهی فقط برای کاربر غیرفعال — سرور هم همین را اجبار می‌کند.
+    const purge = g.enabled ? '' : `
+      <button onclick="adminPurgeUser('${g.user_id}', ${JSON.stringify(g.username)}, ${g.accounts.length})"
+        class="text-[11px] px-2.5 py-1 rounded-lg border border-sell/40 text-sell hover:bg-sell/10 transition-colors flex items-center gap-1">
+        <span class="material-symbols-outlined text-sm">delete_sweep</span> ${t('adm.purge_accounts')}
+      </button>`;
+
     return `<div class="glass-card rounded-xl p-4">
       <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
           <span class="material-symbols-outlined text-primary text-lg">person</span>
           <span class="font-bold text-sm">${g.username}</span>
           ${g.email ? `<span class="text-[10px] text-on-surface-variant mono-num" dir="ltr">${g.email}</span>` : ''}
           ${g.enabled ? '' : `<span class="text-[10px] px-2 py-0.5 rounded bg-sell/15 text-sell">${t('common.inactive')}</span>`}
           ${g.has_active_token ? `<span class="text-[10px] px-2 py-0.5 rounded bg-buy/15 text-buy">${t('adm.th_token')}</span>` : ''}
         </div>
-        <span class="text-[11px] text-on-surface-variant">${t('adm.accounts_of', {n: g.accounts.length})}</span>
+        <div class="flex items-center gap-3 flex-wrap">
+          <span class="text-[11px] text-on-surface-variant">${t('adm.accounts_of', {n: g.accounts.length})}</span>
+          <span class="text-[11px] text-on-surface-variant">${t('adm.running_of', {n: g.running_count})}</span>
+          <span class="mono-num text-xs font-bold ${pnlCls(g.total_pnl)}" dir="ltr">${signed(g.total_pnl)} USDT</span>
+          ${purge}
+        </div>
       </div>
       <div class="overflow-x-auto"><table class="of-table">
         <thead><tr>
           <th>${t('dash.bot_name')}</th><th>${t('common.trading_mode')}</th><th>${t('common.status')}</th>
-          <th>${t('adm.th_symbols')}</th><th>${t('adm.th_open')}</th><th>${t('adm.th_equity')}</th><th>${t('adm.th_return')}</th>
+          <th>${t('adm.th_symbols')}</th><th>${t('adm.th_open')}</th><th>${t('common.trades')}</th>
+          <th>${t('common.win_rate')}</th><th>${t('common.fees')}</th><th>${t('adm.th_dd')}</th>
+          <th>${t('adm.th_equity')}</th><th>${t('common.net_pnl')}</th><th></th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
     </div>`;
   }).join('');
+}
+
+async function adminDeleteAccount(id, name) {
+  if (!askConfirm(t('adm.delete_account_confirm', {name: name}))) return;
+  try {
+    await callApi('/api/accounts/' + id, 'DELETE');
+    toast(t('adm.account_deleted'));
+    loadUserAccounts();
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
+}
+
+async function adminPurgeUser(userId, username, count) {
+  if (!askConfirm(t('adm.purge_confirm', {name: username, n: count}))) return;
+  try {
+    const r = await callApi(`/api/admin/users/${userId}/accounts`, 'DELETE');
+    toast(t('adm.purge_done', {n: r.deleted}));
+    loadUserAccounts();
+  } catch (e) { toast(t('common.error_prefix') + e.message, true); }
 }
 
 async function init() {

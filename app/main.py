@@ -375,12 +375,20 @@ async def update_own_profile(payload: ProfileUpdateIn, user: dict = Depends(auth
     return users.public_view(updated)
 
 
+def _list_strategies():
+    from app.core.strategies.registry import list_strategies
+    return list_strategies()
+
+
 # ---------- صفحات داشبورد ----------
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
     user = auth.get_current_user(request)
     if user is None:
-        return render(request, "landing.html")
+        # تعداد استراتژی از خود رجیستری خوانده می‌شود؛ قبلاً در تمپلیت هاردکد
+        # بود و با اضافه‌شدن استراتژی‌های تازه بی‌سروصدا قدیمی می‌ماند.
+        return render(request, "landing.html",
+                      strategy_count=len(_list_strategies()))
     # این route عمداً Depends(require_user_page) ندارد چون برای مهمان صفحه‌ی
     # معرفی را نشان می‌دهد؛ پس گیت تأیید ایمیل را باید خودمان صدا بزنیم.
     if not auth.is_verified(user):
@@ -718,6 +726,11 @@ async def admin_user_accounts(user: dict = Depends(auth.require_admin)):
             continue
         st = status_map.get(acc["id"]) or {}
         stats = st.get("account_stats") or {}
+        # سود محقق‌شده از تاریخچه خوانده می‌شود، نه از وضعیت زنده: account_stats
+        # فقط وقتی وجود دارد که ربات همان لحظه در حال اجرا باشد، و بدون این،
+        # هر حساب متوقفی در مرتب‌سازی سود صفر به حساب می‌آمد.
+        summary = (history.get_report(acc["id"], days=0,
+                                      mode=acc.get("trading_mode")) or {}).get("summary") or {}
         group = by_owner.setdefault(owner_id, {"accounts": []})
         group["accounts"].append({
             "id": acc["id"],
@@ -730,19 +743,54 @@ async def admin_user_accounts(user: dict = Depends(auth.require_admin)):
             "equity": stats.get("current_equity"),
             "overall_profit_pct": stats.get("overall_profit_pct"),
             "open_positions": len(st.get("positions") or []),
+            "net_pnl": summary.get("total_pnl", 0.0),
+            "trades": summary.get("trades", 0),
+            "win_rate": summary.get("win_rate", 0.0),
+            "total_fees": summary.get("total_fees", 0.0),
+            "max_drawdown_pct": summary.get("max_drawdown_pct", 0.0),
+            "profit_factor": summary.get("profit_factor"),
         })
     out = []
     for owner_id, group in by_owner.items():
         owner = users.get_user(owner_id)
+        accs = sorted(group["accounts"], key=lambda a: a.get("net_pnl") or 0.0, reverse=True)
         out.append({
             "user_id": owner_id,
             "username": owner["username"] if owner else owner_id,
             "email": (owner or {}).get("email"),
             "enabled": (owner or {}).get("enabled", True),
             "has_active_token": tokens.has_active_token(owner_id),
-            "accounts": sorted(group["accounts"], key=lambda a: a["name"]),
+            "accounts": accs,
+            "total_pnl": sum(a.get("net_pnl") or 0.0 for a in accs),
+            "total_trades": sum(a.get("trades") or 0 for a in accs),
+            "running_count": sum(1 for a in accs if a.get("running")),
+            "live_count": sum(1 for a in accs if a.get("trading_mode") == "live"),
         })
-    return sorted(out, key=lambda g: g["username"].lower())
+    # پرسودترین کاربر اول — همان ترتیبی که برای مرور سریع ادمین مفید است.
+    return sorted(out, key=lambda g: g["total_pnl"], reverse=True)
+
+
+@app.delete("/api/admin/users/{user_id}/accounts")
+async def admin_delete_user_accounts(user_id: str, admin: dict = Depends(auth.require_admin)):
+    """پاکسازی همه‌ی حساب‌های یک کاربر — فقط وقتی کاربر غیرفعال شده باشد.
+
+    این شرط عمدی است و صرفاً محافظت از خطا نیست: بدون آن، یک کلیک اشتباه روی
+    ردیف کاربر فعال، بات‌های در حال معامله‌ی او را با هم پاک می‌کرد. برای
+    حذف تکی، همان مسیر DELETE /api/accounts/{id} در دسترس ادمین هست.
+    """
+    target = users.get_user(user_id)
+    if target is None:
+        raise ApiError(404, "err.user_not_found", "کاربر پیدا نشد")
+    if target.get("enabled", True):
+        raise ApiError(400, "err.user_still_enabled",
+                       "فقط حساب‌های کاربرِ غیرفعال‌شده قابل پاکسازی است. "
+                       "ابتدا کاربر را غیرفعال کنید.")
+    mine = config_store.list_accounts(user_id)
+    for acc in mine:
+        await bot_manager.stop_account(acc["id"])
+        config_store.delete_account(acc["id"])
+    bot_manager.sync_from_config()
+    return {"deleted": len(mine), "user_id": user_id}
 
 
 @app.get("/api/admin/users")
