@@ -393,3 +393,19 @@ def ensure_admin_seed(default_username: str, default_password: str) -> dict | No
         if not default_password:
             print(f"[crypto-bot] رمز ادمین به‌صورت خودکار ساخته شد — نام کاربری: {username} / رمز: {password}")
         return user
+
+
+def delete_user(user_id: str) -> bool:
+    """حذف کامل یک کاربر. True اگر وجود داشت و پاک شد.
+
+    حساب‌های معاملاتی، توکن‌ها و تیکت‌های او را پاک نمی‌کند — آن کار در لایه‌ی
+    بالاتر (main.py) انجام می‌شود تا بتواند ربات‌های در حال اجرا را هم متوقف کند.
+    """
+    with _lock:
+        data = _load()
+        before = len(data["users"])
+        data["users"] = [u for u in data["users"] if u.get("id") != user_id]
+        removed = len(data["users"]) < before
+        if removed:
+            _save(data)
+    return removed

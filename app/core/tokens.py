@@ -93,3 +93,14 @@ def get_active_token(user_id: str) -> dict | None:
 
 def has_active_token(user_id: str) -> bool:
     return get_active_token(user_id) is not None
+
+
+def delete_by_user(user_id: str) -> int:
+    """پاک‌کردن همه‌ی توکن‌های یک کاربر. تعداد حذف‌شده را برمی‌گرداند."""
+    with _lock:
+        items = _load()
+        keep = [t for t in items if t.get("user_id") != user_id]
+        n = len(items) - len(keep)
+        if n:
+            _save(keep)
+    return n

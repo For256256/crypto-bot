@@ -874,5 +874,12 @@
   "adm.purge_accounts": "Tüm hesapları sil",
   "adm.purge_confirm": "“{name}” kullanıcısının {n} hesabının tamamı silinsin mi? Bu geri alınamaz.",
   "adm.purge_done": "{n} hesap silindi",
-  "err.user_still_enabled": "Yalnızca devre dışı bırakılmış kullanıcının hesapları temizlenebilir. Önce kullanıcıyı devre dışı bırakın."
+  "err.user_still_enabled": "Yalnızca devre dışı bırakılmış kullanıcının hesapları temizlenebilir. Önce kullanıcıyı devre dışı bırakın.",
+  "adm.delete_user": "Kullanıcıyı sil",
+  "adm.delete_user_confirm": "“{name}” kullanıcısı tamamen silinsin mi?\n{n} işlem hesabı, jetonları ve destek talepleri de kaldırılacak. Bu geri alınamaz.",
+  "adm.delete_user_type": "Onaylamak için “{name}” kullanıcı adını tam olarak yazın:",
+  "adm.delete_user_mismatch": "Kullanıcı adı eşleşmedi — hiçbir şey silinmedi.",
+  "adm.user_deleted": "“{name}” kullanıcısı ve {n} hesabı silindi",
+  "err.cannot_delete_self": "Kendi hesabınızı silemezsiniz.",
+  "err.cannot_delete_admin": "Yönetici kullanıcı buradan silinemez."
 }
