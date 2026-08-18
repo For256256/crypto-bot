@@ -163,11 +163,16 @@
             <label for="em_tls" class="text-xs cursor-pointer">STARTTLS</label>
           </div>
         </div>
+        <p class="text-[10px] text-on-surface-variant leading-5 -mt-1">{{ t("set.tls_hint") }}</p>
         <div><label class="lbl">{{ t("set.smtp_user") }}</label><input id="em_user" class="field mono-num" dir="ltr"></div>
         <div><label class="lbl">{{ t("set.smtp_password") }}</label><input id="em_password" class="field mono-num" dir="ltr" type="password" placeholder="{{ t('set.smtp_password_ph') }}"></div>
         <div><label class="lbl">{{ t("set.from_address") }}</label><input id="em_from_address" class="field mono-num" dir="ltr" placeholder="no-reply@example.com"></div>
         <div><label class="lbl">{{ t("set.from_name") }}</label><input id="em_from_name" class="field" value="cpulsepro"></div>
         <button class="btn-ghost w-full !py-2 text-xs" onclick="saveEmailSettings()">{{ t("set.save_test") }}</button>
+        <button class="btn-ghost w-full !py-2 text-xs mt-2 flex items-center justify-center gap-1" onclick="sendTestEmail()">
+          <span class="material-symbols-outlined text-sm">outgoing_mail</span> {{ t("set.send_test_email") }}
+        </button>
+        <div id="em_status" class="text-[11px] mt-2 leading-5"></div>
         <p id="em_status" class="text-[11px] text-on-surface-variant"></p>
       </div>
     </div>
@@ -328,7 +333,7 @@ let editingAccountId = null;
 
 async function loadAll() {
   const tasks = [callApi('/api/accounts'), loadTelegramCard()];
-  if (IS_ADMIN) { tasks.push(callApi('/api/app-settings')); tasks.push(loadTelegramAdminSettings()); tasks.push(loadEmailAdminSettings()); tasks.push(loadPaymentAdminSettings()); }
+  if (IS_ADMIN) { tasks.push(callApi('/api/app-settings')); tasks.push(loadTelegramAdminSettings()); tasks.push(loadEmailAdminSettings()); tasks.push(loadEmailStatus()); tasks.push(loadPaymentAdminSettings()); }
   else { tasks.push(loadTokenHistory()); }
   const [accounts, , settings] = await Promise.all(tasks);
   accountsCache = accounts;
@@ -418,6 +423,38 @@ async function saveEmailSettings() {
     document.getElementById('em_password').value = '';
     loadEmailAdminSettings();
   } catch (e) { toast(t('common.error_prefix') + e.message, true); }
+}
+
+async function sendTestEmail() {
+  const box = document.getElementById('em_status');
+  box.className = 'text-[11px] mt-2 leading-5 text-on-surface-variant';
+  box.textContent = t('set.sending');
+  try {
+    const r = await callApi('/api/admin/email-settings/test', 'POST');
+    box.className = 'text-[11px] mt-2 leading-5 text-buy';
+    box.textContent = t('set.test_email_sent', {email: r.to});
+  } catch (e) {
+    box.className = 'text-[11px] mt-2 leading-5 text-sell';
+    box.textContent = e.message;
+  }
+}
+
+// نتیجه‌ی آخرین ارسال واقعی — اگر SMTP خراب شود، اینجا دیده می‌شود به‌جای
+// اینکه فقط کدهای تأیید بی‌صدا نرسند.
+async function loadEmailStatus() {
+  const box = document.getElementById('em_status');
+  if (!box) return;
+  try {
+    const st = await callApi('/api/admin/email-settings/status');
+    if (st.ok === null) return;
+    if (st.ok) {
+      box.className = 'text-[11px] mt-2 leading-5 text-buy';
+      box.textContent = t('set.last_send_ok', {email: st.to || ''});
+    } else {
+      box.className = 'text-[11px] mt-2 leading-5 text-sell';
+      box.textContent = t('set.last_send_failed', {error: st.error || ''});
+    }
+  } catch (e) { /* وضعیت اختیاری است؛ نبودنش نباید صفحه را بشکند */ }
 }
 
 async function loadTelegramCard() {

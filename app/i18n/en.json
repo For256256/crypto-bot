@@ -881,5 +881,16 @@
   "adm.delete_user_mismatch": "The username did not match — nothing was deleted.",
   "adm.user_deleted": "User “{name}” and {n} of their accounts were deleted",
   "err.cannot_delete_self": "You cannot delete your own account.",
-  "err.cannot_delete_admin": "An admin user cannot be deleted from here."
+  "err.cannot_delete_admin": "An admin user cannot be deleted from here.",
+  "set.send_test_email": "Send a test email",
+  "set.sending": "Sending…",
+  "set.test_email_sent": "Test email sent to {email}. If it is not in your inbox, check the spam folder.",
+  "set.last_send_ok": "The last send succeeded ({email}).",
+  "set.last_send_failed": "The last send failed: {error}",
+  "mail.test_subject": "Test email — cpulsepro",
+  "mail.test_body": "This is a test message from the cpulsepro dashboard.\n\nIf you received it, your SMTP settings work and email verification codes will reach your users.",
+  "err.no_admin_email": "To receive a test email, first set an email address on your own profile.",
+  "err.smtp_unset": "Save your SMTP settings first.",
+  "err.smtp_send_failed": "Sending the email failed: {reason}",
+  "set.tls_hint": "On = STARTTLS on port 587 (the usual choice). Off = implicit SSL on port 465. The connection is encrypted either way."
 }

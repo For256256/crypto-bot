@@ -881,5 +881,16 @@
   "adm.delete_user_mismatch": "用户名不匹配 — 未删除任何内容。",
   "adm.user_deleted": "已删除用户「{name}」及其 {n} 个账户",
   "err.cannot_delete_self": "您不能删除自己的账户。",
-  "err.cannot_delete_admin": "无法从此处删除管理员用户。"
+  "err.cannot_delete_admin": "无法从此处删除管理员用户。",
+  "set.send_test_email": "发送测试邮件",
+  "set.sending": "发送中…",
+  "set.test_email_sent": "测试邮件已发送至 {email}。若收件箱中没有，请查看垃圾邮件文件夹。",
+  "set.last_send_ok": "上一次发送成功（{email}）。",
+  "set.last_send_failed": "上一次发送失败：{error}",
+  "mail.test_subject": "测试邮件 — cpulsepro",
+  "mail.test_body": "这是来自 cpulsepro 面板的测试邮件。\n\n如果您收到了它，说明 SMTP 设置正常，邮箱验证码可以送达用户。",
+  "err.no_admin_email": "要接收测试邮件，请先在您的个人资料中设置邮箱地址。",
+  "err.smtp_unset": "请先保存 SMTP 设置。",
+  "err.smtp_send_failed": "邮件发送失败：{reason}",
+  "set.tls_hint": "开启 = 端口 587 上的 STARTTLS（最常用）。关闭 = 端口 465 上的隐式 SSL。两种方式的连接都是加密的。"
 }
