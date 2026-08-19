@@ -12,6 +12,8 @@
 #   REPO_BRANCH  برنچ نصب (پیش‌فرض: main)
 #   INSTALL_DIR  مسیر نصب روی سرور (پیش‌فرض: /opt/crypto-bot)
 #   SERVICE_NAME نام سرویس systemd (پیش‌فرض: crypto-bot)
+#   GITHUB_TOKEN توکن خواندنِ ریپازیتوری خصوصی. فقط بار اول لازم است؛ بعد از آن
+#                در .env ذخیره می‌شود و آپدیت‌های بعدی خودشان آن را برمی‌دارند.
 #
 # راه‌اندازی روی دامنه با HTTPS (nginx + گواهی رایگان Let's Encrypt):
 #
@@ -49,6 +51,8 @@ DOMAIN_ALIASES="${DOMAIN_ALIASES:-}"
 LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}"
 SKIP_NGINX="${SKIP_NGINX:-}"
 BIND_ADDRESS="${BIND_ADDRESS:-}"
+# توکن دسترسی گیت‌هاب — فقط وقتی لازم است که ریپازیتوری خصوصی باشد.
+GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "این اسکریپت باید با sudo/root اجرا شود: sudo bash install-crypto-bot.sh" >&2
@@ -67,10 +71,28 @@ if ! python3 -c "import ensurepip" >/dev/null 2>&1; then
   apt-get install -y python3-venv
 fi
 
+# اگر این بار توکن داده نشده ولی نصب قبلی آن را دارد، از همان‌جا خوانده می‌شود
+# تا دستور آپدیت همیشگی بدون تکرار توکن کار کند.
+if [ -z "$GITHUB_TOKEN" ] && [ -f "$INSTALL_DIR/.env" ]; then
+  GITHUB_TOKEN=$(grep -E '^GITHUB_TOKEN=' "$INSTALL_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2- || true)
+fi
+
+# اعتبارنامه در فایل جدا با دسترسی ۶۰۰ نگه داشته می‌شود، نه داخل آدرس ریموت:
+# آدرس ریموت در .git/config می‌ماند و با `git remote -v` هم چاپ می‌شود، پس
+# توکن داخل آن یعنی توکن در هر لاگ و هر اسکرین‌شاتی.
+CRED_FILE="${INSTALL_DIR}/.git-credentials"
+setup_git_auth() {
+  [ -n "$GITHUB_TOKEN" ] || return 0
+  install -m 600 /dev/null "$CRED_FILE"
+  printf 'https://x-access-token:%s@github.com\n' "$GITHUB_TOKEN" > "$CRED_FILE"
+  git -C "$INSTALL_DIR" config credential.helper "store --file=${CRED_FILE}"
+}
+
 FRESH_INSTALL=1
 if [ -d "$INSTALL_DIR/.git" ]; then
   FRESH_INSTALL=0
   log "نصب قبلی پیدا شد — به‌روزرسانی کد از برنچ ${REPO_BRANCH}…"
+  setup_git_auth
   git -C "$INSTALL_DIR" fetch origin "$REPO_BRANCH"
   git -C "$INSTALL_DIR" checkout "$REPO_BRANCH"
   git -C "$INSTALL_DIR" reset --hard "origin/${REPO_BRANCH}"
@@ -82,7 +104,16 @@ else
   fi
   log "دانلود کد از ${REPO_URL} (برنچ ${REPO_BRANCH}) در ${INSTALL_DIR}…"
   mkdir -p "$(dirname "$INSTALL_DIR")"
-  git clone --branch "$REPO_BRANCH" --depth 1 "$REPO_URL" "$INSTALL_DIR"
+  if [ -n "$GITHUB_TOKEN" ]; then
+    # توکن فقط برای همین یک دستور در آدرس می‌آید؛ بلافاصله بعدش ریموت پاک
+    # می‌شود و اعتبارنامه به فایل ۶۰۰ منتقل می‌گردد.
+    git clone --branch "$REPO_BRANCH" --depth 1 \
+      "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO_URL#https://github.com/}" "$INSTALL_DIR"
+    git -C "$INSTALL_DIR" remote set-url origin "$REPO_URL"
+    setup_git_auth
+  else
+    git clone --branch "$REPO_BRANCH" --depth 1 "$REPO_URL" "$INSTALL_DIR"
+  fi
 fi
 
 cd "$INSTALL_DIR"
@@ -135,6 +166,14 @@ set_env() {
     echo "${key}=${value}" >> .env
   fi
 }
+
+# توکن گیت‌هاب در .env می‌ماند تا آپدیت بعدی بدون تکرارش کار کند. .env از قبل
+# در .gitignore هست و دسترسی‌اش محدود می‌شود، چون این توکن اجازه‌ی خواندن کل
+# سورس را می‌دهد.
+if [ -n "$GITHUB_TOKEN" ]; then
+  set_env "GITHUB_TOKEN" "$GITHUB_TOKEN"
+  chmod 600 .env
+fi
 
 # دامنه اگر این بار داده نشده، از PUBLIC_BASE_URL موجود در .env خوانده می‌شود،
 # تا آپدیت‌های بعدی بدون تکرار DOMAIN=… همان تنظیم را حفظ کنند.
