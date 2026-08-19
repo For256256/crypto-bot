@@ -899,5 +899,14 @@
   "rep.flow_deposit": "yatırma {amount}",
   "rep.flow_withdraw": "çekme {amount}",
   "rep.eq_note": "Bu eğri para yatırma ve çekmeleri dışlar, yalnızca işlem sonucunu gösterir. Dikey kesikli çizgiler yatırma (yeşil) veya çekme (kırmızı) anını işaretler.",
-  "rep.period_return": "{period} getirisi"
+  "rep.period_return": "{period} getirisi",
+  "dash.notify_title": "İşlem açılış/kapanış raporları",
+  "dash.notify_telegram": "Telegram'a gönder",
+  "dash.notify_browser": "Tarayıcı bildirimi",
+  "dash.notify_hint": "Yalnızca bu hesabın işlem raporlarını susturur. Borsa hataları ve günlük zarar sınırı her durumda gönderilir.",
+  "dash.notify_ask": "İşlemler açılıp kapandığında bildirim almak için tarayıcınızda bildirimlere izin verin.",
+  "dash.notify_enable": "Bildirimleri etkinleştir",
+  "dash.notify_granted": "Tarayıcı bildirimleri etkinleştirildi",
+  "dash.notify_denied": "İzin verilmedi — tarayıcı ayarlarından değiştirebilirsiniz.",
+  "dash.notify_unsupported": "Tarayıcınız bildirimleri desteklemiyor."
 }

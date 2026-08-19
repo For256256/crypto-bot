@@ -69,6 +69,11 @@ class AccountRunner:
         self.status, self.status_key = "متوقف", "stopped"
         self.logs: deque = deque(maxlen=100)
         self.last_signals: dict = {}
+        # رویدادهای باز/بسته شدن معامله برای اعلان مرورگر. در حافظه است و با
+        # ری‌استارت پاک می‌شود — که همان رفتار درست است: نباید بعد از بالا آمدن
+        # دوباره، اعلان معامله‌های دیروز پشت سر هم بیاید.
+        self.notify_events: deque = deque(maxlen=20)
+        self._event_seq = 0
         self.account_info: dict | None = None
         self.positions: list = []
         self._last_equity_snapshot = 0.0
@@ -91,8 +96,29 @@ class AccountRunner:
             "message": message,
         })
 
-    def _notify_owner(self, text: str):
-        """اعلان تلگرام fire-and-forget به مالک این حساب (اگر تلگرامش وصل باشد)."""
+    def _notify_owner(self, text: str, kind: str = "alert", symbol: str = ""):
+        """گزارش به مالک این حساب.
+
+        kind="trade" یعنی باز/بسته شدن معامله؛ این‌ها با سوییچ‌های همین حساب
+        قابل خاموش‌کردن‌اند. kind="alert" برای خطای صرافی و سقف ضرر روزانه است
+        و عمداً از سوییچ‌ها عبور می‌کند — خاموش‌کردن گزارش معاملات نباید یعنی
+        بی‌خبر ماندن از خراب‌شدن ربات.
+        """
+        is_trade = (kind == "trade")
+
+        # ---- اعلان مرورگر: در یک صف کوچک می‌ماند تا داشبورد آن را بردارد ----
+        if is_trade and self.cfg.get("notify_browser", True):
+            self._event_seq += 1
+            self.notify_events.append({
+                "id": self._event_seq,
+                "symbol": symbol,
+                "text": text,
+                "time": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            })
+
+        # ---- تلگرام ----
+        if is_trade and not self.cfg.get("notify_telegram", True):
+            return
         owner_id = self.cfg.get("owner_id")
         if not owner_id:
             return
@@ -224,7 +250,8 @@ class AccountRunner:
                 emoji = "✅" if realized >= 0 else "🔴"
                 self._notify_owner(
                     f"{emoji} معامله‌ی {trade['symbol']} بسته شد ({trade.get('closed_by')}) — "
-                    f"سود/زیان خالص: {realized:+.2f} USDT"
+                    f"سود/زیان خالص: {realized:+.2f} USDT",
+                    kind="trade", symbol=trade.get("symbol", ""),
                 )
         else:
             # live: پوزیشنی که قبلاً می‌دیدیم و الان نیست یعنی در صرافی بسته شده
@@ -257,7 +284,8 @@ class AccountRunner:
                     emoji = "✅" if realized >= 0 else "🔴"
                     self._notify_owner(
                         f"{emoji} پوزیشن {prev['symbol']} در سمت صرافی بسته شد ({label}) — "
-                        f"سود/زیان تقریبی خالص: {realized:+.2f} USDT"
+                        f"سود/زیان تقریبی خالص: {realized:+.2f} USDT",
+                        kind="trade", symbol=prev.get("symbol", ""),
                     )
             self._known_live_positions = current_ids
 
@@ -327,7 +355,8 @@ class AccountRunner:
                                        position.get("side"))
         emoji = "✅" if realized >= 0 else "🔴"
         label = {"SL": "حد ضرر", "TP": "حد سود", "manual": "دستی", "reversal": "تغییر جهت"}.get(closed_by, closed_by)
-        self._notify_owner(f"{emoji} پوزیشن {position['symbol']} بسته شد ({label}) — سود/زیان: {realized:+.2f} USDT")
+        self._notify_owner(f"{emoji} پوزیشن {position['symbol']} بسته شد ({label}) — سود/زیان: {realized:+.2f} USDT",
+                           kind="trade", symbol=position.get("symbol", ""))
 
     # ---------- سقف ضرر روزانه ----------
     def _check_daily_loss(self):
@@ -526,7 +555,8 @@ class AccountRunner:
         )
         self._notify_owner(
             f"📈 ورود {('Long' if side == 'buy' else 'Short')} {symbol} | حجم: {qty:g} @ ~{price:g} | "
-            f"SL: {stop_loss:g} | TP: {take_profit:g}"
+            f"SL: {stop_loss:g} | TP: {take_profit:g}",
+            kind="trade", symbol=symbol,
         )
         if result.get("tp_sl_set") is False:
             self.log(result.get("tp_sl_error", "ست کردن TP/SL ناموفق بود"), "error")
@@ -725,6 +755,7 @@ class AccountRunner:
             "positions": positions,
             "logs": list(self.logs),
             "last_signals": self.last_signals,
+            "notify_events": list(self.notify_events),
         }
 
 

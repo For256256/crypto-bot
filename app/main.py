@@ -137,6 +137,8 @@ class AccountIn(BaseModel):
     invert_signals: bool = False
     accept_webhook: bool = True
     enabled: bool = True
+    notify_telegram: bool = True
+    notify_browser: bool = True
     # کد ورود دو مرحله‌ای — فقط وقتی لازم است که حساب live باشد
     otp: Optional[str] = None
 
