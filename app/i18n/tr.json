@@ -893,5 +893,10 @@
   "err.smtp_unset": "Önce SMTP ayarlarınızı kaydedin.",
   "err.smtp_send_failed": "E-posta gönderilemedi: {reason}",
   "set.tls_hint": "Açık = 587 portunda STARTTLS (olağan seçim). Kapalı = 465 portunda örtük SSL. Her iki durumda da bağlantı şifrelidir.",
-  "rep.capital_hint": "Para yatırma artırır, çekme azaltır; işlem kârı buna dahil değildir."
+  "rep.capital_hint": "Para yatırma artırır, çekme azaltır; işlem kârı buna dahil değildir.",
+  "rep.eq_adjusted": "Özkaynak (transferler hariç)",
+  "rep.eq_raw": "Gerçek bakiye",
+  "rep.flow_deposit": "yatırma {amount}",
+  "rep.flow_withdraw": "çekme {amount}",
+  "rep.eq_note": "Bu eğri para yatırma ve çekmeleri dışlar, yalnızca işlem sonucunu gösterir. Dikey kesikli çizgiler yatırma (yeşil) veya çekme (kırmızı) anını işaretler."
 }

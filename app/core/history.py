@@ -210,6 +210,46 @@ def get_account_stats(account_id: str, mode: str, current_equity: float | None =
     }
 
 
+def _flow_adjusted(equity_points: list, trades: list) -> list:
+    """منحنی اکوییتی با اثر واریز/برداشت برداشته‌شده.
+
+    اکوییتی خام دو چیز را با هم نشان می‌دهد: نتیجه‌ی معاملات، و پولی که کاربر
+    وارد یا خارج کرده. برای سنجش عملکرد فقط اولی معنا دارد — روی منحنی خام
+    یک واریز، پله‌ی رو به بالا می‌سازد که شبیه سود است و یک برداشت، افتی که
+    شبیه ضرر است.
+
+    جریان بیرونی بین دو نقطه = تغییر موجودی منهای سود محقق‌شده‌ی همان بازه.
+    هر جریان از آن نقطه به بعد از منحنی کم می‌شود، پس شکل منحنی فقط اثر
+    معاملات را نشان می‌دهد. مقدار خام و خودِ جریان هم برگردانده می‌شوند تا
+    نمودار بتواند لحظه‌ی واریز/برداشت را علامت بزند.
+    """
+    by_time = sorted(trades, key=lambda t: str(t.get("close_time") or ""))
+    ti = 0
+    cum_realized = prev_cum = offset = 0.0
+    prev_balance = None
+    out = []
+    for e in equity_points:
+        point_time = str(e.get("time") or "")
+        while ti < len(by_time) and str(by_time[ti].get("close_time") or "") <= point_time:
+            cum_realized += _num(by_time[ti].get("realized"))
+            ti += 1
+        eq = _num(e.get("equity"))
+        bal = _num(e.get("balance"), eq)
+        flow = 0.0
+        if prev_balance is not None:
+            flow = (bal - prev_balance) - (cum_realized - prev_cum)
+            offset += flow
+        out.append({
+            "time": e.get("time"),
+            "equity": eq - offset,     # همان چیزی که نمودار می‌کشد
+            "raw_equity": eq,
+            "balance": bal,
+            "flow": flow,
+        })
+        prev_balance, prev_cum = bal, cum_realized
+    return out
+
+
 def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict:
     """
     گزارش سود/زیان یک حساب:
@@ -272,34 +312,13 @@ def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict
             s["losses"] += 1
     by_symbol = sorted(by_symbol_map.values(), key=lambda s: s["pnl"])
 
-    # ---------- ماکس دراوداون، پس از خنثی‌کردن واریز/برداشت ----------
-    # روی خودِ اکوییتی خام، یک برداشت دقیقاً شبیه افت سرمایه دیده می‌شود و
-    # یک واریز، قله‌ی جعلی می‌سازد که همه‌ی دراوداون‌های بعدی را بزرگ‌تر نشان
-    # می‌دهد. جریان بیرونی بین دو نقطه = تغییر موجودی منهای سود محقق‌شده‌ی
-    # همان بازه؛ آن را از منحنی برمی‌داریم تا فقط اثر معاملات بماند.
-    trades_by_time = sorted(trades, key=lambda t: str(t.get("close_time") or ""))
-    ti = 0
-    cum_realized = 0.0
-    prev_balance = None
-    prev_cum = 0.0
-    offset = 0.0
-    adjusted = []
-    for e in equity_points:
-        point_time = str(e.get("time") or "")
-        while ti < len(trades_by_time) and str(trades_by_time[ti].get("close_time") or "") <= point_time:
-            cum_realized += _num(trades_by_time[ti].get("realized"))
-            ti += 1
-        eq = _num(e.get("equity"))
-        bal = _num(e.get("balance"), eq)
-        if prev_balance is not None:
-            flow = (bal - prev_balance) - (cum_realized - prev_cum)
-            offset += flow
-        adjusted.append(eq - offset)
-        prev_balance, prev_cum = bal, cum_realized
+    # ---------- ماکس دراوداون، روی منحنی تعدیل‌شده ----------
+    adjusted_curve = _flow_adjusted(equity_points, trades)
 
     max_dd_pct = 0.0
     peak = None
-    for eq in adjusted:
+    for point in adjusted_curve:
+        eq = point["equity"]
         if peak is None or eq > peak:
             peak = eq
         if peak and peak > 0:
@@ -340,8 +359,7 @@ def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict
             "max_drawdown_pct": max_dd_pct,
             "has_estimated": any(t.get("estimated") for t in trades),
         },
-        "equity_curve": [{"time": e.get("time"), "equity": e.get("equity"), "balance": e.get("balance")}
-                         for e in equity_points],
+        "equity_curve": adjusted_curve,
         "daily": daily,
         "by_symbol": by_symbol,
         "trades": list(reversed(trades[-200:])),
