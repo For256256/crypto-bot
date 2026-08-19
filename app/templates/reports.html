@@ -423,6 +423,13 @@ function renderReport() {
   const pnlCls = (totalWithOpen || 0) >= 0 ? 'text-buy' : 'text-sell';
   const pf = s.profit_factor === null || s.profit_factor === undefined ? '∞' : fmt(s.profit_factor);
   const hasUnrealized = !!s.unrealized_pnl;
+  // برچسب بازه، از همان فیلتری که کاربر انتخاب کرده — «۰» یعنی کل تاریخچه.
+  const daysSel = document.getElementById('f_days');
+  const daysVal = daysSel ? daysSel.value : '30';
+  const periodLabel = (daysVal === '0') ? t('common.all') : t('rep.days', {n: Number(daysVal)});
+  const pr = s.period_return_pct;
+  const prTxt = (pr == null) ? '—' : ((pr >= 0 ? '+' : '') + fmt(pr, 2) + t('common.pct'));
+  const prCls = (pr == null) ? 'text-on-surface-variant' : (pr >= 0 ? 'text-buy' : 'text-sell');
   const root = document.getElementById('reportRoot');
   root.innerHTML = `
   <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
@@ -430,6 +437,8 @@ function renderReport() {
       <span class="text-on-surface-variant text-xs mb-2">${t('rep.total_pnl')}</span>
       <span class="mono-num text-2xl font-bold ${pnlCls}" dir="ltr">${totalWithOpen >= 0 ? '+' : ''}${niceNum(totalWithOpen)}</span>
       <span class="text-[11px] text-on-surface-variant mt-1">USDT${hasUnrealized ? t('rep.incl_unrealized', {v: (s.unrealized_pnl >= 0 ? '+' : '') + niceNum(s.unrealized_pnl), n: s.open_positions}) : ''}</span>
+        <span class="mono-num text-xs font-bold ${prCls} mt-2" dir="ltr">${prTxt}</span>
+        <span class="text-[10px] text-on-surface-variant">${t('rep.period_return', {period: periodLabel})}</span>
     </div>
     <div class="glass-card p-5 rounded-2xl flex flex-col items-center text-center">
       <span class="text-on-surface-variant text-xs mb-2">${t('rep.win_rate_label')}</span>

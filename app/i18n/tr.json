@@ -898,5 +898,6 @@
   "rep.eq_raw": "Gerçek bakiye",
   "rep.flow_deposit": "yatırma {amount}",
   "rep.flow_withdraw": "çekme {amount}",
-  "rep.eq_note": "Bu eğri para yatırma ve çekmeleri dışlar, yalnızca işlem sonucunu gösterir. Dikey kesikli çizgiler yatırma (yeşil) veya çekme (kırmızı) anını işaretler."
+  "rep.eq_note": "Bu eğri para yatırma ve çekmeleri dışlar, yalnızca işlem sonucunu gösterir. Dikey kesikli çizgiler yatırma (yeşil) veya çekme (kırmızı) anını işaretler.",
+  "rep.period_return": "{period} getirisi"
 }

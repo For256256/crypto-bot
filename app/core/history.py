@@ -315,6 +315,20 @@ def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict
     # ---------- ماکس دراوداون، روی منحنی تعدیل‌شده ----------
     adjusted_curve = _flow_adjusted(equity_points, trades)
 
+    # ---------- بازده همین بازه‌ی انتخاب‌شده ----------
+    # درصدی که تا حالا نشان داده می‌شد، بازده «کل عمر حساب» بود و به فیلتر
+    # ۷/۳۰/۹۰ روز کاری نداشت. این یکی از دو سر همان منحنی تعدیل‌شده حساب
+    # می‌شود، پس هم واریز/برداشت را نادیده می‌گیرد و هم سود شناور را در بر
+    # می‌گیرد؛ مبنا هم سرمایه‌ی ابتدای همان بازه است، نه سرمایه‌ی روز اول.
+    period_pnl = None
+    period_return_pct = None
+    if len(adjusted_curve) >= 2:
+        first_eq = adjusted_curve[0]["equity"]
+        last_eq = adjusted_curve[-1]["equity"]
+        period_pnl = last_eq - first_eq
+        if first_eq:
+            period_return_pct = period_pnl / first_eq * 100
+
     max_dd_pct = 0.0
     peak = None
     for point in adjusted_curve:
@@ -357,6 +371,8 @@ def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict
             "worst": min(pnls) if pnls else 0.0,
             "avg": (total / n) if n else 0.0,
             "max_drawdown_pct": max_dd_pct,
+            "period_pnl": period_pnl,
+            "period_return_pct": period_return_pct,
             "has_estimated": any(t.get("estimated") for t in trades),
         },
         "equity_curve": adjusted_curve,

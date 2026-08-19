@@ -898,5 +898,6 @@
   "rep.eq_raw": "Actual balance",
   "rep.flow_deposit": "deposit {amount}",
   "rep.flow_withdraw": "withdrawal {amount}",
-  "rep.eq_note": "This curve removes deposits and withdrawals so only trading results show. The dashed vertical lines mark a deposit (green) or a withdrawal (red)."
+  "rep.eq_note": "This curve removes deposits and withdrawals so only trading results show. The dashed vertical lines mark a deposit (green) or a withdrawal (red).",
+  "rep.period_return": "return over {period}"
 }
