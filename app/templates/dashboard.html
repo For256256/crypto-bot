@@ -5,6 +5,9 @@
 <!-- وضعیت توکن فعال‌سازی -->
 <div id="tokenBanner" class="mb-4"></div>
 
+<!-- درخواست مجوز اعلان مرورگر -->
+<div id="notifyBanner" class="mb-4"></div>
+
 <!-- هدر آمار حساب -->
 <div id="accountBar" class="mb-6"></div>
 
@@ -77,6 +80,14 @@
         <p class="text-[10px] text-on-surface-variant mt-1 leading-5">{{ t("dash.reversal_hint") }}</p>
       </div>
       <div class="flex items-center gap-2 pt-5"><label class="switch"><input type="checkbox" id="f_accept_webhook" checked><span class="switch-track"><span class="switch-thumb"></span></span></label><label for="f_accept_webhook" class="text-xs text-on-surface-variant">{{ t("dash.accept_webhook") }}</label></div>
+      <div class="sm:col-span-2 rounded-xl border border-outline-variant/25 p-3 mt-1">
+        <p class="text-[11px] font-bold mb-2">{{ t("dash.notify_title") }}</p>
+        <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
+          <div class="flex items-center gap-2"><label class="switch"><input type="checkbox" id="f_notify_telegram" checked><span class="switch-track"><span class="switch-thumb"></span></span></label><label for="f_notify_telegram" class="text-xs text-on-surface-variant">{{ t("dash.notify_telegram") }}</label></div>
+          <div class="flex items-center gap-2"><label class="switch"><input type="checkbox" id="f_notify_browser" checked><span class="switch-track"><span class="switch-thumb"></span></span></label><label for="f_notify_browser" class="text-xs text-on-surface-variant">{{ t("dash.notify_browser") }}</label></div>
+        </div>
+        <p class="text-[10px] text-on-surface-variant mt-2 leading-5">{{ t("dash.notify_hint") }}</p>
+      </div>
     </div>
     <div class="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
       <div class="flex items-center gap-2">
@@ -341,6 +352,8 @@ function openAccountModal(acc) {
   g('f_recycle_on_new_signal').checked = acc ? !!acc.recycle_on_new_signal : false;
   g('f_reversal_policy').value = (acc && acc.reversal_policy) ? acc.reversal_policy : 'none';
   g('f_accept_webhook').checked = acc ? !!acc.accept_webhook : true;
+  g('f_notify_telegram').checked = acc ? acc.notify_telegram !== false : true;
+  g('f_notify_browser').checked = acc ? acc.notify_browser !== false : true;
   g('f_invert_signals').checked = acc ? !!acc.invert_signals : false;
   openModal('accountModalBg');
 }
@@ -364,6 +377,8 @@ async function saveAccount() {
     recycle_on_new_signal: g('f_recycle_on_new_signal').checked,
     reversal_policy: g('f_reversal_policy').value,
     accept_webhook: g('f_accept_webhook').checked,
+    notify_telegram: g('f_notify_telegram').checked,
+    notify_browser: g('f_notify_browser').checked,
     invert_signals: g('f_invert_signals').checked,
     enabled: true,
   };
@@ -1110,6 +1125,8 @@ async function refresh() {
       selectedAccountId = accountsCache.length ? accountsCache[0].id : null;
     }
     renderAll();
+    renderNotifyBanner();
+    fireTradeNotifications(statusCache);
     loadSuggested();
   } catch (e) {
     document.getElementById('accountBar').innerHTML =
@@ -1137,6 +1154,68 @@ async function loadTokenStatus() {
       </div>
       <a href="/billing" class="btn-ghost !py-1.5 !px-3 text-[11px]">${t('dash.request_token')}</a>
     </div>`;
+  }
+}
+
+// ---------- اعلان مرورگر برای باز/بسته شدن معامله ----------
+// موتور رویدادها را در یک صف کوچک نگه می‌دارد و همین حلقه‌ی رفرش پنج‌ثانیه‌ای
+// آن را برمی‌دارد. آخرین شناسه‌ی دیده‌شده‌ی هر حساب نگه داشته می‌شود تا با هر
+// رفرش دوباره اعلان تکراری ساخته نشود.
+const seenEventId = {};
+let notifyPrimed = false;
+
+function tradeNotificationsSupported() {
+  return typeof Notification !== 'undefined';
+}
+
+async function enableTradeNotifications() {
+  if (!tradeNotificationsSupported()) { toast(t('dash.notify_unsupported'), true); return; }
+  // درخواست مجوز باید از دل یک کلیک کاربر بیاید، وگرنه مرورگر ردش می‌کند.
+  const res = await Notification.requestPermission();
+  if (res === 'granted') { toast(t('dash.notify_granted')); renderAll(); }
+  else toast(t('dash.notify_denied'), true);
+}
+
+// بنر فقط وقتی دیده می‌شود که مرورگر پشتیبانی کند، هنوز مجوز نداده باشد، و
+// دست‌کم یک حساب اعلان مرورگرش روشن باشد — وگرنه صرفاً نویز است.
+function renderNotifyBanner() {
+  const box = document.getElementById('notifyBanner');
+  if (!box) return;
+  const anyOn = (accountsCache || []).some(a => a.notify_browser !== false);
+  if (!tradeNotificationsSupported() || !anyOn || Notification.permission !== 'default') {
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = `<div class="glass-card rounded-xl px-4 py-2.5 flex items-center justify-between flex-wrap gap-2 text-xs border-primary/30">
+    <div class="flex items-center gap-2">
+      <span class="material-symbols-outlined text-primary text-base">notifications_active</span>
+      <span class="text-on-surface-variant">${t('dash.notify_ask')}</span>
+    </div>
+    <button onclick="enableTradeNotifications()" class="btn-ghost !py-1.5 !px-3 text-[11px]">${t('dash.notify_enable')}</button>
+  </div>`;
+}
+
+function fireTradeNotifications(status) {
+  if (!tradeNotificationsSupported() || Notification.permission !== 'granted') return;
+  for (const [accId, st] of Object.entries(status || {})) {
+    const events = st.notify_events || [];
+    if (!events.length) continue;
+    const last = seenEventId[accId];
+    // اولین باری که این حساب دیده می‌شود فقط نشانه‌گذاری می‌کنیم؛ وگرنه با باز
+    // کردن صفحه، همه‌ی رویدادهای داخل صف یک‌جا اعلان می‌شدند.
+    if (last === undefined) {
+      seenEventId[accId] = events[events.length - 1].id;
+      continue;
+    }
+    const acc = accountsCache.find(a => a.id === accId);
+    const name = acc ? acc.name : '';
+    for (const ev of events) {
+      if (ev.id <= last) continue;
+      try {
+        new Notification(name, { body: ev.text, tag: `${accId}-${ev.id}`, icon: '/static/logo-icon.png?v=4' });
+      } catch (e) { /* بعضی مرورگرها روی موبایل بدون Service Worker پرتاب می‌کنند */ }
+      seenEventId[accId] = ev.id;
+    }
   }
 }
 

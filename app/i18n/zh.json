@@ -899,5 +899,14 @@
   "rep.flow_deposit": "入金 {amount}",
   "rep.flow_withdraw": "出金 {amount}",
   "rep.eq_note": "该曲线已剔除入金与出金，仅体现交易结果。垂直虚线标记入金（绿色）或出金（红色）的时点。",
-  "rep.period_return": "{period} 收益率"
+  "rep.period_return": "{period} 收益率",
+  "dash.notify_title": "开仓/平仓报告",
+  "dash.notify_telegram": "发送到 Telegram",
+  "dash.notify_browser": "浏览器通知",
+  "dash.notify_hint": "仅关闭此账户的交易报告。交易所错误与每日亏损上限提醒始终会发送。",
+  "dash.notify_ask": "若要在开仓与平仓时收到提醒，请在浏览器中允许通知。",
+  "dash.notify_enable": "启用通知",
+  "dash.notify_granted": "浏览器通知已启用",
+  "dash.notify_denied": "未授予权限 — 可在浏览器设置中更改。",
+  "dash.notify_unsupported": "您的浏览器不支持通知。"
 }

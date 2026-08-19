@@ -899,5 +899,14 @@
   "rep.flow_deposit": "deposit {amount}",
   "rep.flow_withdraw": "withdrawal {amount}",
   "rep.eq_note": "This curve removes deposits and withdrawals so only trading results show. The dashed vertical lines mark a deposit (green) or a withdrawal (red).",
-  "rep.period_return": "return over {period}"
+  "rep.period_return": "return over {period}",
+  "dash.notify_title": "Trade open/close reports",
+  "dash.notify_telegram": "Send to Telegram",
+  "dash.notify_browser": "Browser notification",
+  "dash.notify_hint": "This only silences trade reports for this account. Exchange errors and the daily loss limit are always sent.",
+  "dash.notify_ask": "To be notified when trades open and close, allow notifications in your browser.",
+  "dash.notify_enable": "Enable notifications",
+  "dash.notify_granted": "Browser notifications enabled",
+  "dash.notify_denied": "Permission was not granted — you can change it in your browser settings.",
+  "dash.notify_unsupported": "Your browser does not support notifications."
 }
