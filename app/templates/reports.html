@@ -104,6 +104,15 @@ function svgEquityChart(points) {
     labels += `<text x="${X(i)}" y="${H - 8}" text-anchor="middle" font-size="9" fill="#919094" font-family="JetBrains Mono">${t}</text>`;
   }
   const line = points.map((p, i) => `${X(i).toFixed(1)},${Y(Number(p.equity)).toFixed(1)}`).join(' ');
+  // منحنی اثر واریز/برداشت را ندارد، پس بدون نشانه معلوم نیست چرا سرمایه عوض
+  // شده ولی خط پله نخورده. هر جریان بیرونی یک خط‌چین عمودی می‌گیرد.
+  const flowMarks = points.map((p, i) => {
+    const f = Number(p.flow || 0);
+    if (!f || Math.abs(f) < 0.01) return '';
+    const x = X(i).toFixed(1);
+    const col = f > 0 ? '#4edea3' : '#f6465d';
+    return `<line x1="${x}" y1="${padT}" x2="${x}" y2="${H - padB}" stroke="${col}" stroke-width="1" stroke-dasharray="2,3" opacity="0.55"/>`;
+  }).join('');
   const first = Number(points[0].equity), last = Number(points[points.length - 1].equity);
   const up = last >= first;
   const color = up ? '#2ebd85' : '#f6465d';
@@ -112,13 +121,15 @@ function svgEquityChart(points) {
       <stop offset="0%" stop-color="${color}" stop-opacity="0.25"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/>
     </linearGradient></defs>
     ${grid}
+    ${flowMarks}
     <polygon points="${padL},${H - padB} ${line} ${W - padR},${H - padB}" fill="url(#eqGrad)"/>
     <polyline points="${line}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" style="filter:drop-shadow(0 0 6px ${color}55)"/>
     <line id="eqCursor" x1="0" y1="${padT}" x2="0" y2="${H - padB}" stroke="#919094" stroke-width="1" opacity="0"/>
     <circle id="eqDot" r="4" fill="${color}" stroke="#0A0A0B" stroke-width="2" opacity="0"/>
     ${labels}
   </svg>
-  <div class="mono-num text-[11px] text-secondary-fixed-dim mt-2 min-h-[16px]" dir="ltr" id="eqTip"></div>`;
+  <div class="mono-num text-[11px] text-secondary-fixed-dim mt-2 min-h-[16px]" dir="ltr" id="eqTip"></div>
+  <p class="text-[10px] text-on-surface-variant leading-5 mt-1">${t('rep.eq_note')}</p>`;
 }
 
 function eqHover(ev) {
@@ -144,7 +155,16 @@ function eqHover(ev) {
   if (cur) { cur.setAttribute('x1', px); cur.setAttribute('x2', px); cur.setAttribute('opacity', '0.5'); }
   if (dot) { dot.setAttribute('cx', px); dot.setAttribute('cy', py); dot.setAttribute('opacity', '1'); }
   const tip = document.getElementById('eqTip');
-  if (tip) tip.textContent = `${String(p.time || '').slice(0, 16).replace('T', ' ')} — Equity: ${niceNum(Number(p.equity))} USDT (Balance: ${niceNum(Number(p.balance))})`;
+  if (tip) {
+    const when = String(p.time || '').slice(0, 16).replace('T', ' ');
+    const f = Number(p.flow || 0);
+    const flowTxt = (f && Math.abs(f) >= 0.01)
+      ? '  •  ' + t(f > 0 ? 'rep.flow_deposit' : 'rep.flow_withdraw', {amount: niceNum(Math.abs(f))})
+      : '';
+    const raw = p.raw_equity != null ? p.raw_equity : p.equity;
+    tip.textContent = `${when} — ${t('rep.eq_adjusted')}: ${niceNum(Number(p.equity))} USDT`
+      + `  (${t('rep.eq_raw')}: ${niceNum(Number(raw))})${flowTxt}`;
+  }
 }
 function eqLeave() {
   const cur = document.getElementById('eqCursor'), dot = document.getElementById('eqDot');

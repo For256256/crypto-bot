@@ -893,5 +893,10 @@
   "err.smtp_unset": "Save your SMTP settings first.",
   "err.smtp_send_failed": "Sending the email failed: {reason}",
   "set.tls_hint": "On = STARTTLS on port 587 (the usual choice). Off = implicit SSL on port 465. The connection is encrypted either way.",
-  "rep.capital_hint": "Deposits add to it and withdrawals subtract; trading profit is not included."
+  "rep.capital_hint": "Deposits add to it and withdrawals subtract; trading profit is not included.",
+  "rep.eq_adjusted": "Equity (excluding transfers)",
+  "rep.eq_raw": "Actual balance",
+  "rep.flow_deposit": "deposit {amount}",
+  "rep.flow_withdraw": "withdrawal {amount}",
+  "rep.eq_note": "This curve removes deposits and withdrawals so only trading results show. The dashed vertical lines mark a deposit (green) or a withdrawal (red)."
 }

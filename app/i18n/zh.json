@@ -893,5 +893,10 @@
   "err.smtp_unset": "请先保存 SMTP 设置。",
   "err.smtp_send_failed": "邮件发送失败：{reason}",
   "set.tls_hint": "开启 = 端口 587 上的 STARTTLS（最常用）。关闭 = 端口 465 上的隐式 SSL。两种方式的连接都是加密的。",
-  "rep.capital_hint": "入金增加、出金减少；不含交易盈亏。"
+  "rep.capital_hint": "入金增加、出金减少；不含交易盈亏。",
+  "rep.eq_adjusted": "权益（不含转账）",
+  "rep.eq_raw": "实际余额",
+  "rep.flow_deposit": "入金 {amount}",
+  "rep.flow_withdraw": "出金 {amount}",
+  "rep.eq_note": "该曲线已剔除入金与出金，仅体现交易结果。垂直虚线标记入金（绿色）或出金（红色）的时点。"
 }
