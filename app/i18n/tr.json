@@ -383,7 +383,7 @@
   "rep.gross_loss": "Brüt zarar",
   "rep.gross_profit": "Brüt kâr",
   "rep.incl_unrealized": " ({n} açık pozisyondan {v} dahil)",
-  "rep.initial_balance": "Başlangıç bakiyesi",
+  "rep.initial_balance": "Yatırılan sermaye",
   "rep.load_error": "Rapor yüklenemedi: {msg}",
   "rep.loading_report": "Rapor yükleniyor…",
   "rep.margin_free": "Serbest marjin",
@@ -892,5 +892,6 @@
   "err.no_admin_email": "Test e-postası alabilmek için önce kendi profilinizde bir e-posta adresi tanımlayın.",
   "err.smtp_unset": "Önce SMTP ayarlarınızı kaydedin.",
   "err.smtp_send_failed": "E-posta gönderilemedi: {reason}",
-  "set.tls_hint": "Açık = 587 portunda STARTTLS (olağan seçim). Kapalı = 465 portunda örtük SSL. Her iki durumda da bağlantı şifrelidir."
+  "set.tls_hint": "Açık = 587 portunda STARTTLS (olağan seçim). Kapalı = 465 portunda örtük SSL. Her iki durumda da bağlantı şifrelidir.",
+  "rep.capital_hint": "Para yatırma artırır, çekme azaltır; işlem kârı buna dahil değildir."
 }
