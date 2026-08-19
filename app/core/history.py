@@ -133,48 +133,80 @@ def reset_account(account_id: str) -> dict:
 
 def get_account_stats(account_id: str, mode: str, current_equity: float | None = None,
                       current_balance: float | None = None) -> dict | None:
-    """خلاصه‌ی وضعیت مالی یک حساب برای نمایش در بالای داشبورد:
-    مبلغ اولیه، سود/زیان روزانه و درصد سود کلی — بر پایه‌ی منحنی اکوییتی
-    ثبت‌شده‌ی همان حالت (paper/live). با پاکسازی/ریست حساب، این منحنی خالی
-    می‌شود و مبلغ اولیه از همان لحظه (equity/balance فعلی) از نو محاسبه می‌شود.
-    اگر نه داده‌ی زنده‌ای در دسترس باشد و نه تاریخچه‌ای ثبت شده، None برمی‌گرداند."""
+    """خلاصه‌ی وضعیت مالی یک حساب برای نمایش در بالای داشبورد.
+
+    سود از روی *معاملات* حساب می‌شود، نه از تفاضل اکوییتی. نسخه‌ی قبلی
+    `equity_now - equity_start` را سود می‌گرفت؛ یعنی هر واریز به حساب صرافی
+    مستقیماً به‌عنوان سود ثبت می‌شد و هر برداشت به‌عنوان زیان. روی حساب واقعی
+    این هم سود روزانه و هم درصد بازده کلی را به‌کلی بی‌معنا می‌کرد.
+
+    چون `realized` هر معامله از قبل خالصِ کارمزد است، این رابطه برقرار است:
+
+        موجودی = سرمایه‌ی واریزشده + مجموع سود محقق‌شده
+
+    پس «سرمایه‌ی واریزشده» = موجودی فعلی − مجموع realized، که خودبه‌خود
+    واریز را اضافه و برداشت را کم می‌کند؛ بدون نیاز به ثبت دستی یا حدس‌زدن
+    از روی جهش موجودی.
+    """
     with _lock:
         data = _load()
+
     points = sorted(
         [e for e in data["equity"] if e.get("account_id") == account_id and e.get("mode") == mode],
         key=lambda e: str(e.get("time") or ""),
     )
+    trades = [t for t in data["trades"]
+              if t.get("account_id") == account_id and t.get("mode") == mode]
+
     if current_equity is None:
-        if not points:
+        if not points and not trades:
             return None
-        current_equity = _num(points[-1].get("equity"))
-        current_balance = _num(points[-1].get("balance"), current_equity)
+        if points:
+            current_equity = _num(points[-1].get("equity"))
+            if current_balance is None:
+                current_balance = _num(points[-1].get("balance"), current_equity)
+        else:
+            current_equity = 0.0
     else:
         current_equity = _num(current_equity)
-    if current_balance is None:
-        current_balance = current_equity
-    else:
-        current_balance = _num(current_balance)
+    current_balance = current_equity if current_balance is None else _num(current_balance)
 
-    initial_balance = _num(points[0].get("balance"), current_balance) if points else current_balance
+    realized_all = sum(_num(t.get("realized")) for t in trades)
+    # موجودی منهای سودِ محقق‌شده = پولی که کاربر واقعاً گذاشته است.
+    contributed = current_balance - realized_all
+    unrealized_now = current_equity - current_balance
 
+    overall_profit = realized_all + unrealized_now
+    overall_profit_pct = (overall_profit / contributed * 100) if contributed else 0.0
+
+    # ---- روزانه ----
     today = _now_iso()[:10]
+    realized_today = sum(_num(t.get("realized")) for t in trades
+                         if str(t.get("close_time") or "")[:10] == today)
     today_points = [p for p in points if str(p.get("time") or "")[:10] == today]
-    daily_start_equity = _num(today_points[0].get("equity"), current_equity) if today_points else current_equity
-    daily_pnl = current_equity - daily_start_equity
-    daily_pnl_pct = (daily_pnl / daily_start_equity * 100) if daily_start_equity else 0.0
+    if today_points:
+        eq0 = _num(today_points[0].get("equity"))
+        bal0 = _num(today_points[0].get("balance"), eq0)
+        unrealized_start = eq0 - bal0
+        daily_base = bal0
+    else:
+        # اولین نقطه‌ی امروز هنوز ثبت نشده — تغییر شناور امروز صفر فرض می‌شود.
+        unrealized_start = unrealized_now
+        daily_base = contributed
 
-    overall_profit = current_equity - initial_balance
-    overall_profit_pct = (overall_profit / initial_balance * 100) if initial_balance else 0.0
+    daily_pnl = realized_today + (unrealized_now - unrealized_start)
+    daily_pnl_pct = (daily_pnl / daily_base * 100) if daily_base else 0.0
 
     return {
-        "initial_balance": initial_balance,
+        "initial_balance": contributed,
         "current_equity": current_equity,
         "current_balance": current_balance,
         "daily_pnl": daily_pnl,
         "daily_pnl_pct": daily_pnl_pct,
         "overall_profit": overall_profit,
         "overall_profit_pct": overall_profit_pct,
+        "realized_total": realized_all,
+        "unrealized": unrealized_now,
     }
 
 
@@ -240,11 +272,34 @@ def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict
             s["losses"] += 1
     by_symbol = sorted(by_symbol_map.values(), key=lambda s: s["pnl"])
 
-    # ---------- ماکس دراوداون از روی منحنی اکوییتی ----------
+    # ---------- ماکس دراوداون، پس از خنثی‌کردن واریز/برداشت ----------
+    # روی خودِ اکوییتی خام، یک برداشت دقیقاً شبیه افت سرمایه دیده می‌شود و
+    # یک واریز، قله‌ی جعلی می‌سازد که همه‌ی دراوداون‌های بعدی را بزرگ‌تر نشان
+    # می‌دهد. جریان بیرونی بین دو نقطه = تغییر موجودی منهای سود محقق‌شده‌ی
+    # همان بازه؛ آن را از منحنی برمی‌داریم تا فقط اثر معاملات بماند.
+    trades_by_time = sorted(trades, key=lambda t: str(t.get("close_time") or ""))
+    ti = 0
+    cum_realized = 0.0
+    prev_balance = None
+    prev_cum = 0.0
+    offset = 0.0
+    adjusted = []
+    for e in equity_points:
+        point_time = str(e.get("time") or "")
+        while ti < len(trades_by_time) and str(trades_by_time[ti].get("close_time") or "") <= point_time:
+            cum_realized += _num(trades_by_time[ti].get("realized"))
+            ti += 1
+        eq = _num(e.get("equity"))
+        bal = _num(e.get("balance"), eq)
+        if prev_balance is not None:
+            flow = (bal - prev_balance) - (cum_realized - prev_cum)
+            offset += flow
+        adjusted.append(eq - offset)
+        prev_balance, prev_cum = bal, cum_realized
+
     max_dd_pct = 0.0
     peak = None
-    for e in equity_points:
-        eq = _num(e.get("equity"))
+    for eq in adjusted:
         if peak is None or eq > peak:
             peak = eq
         if peak and peak > 0:

@@ -383,7 +383,7 @@
   "rep.gross_loss": "总亏损",
   "rep.gross_profit": "总盈利",
   "rep.incl_unrealized": "（含来自 {n} 个持仓的 {v}）",
-  "rep.initial_balance": "初始余额",
+  "rep.initial_balance": "已投入本金",
   "rep.load_error": "加载报告失败：{msg}",
   "rep.loading_report": "正在加载报告…",
   "rep.margin_free": "可用保证金",
@@ -892,5 +892,6 @@
   "err.no_admin_email": "要接收测试邮件，请先在您的个人资料中设置邮箱地址。",
   "err.smtp_unset": "请先保存 SMTP 设置。",
   "err.smtp_send_failed": "邮件发送失败：{reason}",
-  "set.tls_hint": "开启 = 端口 587 上的 STARTTLS（最常用）。关闭 = 端口 465 上的隐式 SSL。两种方式的连接都是加密的。"
+  "set.tls_hint": "开启 = 端口 587 上的 STARTTLS（最常用）。关闭 = 端口 465 上的隐式 SSL。两种方式的连接都是加密的。",
+  "rep.capital_hint": "入金增加、出金减少；不含交易盈亏。"
 }

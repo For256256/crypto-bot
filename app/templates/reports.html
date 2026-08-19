@@ -367,6 +367,7 @@ function renderAccountDetails() {
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8">
       <div>
         ${hasStats ? row(t('rep.initial_balance'), niceNum(st.initial_balance) + ' USDT') : ''}
+        ${hasStats ? `<p class="text-[10px] text-on-surface-variant leading-5 -mt-1 mb-2">${t('rep.capital_hint')}</p>` : ''}
         ${hasStats ? row(t('rep.current_balance'), niceNum(st.current_balance) + ' USDT') : ''}
         ${hasStats ? row(t('rep.current_equity'), niceNum(st.current_equity) + ' USDT') : ''}
         ${hasStats ? row(t('dash.daily_pnl'), (st.daily_pnl >= 0 ? '+' : '') + niceNum(st.daily_pnl) + ` (${fmt(st.daily_pnl_pct, 2)}${t('common.pct')})`, st.daily_pnl >= 0 ? 'text-buy' : 'text-sell') : ''}

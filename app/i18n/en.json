@@ -383,7 +383,7 @@
   "rep.gross_loss": "Gross loss",
   "rep.gross_profit": "Gross profit",
   "rep.incl_unrealized": " (incl. {v} from {n} open positions)",
-  "rep.initial_balance": "Initial balance",
+  "rep.initial_balance": "Capital contributed",
   "rep.load_error": "Failed to load the report: {msg}",
   "rep.loading_report": "Loading the report…",
   "rep.margin_free": "Free margin",
@@ -892,5 +892,6 @@
   "err.no_admin_email": "To receive a test email, first set an email address on your own profile.",
   "err.smtp_unset": "Save your SMTP settings first.",
   "err.smtp_send_failed": "Sending the email failed: {reason}",
-  "set.tls_hint": "On = STARTTLS on port 587 (the usual choice). Off = implicit SSL on port 465. The connection is encrypted either way."
+  "set.tls_hint": "On = STARTTLS on port 587 (the usual choice). Off = implicit SSL on port 465. The connection is encrypted either way.",
+  "rep.capital_hint": "Deposits add to it and withdrawals subtract; trading profit is not included."
 }
