@@ -74,6 +74,11 @@ class AccountRunner:
         # دوباره، اعلان معامله‌های دیروز پشت سر هم بیاید.
         self.notify_events: deque = deque(maxlen=20)
         self._event_seq = 0
+        # مجموع خالص واریز/برداشت خوانده‌شده از دفتر صرافی، با زمان آخرین خواندن.
+        # هر tick خوانده نمی‌شود چون یک درخواست امضاشده‌ی اضافه است و این عدد
+        # فقط وقتی عوض می‌شود که کاربر پول جابه‌جا کند.
+        self._net_transfers: float | None = None
+        self._net_transfers_at: float = 0.0
         self.account_info: dict | None = None
         self.positions: list = []
         self._last_equity_snapshot = 0.0
@@ -188,6 +193,7 @@ class AccountRunner:
         self.positions = await self.driver.get_open_positions()
         self.status, self.status_key = "فعال", "running"
         self._diagnose_missing_targets()
+        await self._refresh_net_transfers()
 
         # ۲) ثبت نقطه‌ی اکوییتی (هر ۵ دقیقه)
         now_ts = loop.time()
@@ -720,12 +726,39 @@ class AccountRunner:
         self.positions = await self.driver.get_open_positions()
         return {"ok": True, "closed": target["symbol"]}
 
+    NET_TRANSFERS_TTL = 600      # ثانیه
+
+    async def _refresh_net_transfers(self):
+        """خواندن دوره‌ای مجموع واریز/برداشت از دفتر صرافی (فقط حساب واقعی).
+
+        در حالت کاغذی لازم نیست: آنجا هر تغییر موجودی از معامله‌ای می‌آید که
+        خودمان ثبتش کرده‌ایم، پس محاسبه‌ی «موجودی منهای سود» دقیقاً درست است.
+        روی حساب واقعی این‌طور نیست — کارمزد فاندینگ و اختلاف کارمزد تخمینی
+        عدد را می‌لغزانند.
+        """
+        if self.cfg.get("trading_mode") != "live":
+            return
+        getter = getattr(self.driver, "get_net_transfers", None)
+        if getter is None:
+            return
+        now = _utc_now().timestamp()
+        if self._net_transfers is not None and (now - self._net_transfers_at) < self.NET_TRANSFERS_TTL:
+            return
+        try:
+            value = await getter()
+        except Exception:
+            return                     # عدد قبلی نگه داشته می‌شود
+        if value is not None:
+            self._net_transfers = value
+            self._net_transfers_at = now
+
     # ---------- وضعیت برای داشبورد ----------
     def status_dict(self) -> dict:
         equity = float(self.account_info.get("equity", 0) or 0) if self.account_info else None
         balance = float(self.account_info.get("balance", 0) or 0) if self.account_info else None
         account_stats = history.get_account_stats(
             self.account_id, self.cfg.get("trading_mode", "paper"), equity, balance,
+            contributed=self._net_transfers,
         )
         # پوزیشن‌های paper از قبل stop_loss/take_profit دارند؛ درایورهای live
         # (توبیت/تبدیل) این مقادیر را در اندپوینت پوزیشن‌ها برنمی‌گردانند، پس

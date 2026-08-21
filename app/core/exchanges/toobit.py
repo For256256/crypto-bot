@@ -241,6 +241,55 @@ class ToobitDriver(ExchangeDriver):
             "free_margin": available,
         }
 
+    # flowType های دفتر مالی توبیت (از مستندات رسمی):
+    #   10 کارمزد · 28 سود/زیان محقق‌شده · 32 کارمزد فاندینگ
+    #   51 انتقال بین حساب‌ها (همان واریز/برداشت کاربر) · 700 لیکویید · 701 ADL
+    FLOW_TRANSFER = 51
+
+    async def get_net_transfers(self) -> float | None:
+        """جمع خالص واریز و برداشت کاربر روی حساب فیوچرز (USDT).
+
+        چرا لازم است: «سرمایه‌ی واریزشده» را قبلاً از روی موجودی منهای مجموع
+        سود معاملات حساب می‌کردیم. آن رابطه فقط وقتی دقیق است که هر تغییر
+        موجودی، معامله‌ای ثبت‌شده پشتش باشد — ولی کارمزد فاندینگ (flowType 32)
+        هر چند ساعت موجودی را تکان می‌دهد بدون هیچ معامله‌ای، و کارمزد واقعی
+        معاملات live هم فقط تخمین زده می‌شود. نتیجه این بود که عدد سرمایه
+        مدام می‌لغزید. اینجا خودِ دفتر صرافی خوانده می‌شود که مرجع است.
+
+        None یعنی نشد خواند؛ در آن حالت لایه‌ی بالاتر به همان محاسبه‌ی تقریبی
+        برمی‌گردد، نه اینکه عدد غلط نشان بدهد.
+        """
+        total = 0.0
+        from_id = None
+        try:
+            for _ in range(20):        # سقف صفحه‌بندی، تا حلقه بی‌پایان نشود
+                params = {"flowType": self.FLOW_TRANSFER, "limit": 200}
+                if from_id:
+                    params["fromId"] = from_id
+                rows = await self._request("GET", "/api/v1/futures/balanceFlow",
+                                           params, signed=True)
+                if not isinstance(rows, list) or not rows:
+                    break
+                for r in rows:
+                    if str(r.get("coin", "USDT")).upper() not in ("USDT", ""):
+                        continue
+                    # اگر صرافی فیلتر flowType را نادیده گرفت، اینجا دوباره چک می‌شود
+                    ft = r.get("flowType")
+                    if ft is not None and int(ft) != self.FLOW_TRANSFER:
+                        continue
+                    try:
+                        total += float(r.get("change") or 0.0)
+                    except (TypeError, ValueError):
+                        continue
+                if len(rows) < 200:
+                    break
+                from_id = rows[-1].get("id")
+                if not from_id:
+                    break
+            return total
+        except ExchangeError:
+            return None
+
     async def get_open_positions(self, symbol: str = None) -> list:
         params = {"symbol": symbol} if symbol else {}
         data = await self._request("GET", "/api/v1/futures/positions", params, signed=True)
