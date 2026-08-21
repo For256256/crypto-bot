@@ -132,7 +132,8 @@ def reset_account(account_id: str) -> dict:
 
 
 def get_account_stats(account_id: str, mode: str, current_equity: float | None = None,
-                      current_balance: float | None = None) -> dict | None:
+                      current_balance: float | None = None,
+                      contributed: float | None = None) -> dict | None:
     """خلاصه‌ی وضعیت مالی یک حساب برای نمایش در بالای داشبورد.
 
     سود از روی *معاملات* حساب می‌شود، نه از تفاضل اکوییتی. نسخه‌ی قبلی
@@ -172,8 +173,13 @@ def get_account_stats(account_id: str, mode: str, current_equity: float | None =
     current_balance = current_equity if current_balance is None else _num(current_balance)
 
     realized_all = sum(_num(t.get("realized")) for t in trades)
-    # موجودی منهای سودِ محقق‌شده = پولی که کاربر واقعاً گذاشته است.
-    contributed = current_balance - realized_all
+    # اگر جمع واریز/برداشت از خود دفتر صرافی خوانده شده باشد، همان مرجع است.
+    # محاسبه‌ی جایگزین (موجودی منهای سود) فقط وقتی دقیق است که هر تغییر موجودی
+    # معامله‌ای پشتش باشد؛ روی حساب واقعی کارمزد فاندینگ و اختلاف کارمزد
+    # تخمینی این رابطه را کم‌کم به هم می‌زنند و عدد سرمایه می‌لغزد.
+    from_exchange = contributed is not None
+    contributed = _num(contributed) if from_exchange else (current_balance - realized_all)
+    contributed_source = "exchange" if from_exchange else "derived"
     unrealized_now = current_equity - current_balance
 
     overall_profit = realized_all + unrealized_now
@@ -207,6 +213,7 @@ def get_account_stats(account_id: str, mode: str, current_equity: float | None =
         "overall_profit_pct": overall_profit_pct,
         "realized_total": realized_all,
         "unrealized": unrealized_now,
+        "contributed_source": contributed_source,
     }
 
 
