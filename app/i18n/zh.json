@@ -908,5 +908,21 @@
   "dash.notify_enable": "启用通知",
   "dash.notify_granted": "浏览器通知已启用",
   "dash.notify_denied": "未授予权限 — 可在浏览器设置中更改。",
-  "dash.notify_unsupported": "您的浏览器不支持通知。"
+  "dash.notify_unsupported": "您的浏览器不支持通知。",
+  "dash.trend_filter": "高周期趋势过滤 — 只执行与趋势同向的信号",
+  "dash.trend_tf": "趋势周期",
+  "dash.trend_method": "趋势判定方法",
+  "dash.trend_method_ema": "EMA（价格在均线上方/下方）",
+  "dash.trend_method_supertrend": "SuperTrend",
+  "dash.trend_method_both": "两者必须一致",
+  "dash.trend_ema_length": "趋势 EMA 周期",
+  "dash.trend_filter_hint": "市场整体方向取自所选周期（默认 4 小时），任何与之相反的入场信号——无论来自内置策略还是 TradingView Webhook——都会被忽略。平仓信号永远不会被过滤，趋势反转时也不会关闭已有持仓。如果无法确定方向（数据不足，或在「两者」模式下指标不一致），则不会开新仓。注意：该过滤会减少交易次数；请先在模拟模式或回测中试用。",
+  "dash.trend_badge": "{tf} 趋势",
+  "dash.trend_blocked": "逆势信号已拒绝",
+  "dash.trend_dir.up": "上涨",
+  "dash.trend_dir.down": "下跌",
+  "dash.trend_dir.neutral": "中性",
+  "dash.trend_dir.unknown": "未知",
+  "str.backtest_trend_hint": "这里应用与账户相同的过滤，让你在开启前先看到结果。趋势周期的K线单独获取，每个时点只使用已收盘的K线（不会看到未来数据）。",
+  "str.backtest_trend_note": "{tf} 趋势过滤已启用 — {n} 个信号因逆势而被跳过。"
 }

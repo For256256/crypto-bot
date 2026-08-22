@@ -11,11 +11,17 @@ sl_tp_atr_mult) و در کندل‌های بعدی با high/low چک می‌ش�
 
 invert=True همان کاری را می‌کند که تیک «معکوس» روی حساب انجام می‌دهد: هر
 سیگنال buy به sell و برعکس تبدیل می‌شود — برای تست فرضیه پیش از ریسک واقعی.
+
+trend_df همان کاری را می‌کند که «فیلتر روند تایم‌فریم بالاتر» روی حساب انجام
+می‌دهد: کندل‌های یک تایم‌فریم دیگر (معمولاً بالاتر) گرفته می‌شود و هر سیگنالی
+که خلاف روند آن باشد اجرا نمی‌شود. برای جلوگیری از نگاه به آینده، در هر کندل
+فقط از آخرین کندلِ روند که *قبل از* آن بسته شده استفاده می‌شود.
 """
 import pandas as pd
 
 from app.core.exchanges.toobit import TAKER_FEE_RATE
 from app.core.strategies import indicators as ind
+from app.core.strategies import trend as trend_mod
 from app.core.strategies.registry import run_strategy
 
 # چند استراتژی EMA۲۰۰ دارند. با warmup=۶۰ آن EMA هنوز همگرا نشده و سیگنال‌های
@@ -28,13 +34,63 @@ START_EQUITY = 10000.0
 RISK_PCT = 1.0  # ٪ریسک هر معامله از اکوییتی جاری — مثل ربات واقعی
 
 
+def _bar_step(times: list) -> int:
+    """طول یک کندل بر حسب میلی‌ثانیه — از فاصله‌ی زمان‌ها استخراج می‌شود.
+
+    از مینیمم فاصله‌ها استفاده می‌شود نه اولین فاصله: اگر صرافی وسط سری یک
+    کندل جا انداخته باشد، اولین فاصله ممکن است دو برابر واقعی باشد.
+    """
+    gaps = [b - a for a, b in zip(times, times[1:]) if b > a]
+    return min(gaps) if gaps else 0
+
+
+def _trend_lookup(trend_df: pd.DataFrame, exec_times: list, method: str, ema_length: int):
+    """تابعی می‌سازد که برای زمانِ باز شدن هر کندل اجرا، جهت روندِ آخرین کندلِ
+    *بسته‌شده‌ی* تایم‌فریم روند را برمی‌گرداند.
+
+    نگاه به آینده این‌جا خطر واقعی است: کندل ۴ ساعته‌ای که ساعت ۱۲ باز شده تا
+    ساعت ۱۶ بسته نمی‌شود، پس سیگنالِ ساعت ۱۳ حق ندارد آن را ببیند. سیگنال روی
+    close کندل اجرا ساخته می‌شود، یعنی در لحظه‌ی `t + exec_step`؛ کندل روند
+    وقتی در دسترس است که `t_trend + trend_step` از آن نگذشته باشد. این دقیقاً
+    همان چیزی است که موتور زنده می‌بیند (درایور کندل بازِ آخر را دور می‌ریزد).
+    """
+    series = trend_mod.trend_series(trend_df, method, ema_length)
+    times = [int(x) for x in trend_df["time"].tolist()]
+    dirs = [str(x) for x in series.tolist()]
+    trend_step = _bar_step(times)
+    exec_step = _bar_step(exec_times)
+    state = {"i": -1}
+
+    def lookup(t: int) -> str:
+        available_until = t + exec_step
+        # کرسر یک‌طرفه: بک‌تست زمان را صعودی می‌پیماید، پس جست‌وجوی دوباره لازم نیست
+        i = state["i"]
+        while i + 1 < len(times) and times[i + 1] + trend_step <= available_until:
+            i += 1
+        state["i"] = i
+        if i < 0:
+            return "unknown"
+        return dirs[i]
+
+    return lookup
+
+
 def run_backtest(df: pd.DataFrame, strategy_key: str, params: dict | None = None,
                  invert: bool = False, sl_tp_atr_mult: float = DEFAULT_SL_TP_ATR_MULT,
-                 reversal_policy: str = "none") -> dict:
+                 reversal_policy: str = "none", trend_df: pd.DataFrame | None = None,
+                 trend_method: str = trend_mod.DEFAULT_METHOD,
+                 trend_ema_length: int = trend_mod.DEFAULT_EMA_LENGTH,
+                 trend_timeframe: str = "") -> dict:
     """reversal_policy باید با تنظیم همان حساب یکی باشد؛ پیش‌فرضش هم مثل
     پیش‌فرض حساب‌هاست تا بک‌تستِ بدون پارامتر، رفتار واقعی ربات را نشان بدهد."""
     if df is None or len(df) < WARMUP + 20:
         raise ValueError("داده‌ی کندل برای بک‌تست کافی نیست (حداقل ~۲۳۰ کندل).")
+
+    trend_at = None
+    if trend_df is not None and len(trend_df) >= trend_mod.MIN_CANDLES:
+        trend_at = _trend_lookup(trend_df, [int(x) for x in df["time"].tolist()],
+                                 trend_method, trend_ema_length)
+    trend_skipped = 0
 
     atr_series = ind.atr(df, 14)
     equity = START_EQUITY
@@ -94,8 +150,13 @@ def run_backtest(df: pd.DataFrame, strategy_key: str, params: dict | None = None
             side = sig["signal"]
             if invert:
                 side = "sell" if side == "buy" else "buy"
+            # فیلتر روند دقیقاً مثل موتور واقعی: بعد از معکوس‌کردن، و فقط روی
+            # ورود — پوزیشن باز به حد ضرر/سود خودش سپرده می‌شود.
+            blocked = trend_at is not None and not trend_mod.side_matches(trend_at(when), side)
+            if blocked:
+                trend_skipped += 1
             wanted = "long" if side == "buy" else "short"
-            if position is not None and position["side"] != wanted:
+            if not blocked and position is not None and position["side"] != wanted:
                 # دقیقاً همان سیاستی که موتور واقعی اعمال می‌کند، وگرنه نتیجه‌ی
                 # بک‌تست با رفتار ربات یکی نیست. (تا پیش از این، بک‌تست همیشه
                 # معکوس می‌کرد در حالی که موتور فقط پوزیشن سودده را می‌بست.)
@@ -106,7 +167,7 @@ def run_backtest(df: pd.DataFrame, strategy_key: str, params: dict | None = None
                     floating = (close - position["entry"]) * direction * position["qty"]
                     if floating > 0:
                         close_position(close, when, "reversal")
-            if position is None:
+            if not blocked and position is None:
                 atr_v = atr_series.iat[i]
                 if pd.notna(atr_v) and atr_v > 0:
                     dist = sl_tp_atr_mult * atr_v
@@ -153,6 +214,11 @@ def run_backtest(df: pd.DataFrame, strategy_key: str, params: dict | None = None
             "total_fees": total_fees,
             "inverted": bool(invert),
             "reversal_policy": reversal_policy,
+            # فیلتر روند: چند سیگنال به‌خاطر خلاف‌جهت بودن اجرا نشد
+            "trend_filter": bool(trend_at is not None),
+            "trend_timeframe": trend_timeframe,
+            "trend_method": trend_method,
+            "trend_skipped": trend_skipped,
             # میانگین برد و باخت و نسبتشان: نرخ برد به‌تنهایی گمراه‌کننده است.
             # با نرخ برد W، سربه‌سر شدن نیاز دارد نسبت ≥ (1-W)/W باشد.
             "avg_win": (gross_profit / len(wins)) if wins else 0.0,

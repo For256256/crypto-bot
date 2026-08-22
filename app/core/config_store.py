@@ -44,6 +44,14 @@ ACCOUNT_DEFAULTS = {
     "reversal_policy": "none",
     # همه‌ی سیگنال‌ها (استراتژی داخلی و وبهوک) وارونه اجرا می‌شوند: خرید→فروش
     "invert_signals": False,
+    # ---- فیلتر روند تایم‌فریم بالاتر ----
+    # روند کلی بازار از یک تایم‌فریم مستقل (پیش‌فرض ۴ ساعته) خوانده می‌شود و
+    # هر سیگنال ورودِ خلاف آن روند نادیده گرفته می‌شود. سیگنال بستن پوزیشن
+    # هیچ‌وقت فیلتر نمی‌شود — فیلتر فقط جلوی «باز کردن» معامله را می‌گیرد.
+    "trend_filter_enabled": False,
+    "trend_filter_timeframe": "4h",
+    "trend_filter_method": "ema",          # ema | supertrend | both
+    "trend_filter_ema_length": 200,
     "accept_webhook": True,
     "enabled": True,
     # گزارش باز/بسته شدن معامله‌ی همین حساب. هشدارهای ایمنی (خطای صرافی،

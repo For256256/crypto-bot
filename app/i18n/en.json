@@ -908,5 +908,21 @@
   "dash.notify_enable": "Enable notifications",
   "dash.notify_granted": "Browser notifications enabled",
   "dash.notify_denied": "Permission was not granted — you can change it in your browser settings.",
-  "dash.notify_unsupported": "Your browser does not support notifications."
+  "dash.notify_unsupported": "Your browser does not support notifications.",
+  "dash.trend_filter": "Higher-timeframe trend filter — only take signals aligned with the trend",
+  "dash.trend_tf": "Trend timeframe",
+  "dash.trend_method": "Trend detection method",
+  "dash.trend_method_ema": "EMA (price above/below the average)",
+  "dash.trend_method_supertrend": "SuperTrend",
+  "dash.trend_method_both": "Both must agree",
+  "dash.trend_ema_length": "Trend EMA length",
+  "dash.trend_filter_hint": "The overall market direction is read from the selected timeframe (4h by default), and any entry signal against it — whether from the built-in strategy or a TradingView webhook — is ignored. Exits are never filtered, and open positions are not closed when the trend flips. If the direction cannot be established (not enough data, or the indicators disagree in “both” mode), no new entry is taken. Note: this filter reduces the number of trades; try it in paper mode or the backtest first.",
+  "dash.trend_badge": "{tf} trend",
+  "dash.trend_blocked": "counter-trend signal rejected",
+  "dash.trend_dir.up": "up",
+  "dash.trend_dir.down": "down",
+  "dash.trend_dir.neutral": "neutral",
+  "dash.trend_dir.unknown": "unknown",
+  "str.backtest_trend_hint": "The same filter the account uses is applied here, so you can see the result before turning it on. Trend-timeframe candles are fetched separately and only closed candles are used at each point in time (no look-ahead).",
+  "str.backtest_trend_note": "The {tf} trend filter was active — {n} signals were skipped for being counter-trend."
 }

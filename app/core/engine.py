@@ -36,6 +36,7 @@ def normalize_symbol_for(exchange: str, raw: str) -> str:
     fn = _NORMALIZE_SYMBOL.get(exchange, _toobit_normalize_symbol)
     return fn(raw)
 from app.core.strategies.registry import run_strategy, STRATEGIES
+from app.core.strategies import trend as trend_filter
 
 EQUITY_SNAPSHOT_SECONDS = 300
 # فاصله‌ی بررسی انقضای توکن فعال‌سازی معاملات واقعی حساب‌های کاربران عادی
@@ -92,6 +93,13 @@ class AccountRunner:
         # فقط یک‌بار درباره‌ی نبودن حد ضرر/سود هشدار می‌دهیم، وگرنه هر tick
         # لاگ را پر می‌کند.
         self._tpsl_diag_logged = False
+        # ---- فیلتر روند تایم‌فریم بالاتر ----
+        # کش کندل‌های تایم‌فریم روند. کندل ۴ ساعته هر ۴ ساعت عوض می‌شود ولی
+        # حلقه‌ی ربات هر دقیقه اجرا می‌شود؛ بدون کش، هر tick یک درخواست اضافه
+        # به صرافی می‌رفت که نه لازم است نه مؤدبانه.
+        self._trend_cache: dict = {}
+        # فقط یک‌بار درباره‌ی کوتاه بودن تاریخچه‌ی تایم‌فریم روند هشدار بدهیم
+        self._trend_history_warned: set = set()
 
     # ---------- لاگ ----------
     def log(self, message: str, level: str = "info"):
@@ -387,6 +395,76 @@ class AccountRunner:
         elif self._daily["blocked"]:
             self.status, self.status_key = "متوقف (سقف ضرر روزانه)", "stopped_daily_loss"
 
+    # ---------- فیلتر روند تایم‌فریم بالاتر ----------
+    TREND_CACHE_TTL = 300      # ثانیه
+
+    def _trend_settings(self) -> tuple[str, str, int]:
+        tf = str(self.cfg.get("trend_filter_timeframe") or trend_filter.DEFAULT_TIMEFRAME)
+        method = str(self.cfg.get("trend_filter_method") or trend_filter.DEFAULT_METHOD)
+        length = int(self.cfg.get("trend_filter_ema_length") or trend_filter.DEFAULT_EMA_LENGTH)
+        return tf, method, max(length, 2)
+
+    async def _get_trend(self, symbol: str) -> dict | None:
+        """جهت روند کلی این نماد در تایم‌فریم فیلتر. None یعنی فیلتر خاموش است.
+
+        اگر خواندن کندل شکست بخورد، آخرین جهت شناخته‌شده برگردانده می‌شود
+        (با پرچم stale) — روند ۴ ساعته با یک قطعی شبکه‌ی چنددقیقه‌ای عوض
+        نمی‌شود و بستن کل ربات به‌خاطر یک خطای گذرا بدتر از استفاده از عدد
+        کمی قدیمی است.
+        """
+        if not self.cfg.get("trend_filter_enabled"):
+            return None
+        tf, method, length = self._trend_settings()
+        key = (symbol, tf, method, length)
+        now = _utc_now().timestamp()
+        cached = self._trend_cache.get(key)
+        if cached and (now - cached[0]) < self.TREND_CACHE_TTL:
+            return cached[1]
+
+        # حاشیه‌ی گرم‌کردن اندیکاتور؛ سقف ۱۰۰۰ چون صرافی‌ها بیشتر نمی‌دهند
+        need = min(max(length + 200, 300), 1000)
+        try:
+            df = await self.driver.get_candles(symbol, tf, need)
+        except ExchangeError as e:
+            if cached:
+                self.log(f"{symbol}: خواندن کندل روند {tf} ناموفق ({e}) — از آخرین روند شناخته‌شده استفاده شد.", "warn")
+                return {**cached[1], "stale": True}
+            self.log(f"{symbol}: خواندن کندل روند {tf} ناموفق: {e}", "error")
+            return {"direction": "unknown", "timeframe": tf, "method": method,
+                    "ema_length": length, "error": str(e)}
+
+        info = trend_filter.detect_trend(df, method, length)
+        info["timeframe"] = tf
+        info["stale"] = False
+        if info.get("insufficient_history") and key not in self._trend_history_warned:
+            self._trend_history_warned.add(key)
+            self.log(
+                f"{symbol}: تاریخچه‌ی تایم‌فریم {tf} کمتر از دوره‌ی اندیکاتور است "
+                f"({len(df)} کندل) — جهت روند تخمینی است.",
+                "warn",
+            )
+        self._trend_cache[key] = (now, info)
+        return info
+
+    async def _trend_allows(self, symbol: str, side: str) -> tuple[bool, str]:
+        """آیا این جهت ورود با روند تایم‌فریم بالاتر هم‌سوست؟
+
+        خروجی (اجازه، دلیل رد). وقتی فیلتر خاموش است همیشه اجازه می‌دهد.
+        """
+        info = await self._get_trend(symbol)
+        if info is None:
+            return True, ""
+        direction = info.get("direction", "unknown")
+        if trend_filter.side_matches(direction, side):
+            return True, ""
+        tf = info.get("timeframe", "")
+        if direction == "unknown":
+            return False, f"روند تایم‌فریم {tf} تعیین نشد"
+        if direction == "neutral":
+            return False, f"روند تایم‌فریم {tf} خنثی است (اندیکاتورها موافق نیستند)"
+        arrow = "صعودی" if direction == "up" else "نزولی"
+        return False, f"روند تایم‌فریم {tf} {arrow} است"
+
     # ---------- پردازش سیگنال یک نماد ----------
     async def _process_symbol(self, sym_cfg: dict):
         symbol = sym_cfg["symbol"]
@@ -412,9 +490,23 @@ class AccountRunner:
         sig["spark"] = [float(x) for x in df["close"].tail(30).tolist()]
         sig["timeframe"] = sym_cfg.get("timeframe", "1h")
         self.last_signals[symbol] = sig
+
+        # جهت روند حتی وقتی سیگنالی نیست هم خوانده و نشان داده می‌شود، وگرنه
+        # کاربر فقط لحظه‌ی رد شدن یک سیگنال می‌فهمد فیلتر چه فکری می‌کند.
+        if self.cfg.get("trend_filter_enabled"):
+            tinfo = await self._get_trend(symbol)
+            if tinfo:
+                sig["trend"] = {
+                    "direction": tinfo.get("direction", "unknown"),
+                    "timeframe": tinfo.get("timeframe", ""),
+                    "stale": bool(tinfo.get("stale")),
+                }
+
         if sig["signal"] in ("buy", "sell"):
             raw = sig["signal"]
-            await self._handle_entry_signal(sym_cfg, raw, sig["close"], None, None, sig.get("atr"))
+            result = await self._handle_entry_signal(sym_cfg, raw, sig["close"], None, None, sig.get("atr"))
+            if result == "trend_blocked":
+                sig["trend_blocked"] = True
             if self.cfg.get("invert_signals"):
                 # چیپ سیگنال در داشبورد باید همان جهتی را نشان دهد که واقعاً
                 # اجرا شده، نه خروجی خام استراتژی. جهت خام هم نگه داشته می‌شود.
@@ -446,6 +538,16 @@ class AccountRunner:
             else:
                 stop_loss = take_profit = None
             self.log(f"{symbol}: حالت معکوس فعال است — سیگنال {original_side} به {side} تبدیل شد.")
+
+        # فیلتر روند تایم‌فریم بالاتر — بعد از حالت معکوس بررسی می‌شود، چون
+        # چیزی که باید با روند هم‌سو باشد جهتِ واقعاً اجراشده است نه خروجی خام
+        # استراتژی. فقط جلوی «باز کردن» را می‌گیرد؛ سیگنال close هیچ‌وقت به
+        # این تابع نمی‌رسد، پس خروج از پوزیشن هرگز فیلتر نمی‌شود.
+        allowed, reason = await self._trend_allows(symbol, side)
+        if not allowed:
+            side_fa = "خرید" if side == "buy" else "فروش"
+            self.log(f"{symbol}: سیگنال {side_fa} خلاف روند نادیده گرفته شد — {reason}.", "warn")
+            return "trend_blocked"
 
         wanted = "long" if side == "buy" else "short"
 
@@ -698,7 +800,9 @@ class AccountRunner:
         except Exception:
             pass
 
-        await self._handle_entry_signal(sym_cfg, signal, price, stop_loss, take_profit, atr)
+        result = await self._handle_entry_signal(sym_cfg, signal, price, stop_loss, take_profit, atr)
+        if result == "trend_blocked":
+            return "خلاف روند تایم‌فریم بالاتر بود — نادیده گرفته شد"
         return "سیگنال اعمال شد"
 
     # ---------- بستن دستی ----------
