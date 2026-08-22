@@ -283,6 +283,9 @@ class AccountRunner:
                     realized = gross - fee
                     history.record_trade(self.account_id, mode, {
                         **prev,
+                        # صفحه‌ی گزارشات زمان ورود را نشان می‌دهد؛ در حالت live
+                        # تنها منبعش همین رکورد است و بعد از پاک‌شدن از بین می‌رود.
+                        "open_time": prev.get("open_time") or (targets or {}).get("open_time"),
                         "close_price": prev.get("mark_price"),
                         "realized": realized,
                         "fee": fee,
@@ -354,8 +357,11 @@ class AccountRunner:
         fee = await self._estimate_live_fee(position["symbol"], position.get("entry_price"),
                                             position.get("mark_price"), position.get("qty"))
         realized = gross - fee
+        stored = position_targets.get_targets(self.account_id, position.get("symbol"),
+                                              position.get("side")) or {}
         history.record_trade(self.account_id, self.cfg.get("trading_mode", "paper"), {
             **position,
+            "open_time": position.get("open_time") or stored.get("open_time"),
             "close_price": position.get("mark_price"),
             "realized": realized,
             "fee": fee,
@@ -673,15 +679,19 @@ class AccountRunner:
         if not isinstance(self.driver, PaperDriver):
             # تازه‌ترین پوزیشن همین نماد را پیدا و SL/TP آن را برای تشخیص بعدیِ
             # «SL خورد یا TP» (وقتی در سمت صرافی بسته شود) ذخیره می‌کنیم.
+            # زمان ورود هم همین‌جا ثبت می‌شود: پاسخ پوزیشن‌های صرافی هیچ فیلد
+            # زمانی ندارد، پس اگر الان ننویسیمش دیگر جایی پیدا نمی‌شود.
             opened = next((p for p in self.positions if p["symbol"] == symbol), None)
             if opened is not None:
+                open_time = _utc_now().isoformat(timespec="seconds")
                 self._live_position_targets[opened["id"]] = {
                     "stop_loss": stop_loss, "take_profit": take_profit,
+                    "open_time": open_time,
                 }
                 # روی دیسک هم می‌ماند تا با توقف/شروع حساب یا ری‌استارت سرویس
                 # از بین نرود؛ کلید «نماد|جهت» است چون شناسه‌ی پوزیشن پایدار نیست.
                 position_targets.set_targets(self.account_id, symbol, opened["side"],
-                                             stop_loss, take_profit)
+                                             stop_loss, take_profit, open_time)
 
     async def _calc_qty(self, sym_cfg: dict, price: float, stop_loss: float, leverage: int = 1):
         """حجم = (اکوییتی × ٪ریسک) ÷ فاصله‌ی SL — سپس روی گام حجم صرافی گرد می‌شود
@@ -869,17 +879,25 @@ class AccountRunner:
         # از همان _live_position_targets که برای تشخیص «SL خورد یا TP» نگه
         # می‌داریم، برای نمایش در داشبورد هم استفاده می‌شود.
         positions = []
+        # کل رکوردهای این حساب یک‌بار از دیسک خوانده می‌شود، نه یک‌بار به‌ازای
+        # هر پوزیشن — این تابع با هر بار پول‌کردن داشبورد صدا زده می‌شود.
+        stored = position_targets.get_account(self.account_id) if self.positions else {}
         for p in self.positions:
-            if not p.get("stop_loss") and not p.get("take_profit"):
-                # زنجیره‌ی جست‌وجو: پاسخ صرافی (بالا چک شد) → حافظه‌ی همین اجرا
-                # → حافظه‌ی ماندگار روی دیسک. مورد سوم همان چیزی است که بعد از
-                # توقف/شروع حساب یا ری‌استارت سرویس نجات‌دهنده است.
-                targets = (self._live_position_targets.get(p.get("id"))
-                           or position_targets.get_targets(self.account_id,
-                                                           p.get("symbol"), p.get("side")))
-                if targets:
-                    p = {**p, "stop_loss": targets.get("stop_loss"),
-                         "take_profit": targets.get("take_profit")}
+            # زنجیره‌ی جست‌وجو: پاسخ صرافی (اگر داشته باشد) → حافظه‌ی همین اجرا
+            # → حافظه‌ی ماندگار روی دیسک. مورد سوم همان چیزی است که بعد از
+            # توقف/شروع حساب یا ری‌استارت سرویس نجات‌دهنده است.
+            record = (self._live_position_targets.get(p.get("id"))
+                      or stored.get(position_targets.make_key(p.get("symbol"), p.get("side"))))
+            if record:
+                patch = {}
+                if not p.get("stop_loss") and not p.get("take_profit"):
+                    patch["stop_loss"] = record.get("stop_loss")
+                    patch["take_profit"] = record.get("take_profit")
+                # درایور paper خودش open_time دارد؛ این فقط برای live است.
+                if not p.get("open_time") and record.get("open_time"):
+                    patch["open_time"] = record["open_time"]
+                if patch:
+                    p = {**p, **patch}
             positions.append(p)
         return {
             "running": self.running,

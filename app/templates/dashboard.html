@@ -1040,6 +1040,7 @@ function renderPositions() {
     return `<tr class="hover:bg-surface-variant/20 transition-colors">
       <td>${p.symbol}</td><td>${sideBadge(p)}</td>
       <td class="num">${fmtNum(p.qty)}</td><td class="num">${fmtNum(p.entry_price)}</td>
+      <td class="num text-[11px] text-on-surface-variant whitespace-nowrap">${p.open_time ? fmtDateTime(p.open_time) : '—'}</td>
       <td class="num">${fmtNum(p.mark_price)}</td>
       <td class="num text-sell">${p.stop_loss != null ? fmtNum(p.stop_loss) : '—'}</td>
       <td class="num text-buy">${p.take_profit != null ? fmtNum(p.take_profit) : '—'}</td>
@@ -1073,10 +1074,11 @@ function renderPositions() {
         ${cell(t('dash.th_current'), fmtNum(p.mark_price))}
         ${cell(t('dash.th_sl'), p.stop_loss != null ? fmtNum(p.stop_loss) : '—', 'text-sell')}
         ${cell(t('dash.th_tp'), p.take_profit != null ? fmtNum(p.take_profit) : '—', 'text-buy')}
-        <div class="flex items-end justify-end">
-          <button class="btn-ghost !py-1 !px-3 text-[11px] !border-sell/40 !text-sell"
-                  onclick="closePosition('${acc.id}','${p.id}','${p.symbol}')">${t('dash.close')}</button>
-        </div>
+        ${cell(t('dash.th_open_time'), p.open_time ? fmtDateTime(p.open_time) : '—')}
+      </div>
+      <div class="flex justify-end mt-3">
+        <button class="btn-ghost !py-1 !px-3 text-[11px] !border-sell/40 !text-sell"
+                onclick="closePosition('${acc.id}','${p.id}','${p.symbol}')">${t('dash.close')}</button>
       </div>
     </div>`;
   }).join('');
@@ -1086,7 +1088,7 @@ function renderPositions() {
       <h3 class="font-headline font-bold flex items-center gap-2"><span class="material-symbols-outlined text-primary">candlestick_chart</span> ${t('dash.open_positions')}</h3>
     </div>
     <div class="hidden md:block overflow-x-auto"><table class="of-table">
-      <thead><tr><th>${t('common.symbol')}</th><th>${t('dash.th_side')}</th><th>${t('dash.th_qty')}</th><th>${t('dash.th_entry')}</th><th>${t('dash.th_current')}</th><th>${t('dash.th_sl')}</th><th>${t('dash.th_tp')}</th><th>${t('dash.th_pnl')}</th><th></th></tr></thead>
+      <thead><tr><th>${t('common.symbol')}</th><th>${t('dash.th_side')}</th><th>${t('dash.th_qty')}</th><th>${t('dash.th_entry')}</th><th>${t('dash.th_open_time')}</th><th>${t('dash.th_current')}</th><th>${t('dash.th_sl')}</th><th>${t('dash.th_tp')}</th><th>${t('dash.th_pnl')}</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
     <div class="md:hidden">${cards}</div>
