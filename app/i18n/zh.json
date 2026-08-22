@@ -924,5 +924,6 @@
   "dash.trend_dir.neutral": "中性",
   "dash.trend_dir.unknown": "未知",
   "str.backtest_trend_hint": "这里应用与账户相同的过滤，让你在开启前先看到结果。趋势周期的K线单独获取，每个时点只使用已收盘的K线（不会看到未来数据）。",
-  "str.backtest_trend_note": "{tf} 趋势过滤已启用 — {n} 个信号因逆势而被跳过。"
+  "str.backtest_trend_note": "{tf} 趋势过滤已启用 — {n} 个信号因逆势而被跳过。",
+  "dash.th_open_time": "入场时间"
 }

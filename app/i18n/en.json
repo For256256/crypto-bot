@@ -924,5 +924,6 @@
   "dash.trend_dir.neutral": "neutral",
   "dash.trend_dir.unknown": "unknown",
   "str.backtest_trend_hint": "The same filter the account uses is applied here, so you can see the result before turning it on. Trend-timeframe candles are fetched separately and only closed candles are used at each point in time (no look-ahead).",
-  "str.backtest_trend_note": "The {tf} trend filter was active — {n} signals were skipped for being counter-trend."
+  "str.backtest_trend_note": "The {tf} trend filter was active — {n} signals were skipped for being counter-trend.",
+  "dash.th_open_time": "Entry time"
 }
