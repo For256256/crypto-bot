@@ -69,6 +69,37 @@
           <label class="switch"><input type="checkbox" id="bt_invert"><span class="switch-track"><span class="switch-thumb"></span></span></label>
           <label for="bt_invert" class="text-xs text-on-surface-variant">{{ t("str.backtest_invert") }}</label>
         </div>
+        <div class="col-span-2 md:col-span-4 rounded-xl border border-outline-variant/25 p-3">
+          <div class="flex items-center gap-2">
+            <label class="switch"><input type="checkbox" id="bt_trend_enabled" onchange="onBtTrendToggle()"><span class="switch-track"><span class="switch-thumb"></span></span></label>
+            <label for="bt_trend_enabled" class="text-xs font-bold">{{ t("dash.trend_filter") }}</label>
+          </div>
+          <div id="bt_trend_box" class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3 hidden">
+            <div>
+              <label class="lbl">{{ t("dash.trend_tf") }}</label>
+              <select id="bt_trend_timeframe" class="field">
+                <option value="15m">{{ t("common.tf_15m") }}</option>
+                <option value="30m">{{ t("common.tf_30m") }}</option>
+                <option value="1h">{{ t("common.tf_1h") }}</option>
+                <option value="4h" selected>{{ t("common.tf_4h") }}</option>
+                <option value="1d">{{ t("common.tf_1d") }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="lbl">{{ t("dash.trend_method") }}</label>
+              <select id="bt_trend_method" class="field">
+                <option value="ema">{{ t("dash.trend_method_ema") }}</option>
+                <option value="supertrend">{{ t("dash.trend_method_supertrend") }}</option>
+                <option value="both">{{ t("dash.trend_method_both") }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="lbl">{{ t("dash.trend_ema_length") }}</label>
+              <input id="bt_trend_ema_length" class="field mono-num" dir="ltr" type="number" min="2" value="200">
+            </div>
+          </div>
+          <p class="text-[10px] text-on-surface-variant mt-2 leading-5">{{ t("str.backtest_trend_hint") }}</p>
+        </div>
       </div>
       <div id="btResult">
         <div class="text-center text-on-surface-variant text-sm py-10 border border-dashed border-outline-variant/30 rounded-xl">
@@ -263,6 +294,11 @@ async function saveParams() {
 }
 
 // ---------- بک‌تست ----------
+function onBtTrendToggle() {
+  const on = document.getElementById('bt_trend_enabled').checked;
+  document.getElementById('bt_trend_box').classList.toggle('hidden', !on);
+}
+
 function btStatsHtml(s) {
   const pnlCls = (s.total_pnl || 0) >= 0 ? 'text-buy' : 'text-sell';
   const pf = s.profit_factor === null || s.profit_factor === undefined ? '∞' : fmt(s.profit_factor);
@@ -273,6 +309,7 @@ function btStatsHtml(s) {
     <div class="bg-surface-container-low rounded-lg p-3 text-center"><div class="text-[10px] text-on-surface-variant mb-1">${t('str.pf_maxdd')}</div><div class="mono-num text-lg font-bold" dir="ltr">${pf} <span class="text-xs text-sell">/ ${fmt(s.max_drawdown_pct, 1)}${t('common.pct')}</span></div></div>
   </div>`
   + (s.inverted ? `<div class="text-[11px] text-amber-500 border border-amber-500/40 bg-amber-500/10 rounded-lg px-3 py-2 mb-3">${t('str.backtest_inverted_note')}</div>` : '')
+  + (s.trend_filter ? `<div class="text-[11px] text-primary border border-primary/40 bg-primary/10 rounded-lg px-3 py-2 mb-3">${t('str.backtest_trend_note', {tf: s.trend_timeframe, n: s.trend_skipped})}</div>` : '')
   + `<div class="text-[10px] text-on-surface-variant mb-3">${t('str.backtest_fees', {fees: fmt(s.total_fees || 0)})}`
   + (s.win_loss_ratio ? ` · ${t('str.backtest_wl', {ratio: fmt(s.win_loss_ratio, 2), need: fmt((100 - s.win_rate) / (s.win_rate || 1), 2)})}` : '')
   + `</div>`;
@@ -309,6 +346,10 @@ async function runBacktest() {
     strategy_params: {},
     invert: document.getElementById('bt_invert').checked,
     reversal_policy: document.getElementById('bt_reversal').value,
+    trend_filter_enabled: document.getElementById('bt_trend_enabled').checked,
+    trend_filter_timeframe: document.getElementById('bt_trend_timeframe').value,
+    trend_filter_method: document.getElementById('bt_trend_method').value,
+    trend_filter_ema_length: Math.max(parseInt(document.getElementById('bt_trend_ema_length').value) || 200, 2),
   };
   btn.disabled = true;
   box.innerHTML = `<div class="text-center text-on-surface-variant text-sm py-10">${t('str.running_backtest')}</div>`;

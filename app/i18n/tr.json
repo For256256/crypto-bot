@@ -908,5 +908,21 @@
   "dash.notify_enable": "Bildirimleri etkinleştir",
   "dash.notify_granted": "Tarayıcı bildirimleri etkinleştirildi",
   "dash.notify_denied": "İzin verilmedi — tarayıcı ayarlarından değiştirebilirsiniz.",
-  "dash.notify_unsupported": "Tarayıcınız bildirimleri desteklemiyor."
+  "dash.notify_unsupported": "Tarayıcınız bildirimleri desteklemiyor.",
+  "dash.trend_filter": "Üst zaman dilimi trend filtresi — yalnızca trendle aynı yöndeki sinyaller işleme alınsın",
+  "dash.trend_tf": "Trend zaman dilimi",
+  "dash.trend_method": "Trend belirleme yöntemi",
+  "dash.trend_method_ema": "EMA (fiyat ortalamanın üstünde/altında)",
+  "dash.trend_method_supertrend": "SuperTrend",
+  "dash.trend_method_both": "İkisi de aynı yönü göstermeli",
+  "dash.trend_ema_length": "Trend EMA periyodu",
+  "dash.trend_filter_hint": "Piyasanın genel yönü seçilen zaman diliminden (varsayılan 4 saat) okunur ve buna ters her giriş sinyali — ister dahili stratejiden ister TradingView webhook'undan gelsin — yok sayılır. Pozisyon kapatma asla filtrelenmez ve trend döndüğünde açık pozisyonlar kapatılmaz. Yön belirlenemezse (yeterli veri yoksa ya da «ikisi de» modunda göstergeler uyuşmuyorsa) yeni giriş yapılmaz. Not: bu filtre işlem sayısını azaltır; önce kâğıt modunda veya geriye dönük testte deneyin.",
+  "dash.trend_badge": "{tf} trendi",
+  "dash.trend_blocked": "trend karşıtı sinyal reddedildi",
+  "dash.trend_dir.up": "yükseliş",
+  "dash.trend_dir.down": "düşüş",
+  "dash.trend_dir.neutral": "nötr",
+  "dash.trend_dir.unknown": "belirsiz",
+  "str.backtest_trend_hint": "Hesapta kullanılan filtrenin aynısı burada da uygulanır, böylece açmadan önce sonucu görebilirsiniz. Trend zaman diliminin mumları ayrıca çekilir ve her anda yalnızca kapanmış mum kullanılır (geleceğe bakma yok).",
+  "str.backtest_trend_note": "{tf} trend filtresi etkindi — {n} sinyal trend karşıtı olduğu için atlandı."
 }

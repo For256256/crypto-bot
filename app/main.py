@@ -135,6 +135,11 @@ class AccountIn(BaseModel):
     recycle_on_new_signal: bool = False
     reversal_policy: str = "none"
     invert_signals: bool = False
+    # فیلتر روند تایم‌فریم بالاتر
+    trend_filter_enabled: bool = False
+    trend_filter_timeframe: str = "4h"
+    trend_filter_method: str = "ema"     # ema | supertrend | both
+    trend_filter_ema_length: int = 200
     accept_webhook: bool = True
     enabled: bool = True
     notify_telegram: bool = True
@@ -447,6 +452,11 @@ class BacktestIn(BaseModel):
     candles: int = 500
     invert: bool = False
     reversal_policy: str = "none"
+    # فیلتر روند تایم‌فریم بالاتر (خالی = خاموش)
+    trend_filter_enabled: bool = False
+    trend_filter_timeframe: str = "4h"
+    trend_filter_method: str = "ema"
+    trend_filter_ema_length: int = 200
 
 
 @app.post("/api/backtest")
@@ -459,16 +469,26 @@ async def run_backtest_api(payload: BacktestIn, _: dict = Depends(auth.require_u
     if payload.strategy not in STRATEGIES:
         raise ApiError(400, "err.unknown_strategy", "استراتژی ناشناخته است")
     driver = ToobitDriver(api_key="", api_secret="", base_url=settings.TOOBIT_BASE_URL)
+    trend_df = None
     try:
-        df = await driver.get_candles(normalize_symbol(payload.symbol), payload.timeframe,
+        symbol = normalize_symbol(payload.symbol)
+        df = await driver.get_candles(symbol, payload.timeframe,
                                       min(max(payload.candles, 100), 1000))
+        if payload.trend_filter_enabled:
+            # حاشیه‌ی گرم‌کردن اندیکاتور روند، مثل موتور زنده
+            need = min(max(int(payload.trend_filter_ema_length) + 200, 300), 1000)
+            trend_df = await driver.get_candles(symbol, payload.trend_filter_timeframe, need)
         await driver.close()
     except ExchangeError as e:
         await driver.close()
         raise ApiError(502, "err.candles_failed", f"دریافت کندل از Toobit ناموفق: {e}", msg=str(e))
     try:
         return run_backtest(df, payload.strategy, payload.strategy_params, invert=payload.invert,
-                            reversal_policy=payload.reversal_policy)
+                            reversal_policy=payload.reversal_policy,
+                            trend_df=trend_df,
+                            trend_method=payload.trend_filter_method,
+                            trend_ema_length=payload.trend_filter_ema_length,
+                            trend_timeframe=payload.trend_filter_timeframe)
     except ValueError as e:
         raise ApiError(400, _VALUE_ERROR_KEYS.get(str(e), ""), str(e))
 
