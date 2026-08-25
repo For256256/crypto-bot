@@ -151,7 +151,40 @@ class AccountRunner:
         self.status, self.status_key = "فعال", "running"
         mode_fa = "کاغذی (paper)" if self.cfg.get("trading_mode") == "paper" else "⚠️ واقعی (LIVE)"
         self.log(f"ربات در حالت {mode_fa} شروع شد.")
+        await self._check_copy_trading_symbols()
         self.task = asyncio.create_task(self._loop())
+
+    async def _check_copy_trading_symbols(self):
+        """روی حساب کپی‌ترید، نمادهایی که صرافی اجازه‌ی لیدری رویشان نداده را
+        همان اول هشدار می‌دهد.
+
+        بدون این، اولین سیگنال با یک خطای مبهم صرافی رد می‌شد و کاربر تازه بعد
+        از از دست دادن آن سیگنال می‌فهمید نماد اصلاً مجاز نبوده.
+        عمداً ربات را متوقف نمی‌کند: ممکن است بقیه‌ی نمادهای همین حساب سالم باشند.
+        """
+        if self.cfg.get("account_type") != "copy_trading":
+            return
+        getter = getattr(self.driver, "get_leader_symbols", None)
+        if getter is None:
+            return
+        try:
+            allowed = await getter()
+        except Exception as e:
+            self.log(f"خواندن نمادهای مجاز کپی‌ترید ناموفق بود: {e}", "warn")
+            return
+        tradable = {s["symbol"] for s in allowed if s.get("is_lead")}
+        if not tradable:
+            self.log("هیچ نمادی روی حساب کپی‌ترید فعال نیست — در اپ توبیت نمادهای لیدری را روشن کنید.", "warn")
+            return
+        for sym_cfg in self.cfg.get("symbols", []):
+            if not sym_cfg.get("enabled", True):
+                continue
+            symbol = sym_cfg["symbol"]
+            if symbol not in tradable:
+                self.log(
+                    f"{symbol}: روی حساب کپی‌ترید مجاز نیست (مجازها: {'، '.join(sorted(tradable))}).",
+                    "warn",
+                )
 
     async def stop(self):
         self.running = False

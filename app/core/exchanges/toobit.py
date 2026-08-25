@@ -26,6 +26,12 @@ from app.core.exchanges.base import ExchangeDriver, ExchangeError
 # سفارش‌های ربات priceType=MARKET هستند، پس همیشه به‌عنوان تیکر پر می‌شوند.
 TAKER_FEE_RATE = 0.0006
 
+# پیشوند مسیرهای کپی‌ترید (نسخه‌ی ۲). طبق مستند رسمی، امضای این مسیرها همان
+# امضای مشترک بقیه‌ی API است (HMAC-SHA256 روی کوئری + هدر X-BB-APIKEY)، پس
+# _request بدون تغییر کار می‌کند؛ فقط پاسخ در پوشش {code, msg, data} می‌آید.
+# شرط دسترسی: نوع کلید API باید COPY_TRADING باشد — کلید فیوچرز معمولی رد می‌شود.
+COPY_TRADING_PREFIX = "/api/v2/copy-trading"
+
 # نگاشت تایم‌فریم داخلی پروژه به interval کندل Toobit
 INTERVAL_MAP = {
     "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m",
@@ -166,6 +172,60 @@ class ToobitDriver(ExchangeDriver):
     async def close(self):
         if self._client is not None and not self._client.is_closed:
             await self._client.aclose()
+
+    # ---------- کپی‌ترید (حساب لیدر) ----------
+    @staticmethod
+    def _v2_data(payload):
+        """محتوای واقعی را از پوشش {code, msg, data} بیرون می‌کشد.
+
+        بعضی اندپوینت‌ها مستقیم آرایه می‌دهند و بعضی آرایه را داخل کلیدی مثل
+        list/items می‌گذارند؛ چون شکل دقیق پاسخ همه‌شان مستند نشده، محتاطانه
+        هر دو حالت پوشش داده می‌شود.
+        """
+        data = payload.get("data") if isinstance(payload, dict) else payload
+        if isinstance(data, dict):
+            for key in ("list", "items", "rows", "records"):
+                if isinstance(data.get(key), list):
+                    return data[key]
+        return data
+
+    async def get_leader_config(self) -> dict:
+        """تنظیمات حساب لیدر. اگر کلید از نوع COPY_TRADING نباشد ExchangeError
+        می‌دهد — دقیقاً همین رفتار برای تشخیص نوع کلید استفاده می‌شود."""
+        payload = await self._request("GET", f"{COPY_TRADING_PREFIX}/leader/config", signed=True)
+        data = self._v2_data(payload)
+        return data if isinstance(data, dict) else {}
+
+    async def get_leader_symbols(self) -> list:
+        """نمادهایی که این حساب لیدر اجازه‌ی کپی‌ترید رویشان دارد.
+
+        خروجی: [{"symbol": "BTC-SWAP-USDT", "leverage": 20.0, "is_lead": True}]
+        """
+        payload = await self._request("GET", f"{COPY_TRADING_PREFIX}/leader/symbols", signed=True)
+        data = self._v2_data(payload)
+        out = []
+        for row in (data if isinstance(data, list) else []):
+            if not isinstance(row, dict):
+                continue
+            symbol = row.get("symbolId") or row.get("symbol")
+            if not symbol:
+                continue
+            try:
+                leverage = float(row.get("leverage") or 0) or None
+            except (TypeError, ValueError):
+                leverage = None
+            out.append({
+                "symbol": symbol,
+                "leverage": leverage,
+                # isLead=0 یعنی نماد در لیست هست ولی کپی‌ترید رویش خاموش است
+                "is_lead": str(row.get("isLead", 1)) not in ("0", "False", "false"),
+            })
+        return out
+
+    async def get_leader_followers(self) -> list:
+        payload = await self._request("GET", f"{COPY_TRADING_PREFIX}/leader/followers", signed=True)
+        data = self._v2_data(payload)
+        return data if isinstance(data, list) else []
 
     async def get_candles(self, symbol: str, timeframe: str, count: int = 500) -> pd.DataFrame:
         interval = INTERVAL_MAP.get(timeframe, "1h")

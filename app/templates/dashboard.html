@@ -42,6 +42,17 @@
       <div class="sm:col-span-2 text-[11px] text-gold hidden" id="f_exchange_warning">
         {{ t("dash.tabdeal_note") }}
       </div>
+      <div class="sm:col-span-2" id="f_account_type_box">
+        <label class="lbl">{{ t("dash.account_type") }}</label>
+        <select id="f_account_type" class="field" onchange="onAccountTypeChange()">
+          <option value="futures">{{ t("dash.account_type_futures") }}</option>
+          <option value="copy_trading">{{ t("dash.account_type_copy") }}</option>
+        </select>
+        <p class="text-[10px] text-on-surface-variant mt-1 leading-5" id="f_account_type_hint">{{ t("dash.account_type_hint") }}</p>
+        <div class="mt-2 rounded-lg border border-gold/40 bg-gold/10 p-2.5 text-[10px] leading-5 hidden" id="f_copy_note">
+          {{ t("dash.account_type_copy_note") }}
+        </div>
+      </div>
       <div class="sm:col-span-2"><label class="lbl">API Key</label><input id="f_api_key" class="field mono-num" dir="ltr" placeholder="{{ t('dash.api_optional_paper') }}"></div>
       <div class="sm:col-span-2"><label class="lbl">API Secret</label><input id="f_api_secret" class="field mono-num" dir="ltr" type="password" placeholder="{{ t('dash.api_optional_paper') }}"></div>
       <div><label class="lbl">{{ t("common.trading_mode") }}</label><select id="f_trading_mode" class="field"><option value="paper">{{ t("common.mode_paper") }}</option><option value="live">{{ t("common.mode_live") }}</option></select></div>
@@ -130,6 +141,18 @@
     <div class="flex justify-end gap-2 mt-5">
       <button class="btn-ghost" onclick="closeModal('accountModalBg')">{{ t("common.cancel") }}</button>
       <button class="btn-primary-of" onclick="saveAccount()">{{ t("common.save") }}</button>
+    </div>
+  </div>
+</div>
+
+<!-- مودال تشخیص حساب کپی‌ترید -->
+<div class="modal-bg" id="copyDiagBg">
+  <div class="modal-panel">
+    <h3 class="font-headline text-lg font-bold mb-1">{{ t("dash.copy_diag_title") }}</h3>
+    <p class="text-[11px] text-on-surface-variant mb-4 leading-6">{{ t("dash.copy_diag_subtitle") }}</p>
+    <div id="copyDiagBody"></div>
+    <div class="flex justify-end mt-5">
+      <button class="btn-primary-of" onclick="closeModal('copyDiagBg')">{{ t("common.close") }}</button>
     </div>
   </div>
 </div>
@@ -345,8 +368,19 @@ function collectStrategyParams() {
 
 // ---------- حساب‌ها ----------
 function onExchangeChange() {
-  const warn = document.getElementById('f_exchange_warning');
-  warn.classList.toggle('hidden', document.getElementById('f_exchange').value !== 'tabdeal');
+  const ex = document.getElementById('f_exchange').value;
+  document.getElementById('f_exchange_warning').classList.toggle('hidden', ex !== 'tabdeal');
+  // کپی‌ترید فقط روی توبیت مستند شده؛ روی صرافی دیگر انتخابگر معنا ندارد و
+  // اگر باز بماند، کاربر گزینه‌ای می‌بیند که هیچ‌جا اعمال نمی‌شود.
+  const isToobit = ex === 'toobit';
+  document.getElementById('f_account_type_box').classList.toggle('hidden', !isToobit);
+  if (!isToobit) document.getElementById('f_account_type').value = 'futures';
+  onAccountTypeChange();
+}
+
+function onAccountTypeChange() {
+  const isCopy = document.getElementById('f_account_type').value === 'copy_trading';
+  document.getElementById('f_copy_note').classList.toggle('hidden', !isCopy);
 }
 
 function openAccountModal(acc) {
@@ -363,6 +397,7 @@ function openAccountModal(acc) {
     exSel.insertAdjacentHTML('beforeend', `<option value="${exVal}">${exVal}</option>`);
   }
   exSel.value = exVal;
+  g('f_account_type').value = (acc && acc.account_type) ? acc.account_type : 'futures';
   onExchangeChange();
   g('f_api_key').value = acc ? (acc.api_key || '') : '';
   g('f_api_secret').value = acc ? (acc.api_secret || '') : '';
@@ -399,6 +434,7 @@ async function saveAccount() {
   const payload = {
     name: g('f_name').value.trim(),
     exchange: g('f_exchange').value,
+    account_type: g('f_account_type').value,
     trading_mode: g('f_trading_mode').value,
     api_key: g('f_api_key').value.trim(),
     api_secret: g('f_api_secret').value.trim(),
@@ -470,7 +506,38 @@ async function testConnection(id) {
   try {
     const r = await callApi('/api/accounts/' + id + '/test-connection', 'POST');
     toast(r.message, !r.ok);
+    // روی حساب کپی‌ترید فقط «موفق/ناموفق» کافی نیست: کاربر باید ببیند کلیدش
+    // واقعاً از نوع کپی‌ترید هست، کدام نمادها مجازند و چند نفر دنبالش می‌کنند.
+    if (r.copy_trading) showCopyDiag(r.copy_trading);
   } catch (e) { toast(t('common.error_prefix') + e.message, true); }
+}
+
+function showCopyDiag(d) {
+  const box = document.getElementById('copyDiagBody');
+  const line = (ok, text) =>
+    `<div class="flex items-start gap-2 py-1.5 border-b border-outline-variant/10 last:border-b-0">
+       <span class="material-symbols-outlined text-[16px] ${ok ? 'text-buy' : 'text-sell'}">${ok ? 'check_circle' : 'cancel'}</span>
+       <span class="text-xs leading-6">${text}</span>
+     </div>`;
+  const rows = [line(d.is_copy_trading_key, d.is_copy_trading_key
+      ? t('dash.copy_diag_key_ok')
+      : t('dash.copy_diag_key_bad', {err: d.key_error || ''}))];
+
+  if (d.is_copy_trading_key) {
+    const tradable = (d.symbols || []).filter(x => x.is_lead);
+    rows.push(line(tradable.length > 0, tradable.length
+      ? t('dash.copy_diag_symbols', {list: tradable.map(x => x.symbol).join(', ')})
+      : t('dash.copy_diag_no_symbols')));
+    if (d.followers !== null && d.followers !== undefined) {
+      rows.push(line(true, t('dash.copy_diag_followers', {n: d.followers})));
+    }
+    if (d.profit_rate !== null && d.profit_rate !== undefined) {
+      rows.push(line(true, t('dash.copy_diag_profit_rate', {rate: fmt(d.profit_rate, 1)})));
+    }
+  }
+  box.innerHTML = rows.join('') +
+    `<div class="mt-3 rounded-lg border border-gold/40 bg-gold/10 p-3 text-[11px] leading-6">${t('dash.copy_diag_note')}</div>`;
+  openModal('copyDiagBg');
 }
 
 async function startAccount(id) {
@@ -1005,6 +1072,7 @@ function renderAccountBar() {
     ${t('dash.account_summary', {risk: acc.risk_percent, lev: acc.default_leverage, atr: acc.sl_tp_atr_mult ?? 3, dl: acc.max_daily_loss_percent, wh: acc.accept_webhook ? t('common.active') : t('common.inactive')})}
     ${acc.invert_signals ? `<span class="ms-2 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 font-bold">${t('dash.invert_badge')}</span>` : ''}
     ${acc.trend_filter_enabled ? `<span class="ms-2 px-1.5 py-0.5 rounded bg-primary/15 text-primary font-bold">${t('dash.trend_badge', {tf: acc.trend_filter_timeframe || '4h'})}</span>` : ''}
+    ${acc.account_type === 'copy_trading' ? `<span class="ms-2 px-1.5 py-0.5 rounded bg-gold/15 text-gold font-bold">${t('dash.copy_badge')}</span>` : ''}
   </div>`;
 }
 
