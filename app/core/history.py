@@ -257,14 +257,63 @@ def _flow_adjusted(equity_points: list, trades: list) -> list:
     return out
 
 
-def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict:
+def _merge_curves(curves: list) -> list:
+    """چند منحنی تعدیل‌شده را روی یک محور زمانی مشترک جمع می‌کند.
+
+    هر حساب نقطه‌های اکوییتی خودش را در لحظه‌های متفاوتی ثبت می‌کند، پس
+    نمی‌شود نقطه‌ها را ساده به هم چسباند. برای هر زمان در اجتماع زمان‌ها،
+    آخرین مقدار شناخته‌شده‌ی هر حساب برداشته و جمع می‌شود (forward-fill).
+
+    دو نکته‌ی ظریف:
+    - حسابی که هنوز اولین نقطه‌اش نرسیده، با همان مقدار اولش پر می‌شود (نه با
+      صفر). اگر صفر می‌گذاشتیم، لحظه‌ی پیوستن حسابِ دوم یک پله‌ی بزرگ رو به
+      بالا در منحنی می‌ساخت و دقیقاً مثل سود دیده می‌شد — همان اشتباهی که
+      برای واریز/برداشت اصلاح شده بود. با این کار سرمایه‌ی هر حساب از ابتدای
+      بازه در مبنا هست، پس درصد بازده روی کل سرمایه‌ی واقعی حساب می‌شود.
+    - flow (واریز/برداشت) رویداد است نه موجودی، پس forward-fill نمی‌شود؛
+      فقط جریان‌های دقیقاً همان لحظه جمع می‌شوند وگرنه چند بار شمرده می‌شد.
     """
-    گزارش سود/زیان یک حساب:
+    curves = [c for c in curves if c]
+    if not curves:
+        return []
+    if len(curves) == 1:
+        return curves[0]
+
+    times = sorted({str(p["time"]) for c in curves for p in c})
+    cursors = [0] * len(curves)
+    last = [c[0] for c in curves]      # پیش از شروع هر حساب، مقدار اولش
+    out = []
+    for t in times:
+        equity = raw = balance = flow = 0.0
+        for i, curve in enumerate(curves):
+            while cursors[i] < len(curve) and str(curve[cursors[i]]["time"]) <= t:
+                point = curve[cursors[i]]
+                last[i] = point
+                if str(point["time"]) == t:
+                    flow += _num(point.get("flow"))
+                cursors[i] += 1
+            equity += _num(last[i].get("equity"))
+            raw += _num(last[i].get("raw_equity"))
+            balance += _num(last[i].get("balance"))
+        out.append({"time": t, "equity": equity, "raw_equity": raw,
+                    "balance": balance, "flow": flow})
+    return out
+
+
+def get_report(account_id, days: int = 30, mode: str | None = None) -> dict:
+    """
+    گزارش سود/زیان یک حساب — یا مجموع چند حساب اگر لیستی از شناسه‌ها بدهید:
     - summary: آمار کلی (PnL خالص، نرخ برد، profit factor، ماکس دراوداون و ...)
     - equity_curve: نقاط منحنی اکوییتی
     - daily: سود/زیان روزانه‌ی معاملات بسته‌شده
     - trades: آخرین معاملات (جدیدترین اول)
+    - accounts: سهم هر حساب (فقط در حالت چندحسابی)
     """
+    # «چندحسابی» از روی نوع ورودی تشخیص داده می‌شود نه تعداد: کاربری که فقط
+    # یک حساب واقعی دارد هم باید سطر سهم همان یک حساب را ببیند.
+    multi = not isinstance(account_id, str)
+    account_ids = list(account_id) if multi else [account_id]
+    id_set = set(account_ids)
     with _lock:
         data = _load()
 
@@ -279,11 +328,11 @@ def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict
         return mode is None or m == mode
 
     trades = [t for t in data["trades"]
-              if t.get("account_id") == account_id and _mode_ok(t.get("mode")) and _in_range(t.get("close_time"))]
+              if t.get("account_id") in id_set and _mode_ok(t.get("mode")) and _in_range(t.get("close_time"))]
     trades.sort(key=lambda t: str(t.get("close_time") or ""))
 
     equity_points = [e for e in data["equity"]
-                     if e.get("account_id") == account_id and _mode_ok(e.get("mode")) and _in_range(e.get("time"))]
+                     if e.get("account_id") in id_set and _mode_ok(e.get("mode")) and _in_range(e.get("time"))]
     equity_points.sort(key=lambda e: str(e.get("time") or ""))
 
     # ---------- آمار کلی ----------
@@ -320,7 +369,18 @@ def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict
     by_symbol = sorted(by_symbol_map.values(), key=lambda s: s["pnl"])
 
     # ---------- ماکس دراوداون، روی منحنی تعدیل‌شده ----------
-    adjusted_curve = _flow_adjusted(equity_points, trades)
+    # تعدیل واریز/برداشت باید حساب‌به‌حساب انجام شود (موجودی هر حساب مال
+    # خودش است)، و تازه بعد از آن منحنی‌ها با هم جمع شوند.
+    if not multi:
+        adjusted_curve = _flow_adjusted(equity_points, trades)
+    else:
+        per_account = []
+        for aid in account_ids:
+            pts = [e for e in equity_points if e.get("account_id") == aid]
+            if not pts:
+                continue
+            per_account.append(_flow_adjusted(pts, [t for t in trades if t.get("account_id") == aid]))
+        adjusted_curve = _merge_curves(per_account)
 
     # ---------- بازده همین بازه‌ی انتخاب‌شده ----------
     # درصدی که تا حالا نشان داده می‌شد، بازده «کل عمر حساب» بود و به فیلتر
@@ -361,7 +421,26 @@ def get_report(account_id: str, days: int = 30, mode: str | None = None) -> dict
             d["wins"] += 1
     daily = [daily_map[k] for k in sorted(daily_map)]
 
+    # ---------- سهم هر حساب (وقتی گزارش برای مجموعه‌ای از حساب‌ها گرفته شده) ----------
+    per_account_rows = None
+    if multi:
+        rows = {aid: {"account_id": aid, "trades": 0, "wins": 0, "losses": 0,
+                      "pnl": 0.0, "fees": 0.0} for aid in account_ids}
+        for t, r, f in zip(trades, pnls, fees):
+            row = rows.get(t.get("account_id"))
+            if row is None:
+                continue
+            row["trades"] += 1
+            row["pnl"] += r
+            row["fees"] += f
+            if r > 0:
+                row["wins"] += 1
+            elif r < 0:
+                row["losses"] += 1
+        per_account_rows = sorted(rows.values(), key=lambda x: x["pnl"], reverse=True)
+
     return {
+        "accounts": per_account_rows,
         "summary": {
             "total_pnl": total,
             "trades": n,

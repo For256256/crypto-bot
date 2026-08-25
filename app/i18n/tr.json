@@ -941,5 +941,12 @@
   "dash.copy_diag_no_symbols": "Lider işlemi için hiçbir sembol etkin değil — Toobit uygulamasında kopya işlem paritelerini açın.",
   "dash.copy_diag_followers": "Mevcut takipçi sayısı: {n}",
   "dash.copy_diag_profit_rate": "Takipçi kârlarından payınız: %{rate}",
-  "dash.copy_diag_note": "Bu test yalnızca okuma erişimini denetler. Toobit, lider yatırımcı olarak emir göndermeye dair bir uç nokta belgelemiyor; bu yüzden gerçek sermaye ayırmadan önce mümkün olan en küçük hacimle bir işlem açın ve bunun vadeli işlem hesabına değil kopya işlem hesabına düştüğünü doğrulayın."
+  "dash.copy_diag_note": "Bu test yalnızca okuma erişimini denetler. Toobit, lider yatırımcı olarak emir göndermeye dair bir uç nokta belgelemiyor; bu yüzden gerçek sermaye ayırmadan önce mümkün olan en küçük hacimle bir işlem açın ve bunun vadeli işlem hesabına değil kopya işlem hesabına düştüğünü doğrulayın.",
+  "rep.combined_option": "★ Tüm gerçek hesaplar birlikte",
+  "rep.combined_empty": "Bu dönemde hiçbir gerçek işlem kaydedilmedi. Toplam rapor yalnızca gerçek moddaki işlemleri sayar; kâğıt işlemler burada görünmez.",
+  "rep.by_account": "Hesap bazında dağılım",
+  "rep.by_account_hint": "Yalnızca gerçek moddaki işlemler sayılır. Şu anda kâğıt modunda olan ama daha önce gerçek işlem yapmış bir hesap, geçmiş gerçek işlemlerini burada gösterir.",
+  "rep.account_name": "Hesap",
+  "rep.was_live": "şimdi kâğıt",
+  "rep.combined_equity": "Çalışan {n} gerçek hesabın toplam öz sermayesi: {eq} USDT (bakiye: {bal} USDT)"
 }

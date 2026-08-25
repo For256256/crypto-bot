@@ -941,5 +941,12 @@
   "dash.copy_diag_no_symbols": "No symbol is enabled for lead trading — turn on copy-trading pairs in the Toobit app.",
   "dash.copy_diag_followers": "Current followers: {n}",
   "dash.copy_diag_profit_rate": "Your share of follower profits: {rate}%",
-  "dash.copy_diag_note": "This test only checks read access. Toobit documents no endpoint for placing an order as a lead trader, so before committing real capital, open one trade at the smallest possible size and confirm it lands on the copy-trading account rather than the futures account."
+  "dash.copy_diag_note": "This test only checks read access. Toobit documents no endpoint for placing an order as a lead trader, so before committing real capital, open one trade at the smallest possible size and confirm it lands on the copy-trading account rather than the futures account.",
+  "rep.combined_option": "★ All live accounts combined",
+  "rep.combined_empty": "No live trades were recorded in this period. The combined report counts live-mode trades only; paper trades do not appear here.",
+  "rep.by_account": "Breakdown by account",
+  "rep.by_account_hint": "Only live-mode trades are counted. An account that is on paper now but traded live before still shows its past live trades here.",
+  "rep.account_name": "Account",
+  "rep.was_live": "now on paper",
+  "rep.combined_equity": "Combined live equity across {n} running account(s): {eq} USDT (balance: {bal} USDT)"
 }

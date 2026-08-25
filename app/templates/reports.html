@@ -17,7 +17,7 @@
     <select id="f_mode" class="field !w-auto" onchange="loadReport()">
       <option value="">{{ t("rep.all_modes") }}</option><option value="paper">Paper</option><option value="live">Live</option>
     </select>
-    <button onclick="resetReport()" title="{{ t('rep.reset_title') }}"
+    <button id="resetBtn" onclick="resetReport()" title="{{ t('rep.reset_title') }}"
       class="py-1.5 px-3 rounded-lg border border-sell/30 text-sell text-[11px] hover:bg-sell/10 transition-colors flex items-center gap-1">
       <span class="material-symbols-outlined text-sm">delete_sweep</span> {{ t("rep.reset_btn") }}
     </button>
@@ -48,10 +48,18 @@ async function init() {
       `<div class="glass-card rounded-2xl p-10 text-center text-on-surface-variant">${t('rep.no_account')}</div>`;
     return;
   }
-  sel.innerHTML = accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+  sel.innerHTML = `<option value="__combined__">${t('rep.combined_option')}</option>`
+    + accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+  // پیش‌فرض همان تک‌حساب اول می‌ماند تا رفتار آشنای قبلی عوض نشود؛
+  // «مجموع» یک انتخاب آگاهانه است، نه چیزی که ناگهان جای گزارش قبلی بنشیند.
+  sel.value = accounts[0].id;
   const urlAcc = new URLSearchParams(location.search).get('acc');
-  if (urlAcc && accounts.some(a => a.id === urlAcc)) sel.value = urlAcc;
+  if (urlAcc === '__combined__' || (urlAcc && accounts.some(a => a.id === urlAcc))) sel.value = urlAcc;
   loadReport();
+}
+
+function isCombined() {
+  return document.getElementById('f_account').value === '__combined__';
 }
 
 async function loadReport() {
@@ -59,12 +67,25 @@ async function loadReport() {
   if (!accId) return;
   const days = document.getElementById('f_days').value;
   const mode = document.getElementById('f_mode').value;
+  const combined = isCombined();
+  // در حالت مجموع، حالت معامله همیشه «واقعی» است و ریست تک‌حسابی معنا ندارد.
+  document.getElementById('f_mode').classList.toggle('hidden', combined);
+  document.getElementById('resetBtn').classList.toggle('hidden', combined);
   const root = document.getElementById('reportRoot');
   root.innerHTML = `<div class="text-center text-on-surface-variant py-16 text-sm">${t('rep.loading_report')}</div>`;
   try {
-    let url = `/api/accounts/${accId}/report?days=${days}`;
-    if (mode) url += `&mode=${mode}`;
+    let url;
+    if (combined) {
+      url = `/api/reports/combined?days=${days}`;
+    } else {
+      url = `/api/accounts/${accId}/report?days=${days}`;
+      if (mode) url += `&mode=${mode}`;
+    }
     reportData = await callApi(url);
+    if (combined && !(reportData.accounts || []).length) {
+      root.innerHTML = `<div class="glass-card rounded-2xl p-10 text-center text-on-surface-variant">${t('rep.combined_empty')}</div>`;
+      return;
+    }
     const eq = reportData.equity_curve || [];
     if (eq.length > 600) {
       const step = Math.ceil(eq.length / 600);
@@ -320,7 +341,7 @@ function renderTradesTable() {
 
 async function resetReport() {
   const accId = document.getElementById('f_account').value;
-  if (!accId) return;
+  if (!accId || isCombined()) return;
   const accName = document.getElementById('f_account').selectedOptions[0]?.textContent || '';
   if (!askConfirm(t('rep.reset_confirm', {name: accName}))) return;
   try {
@@ -341,6 +362,58 @@ function onTradeSearch(v) {
   tradeFilter = v.trim().toUpperCase();
   tradePage = 1;
   document.getElementById('tradesWrap').innerHTML = renderTradesTable();
+}
+
+function renderAccountBreakdown() {
+  const rows = reportData.accounts || [];
+  if (!rows.length) return '';
+  const s = reportData.summary || {};
+  const cell = (label, value, extraCls) => `
+    <div>
+      <div class="text-[10px] text-on-surface-variant mb-0.5">${label}</div>
+      <div class="mono-num text-xs ${extraCls || ''}" dir="ltr">${value}</div>
+    </div>`;
+  const tableRows = rows.map(a => {
+    const cls = a.pnl >= 0 ? 'text-buy' : 'text-sell';
+    const paperBadge = a.trading_mode !== 'live'
+      ? `<span class="ms-2 px-1.5 py-0.5 rounded bg-surface-variant text-on-surface-variant text-[9px]">${t('rep.was_live')}</span>` : '';
+    return `<tr class="hover:bg-surface-variant/20 transition-colors">
+      <td class="font-bold">${a.name}${paperBadge}</td>
+      <td class="num">${a.trades}</td>
+      <td class="num">${a.trades ? fmt(a.wins / a.trades * 100, 1) : '0.0'}${t('common.pct')}</td>
+      <td class="num text-on-surface-variant text-[11px]">${niceNum(a.fees)}</td>
+      <td class="num ${cls} font-bold">${a.pnl >= 0 ? '+' : ''}${niceNum(a.pnl)}</td>
+    </tr>`;
+  }).join('');
+  const cards = rows.map(a => {
+    const cls = a.pnl >= 0 ? 'text-buy' : 'text-sell';
+    return `<div class="border-b border-outline-variant/20 last:border-b-0 py-3">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <span class="font-bold text-sm truncate">${a.name}</span>
+        <span class="mono-num text-sm font-bold ${cls}" dir="ltr">${a.pnl >= 0 ? '+' : ''}${niceNum(a.pnl)}</span>
+      </div>
+      <div class="grid grid-cols-3 gap-x-2">
+        ${cell(t('common.trades'), a.trades)}
+        ${cell(t('common.win_rate'), (a.trades ? fmt(a.wins / a.trades * 100, 1) : '0.0') + t('common.pct'))}
+        ${cell(t('common.fees'), niceNum(a.fees), 'text-on-surface-variant')}
+      </div>
+    </div>`;
+  }).join('');
+  const equityLine = s.total_equity
+    ? `<div class="text-[11px] text-on-surface-variant mt-3 leading-6">${t('rep.combined_equity', {eq: niceNum(s.total_equity), bal: niceNum(s.total_balance), n: s.live_running || 0})}</div>`
+    : '';
+  return `<div class="glass-card p-5 rounded-2xl mb-6">
+    <h3 class="font-headline font-bold mb-1 flex items-center gap-2">
+      <span class="material-symbols-outlined text-primary">account_balance_wallet</span> ${t('rep.by_account')}
+    </h3>
+    <p class="text-[11px] text-on-surface-variant mb-4 leading-6">${t('rep.by_account_hint')}</p>
+    <div class="hidden md:block overflow-x-auto"><table class="of-table">
+      <thead><tr><th>${t('rep.account_name')}</th><th>${t('common.trades')}</th><th>${t('common.win_rate')}</th><th>${t('common.fees')}</th><th>${t('rep.total_pnl')}</th></tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table></div>
+    <div class="md:hidden">${cards}</div>
+    ${equityLine}
+  </div>`;
 }
 
 function renderAccountDetails() {
@@ -481,7 +554,7 @@ function renderReport() {
     ${svgDailyPnl(reportData.daily)}
   </div>
 
-  ${renderAccountDetails()}
+  ${isCombined() ? renderAccountBreakdown() : renderAccountDetails()}
 
   <div class="glass-card rounded-2xl overflow-hidden">
     <div class="px-5 py-4 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-low flex-wrap gap-3">
