@@ -121,6 +121,7 @@ async def on_startup():
 class AccountIn(BaseModel):
     name: str
     exchange: str = "toobit"
+    account_type: str = "futures"        # futures | copy_trading (فقط Toobit)
     trading_mode: str = "paper"          # paper | live
     api_key: str = ""
     api_secret: str = ""
@@ -1412,6 +1413,43 @@ async def remove_account(account_id: str, user: dict = Depends(auth.require_user
     return {"deleted": account_id}
 
 
+async def _diagnose_copy_trading(driver) -> dict:
+    """بررسی می‌کند کلید این حساب واقعاً از نوع کپی‌ترید است یا نه، و چه چیزی
+    با آن در دسترس است.
+
+    ارزش این تابع در همین است: توبیت هیچ اندپوینتی برای «ثبت سفارش به‌عنوان
+    لیدر» منتشر نکرده، پس تنها راه فهمیدن اینکه ربات روی حساب کپی‌ترید کار
+    می‌کند یا نه، امتحان‌کردن با کلید واقعی خود کاربر است. این تست بدون باز
+    کردن هیچ معامله‌ای، وضعیت هر سه قابلیت لازم را جدا گزارش می‌کند.
+    """
+    from app.core.exchanges.base import ExchangeError
+
+    out = {"is_copy_trading_key": False, "key_error": None,
+           "symbols": [], "followers": None, "profit_rate": None}
+    try:
+        config = await driver.get_leader_config()
+        out["is_copy_trading_key"] = True
+        rate = config.get("profitRate")
+        if rate is not None:
+            try:
+                out["profit_rate"] = float(rate) * 100
+            except (TypeError, ValueError):
+                pass
+    except ExchangeError as e:
+        out["key_error"] = str(e)
+        return out                     # بقیه‌ی تست‌ها بی‌معنا می‌شوند
+
+    try:
+        out["symbols"] = await driver.get_leader_symbols()
+    except ExchangeError as e:
+        out["symbols_error"] = str(e)
+    try:
+        out["followers"] = len(await driver.get_leader_followers())
+    except ExchangeError as e:
+        out["followers_error"] = str(e)
+    return out
+
+
 @app.post("/api/accounts/{account_id}/test-connection")
 async def test_connection(account_id: str, user: dict = Depends(auth.require_user)):
     cfg = _owned_account(account_id, user)
@@ -1420,11 +1458,31 @@ async def test_connection(account_id: str, user: dict = Depends(auth.require_use
     from app.core.exchanges.base import ExchangeError
     # برای تست همیشه درایور واقعی ساخته می‌شود (نه شبیه‌ساز paper) تا کلیدهای API واقعاً چک شوند
     driver = build_driver("live", cfg)
+    is_copy = (cfg.get("account_type") == "copy_trading"
+               and cfg.get("exchange", "toobit") == "toobit")
     try:
         await driver.connect()
         info = await driver.get_account_info()
+        message = (f"اتصال موفق. موجودی فیوچرز: {info.get('balance', 0):.2f} "
+                   f"{info.get('currency', 'USDT')}")
+        result = {"ok": True, "message": message, "account": info}
+
+        if is_copy:
+            diag = await _diagnose_copy_trading(driver)
+            result["copy_trading"] = diag
+            if not diag["is_copy_trading_key"]:
+                # موجودی خوانده شد ولی کلید از نوع کپی‌ترید نیست: یعنی این کلید
+                # روی حساب فیوچرز کار می‌کند، نه حساب کپی‌ترید. اگر این را
+                # نگوییم، کاربر فکر می‌کند همه‌چیز درست است و معامله‌ها روی
+                # حساب اشتباه باز می‌شوند.
+                result["ok"] = False
+                result["message"] = (
+                    "این کلید از نوع «کپی‌ترید» نیست — در اپ توبیت از تب "
+                    "«API کپی‌ترید» یک کلید جدید بسازید. "
+                    f"(پاسخ صرافی: {diag['key_error']})"
+                )
         await driver.close()
-        return {"ok": True, "message": f"اتصال موفق. موجودی فیوچرز: {info.get('balance', 0):.2f} {info.get('currency', 'USDT')}", "account": info}
+        return result
     except ExchangeError as e:
         await driver.close()
         return {"ok": False, "message": str(e)}

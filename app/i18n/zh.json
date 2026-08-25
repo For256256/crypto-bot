@@ -925,5 +925,21 @@
   "dash.trend_dir.unknown": "未知",
   "str.backtest_trend_hint": "这里应用与账户相同的过滤，让你在开启前先看到结果。趋势周期的K线单独获取，每个时点只使用已收盘的K线（不会看到未来数据）。",
   "str.backtest_trend_note": "{tf} 趋势过滤已启用 — {n} 个信号因逆势而被跳过。",
-  "dash.th_open_time": "入场时间"
+  "dash.th_open_time": "入场时间",
+  "common.close": "关闭",
+  "dash.account_type": "交易在哪个交易所账户上执行？",
+  "dash.account_type_futures": "合约账户（默认）",
+  "dash.account_type_copy": "跟单账户（带单员）",
+  "dash.account_type_hint": "Toobit 的下单接口没有选择账户的参数——交易落在哪个账户由 API 密钥本身决定。因此该选项不会改变下单路径，而是检查你填入的密钥类型是否正确、交易对是否被允许。",
+  "dash.account_type_copy_note": "此模式需要在 Toobit App 的「API 管理 → 跟单 API」中单独创建密钥（每个账户最多 2 组）。普通合约密钥在这里无效。注意：Toobit 未公开「以带单员身份下单」的接口，请先用「测试连接」检查密钥，再用最小可行数量开一笔测试单确认。",
+  "dash.copy_badge": "跟单",
+  "dash.copy_diag_title": "跟单账户状态",
+  "dash.copy_diag_subtitle": "针对 Toobit 跟单接口检查你的 API 密钥的结果——不会开任何仓位。",
+  "dash.copy_diag_key_ok": "该 API 密钥属于跟单类型，带单员接口有响应。",
+  "dash.copy_diag_key_bad": "此 API 密钥不是跟单密钥。请在 Toobit App 的「跟单 API」标签页创建新密钥。（交易所返回：{err}）",
+  "dash.copy_diag_symbols": "允许带单的交易对：{list}",
+  "dash.copy_diag_no_symbols": "没有任何交易对开启带单——请在 Toobit App 中打开跟单交易对。",
+  "dash.copy_diag_followers": "当前跟随人数：{n}",
+  "dash.copy_diag_profit_rate": "你从跟随者利润中的分成：{rate}%",
+  "dash.copy_diag_note": "此测试仅检查读取权限。Toobit 未记录「以带单员身份下单」的接口，因此在投入真实资金前，请用最小可行数量开一笔交易，确认它落在跟单账户而非合约账户。"
 }
