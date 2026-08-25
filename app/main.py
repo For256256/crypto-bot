@@ -1566,6 +1566,69 @@ async def account_report(account_id: str, days: int = 30, mode: str | None = Non
     return report
 
 
+@app.get("/api/reports/combined")
+async def combined_report(days: int = 30, user: dict = Depends(auth.require_user)):
+    """گزارش مجموع عملکرد همه‌ی حساب‌های واقعی (live) این کاربر.
+
+    فیلتر روی *رکوردهای تاریخچه* اعمال می‌شود نه روی حالت فعلی حساب: اگر
+    حسابی امروز کاغذی باشد ولی قبلاً واقعی بوده، معامله‌های واقعی گذشته‌اش
+    پول واقعی بوده‌اند و باید در این گزارش بیایند. برعکسش هم درست است —
+    معامله‌های کاغذیِ یک حساب واقعی این‌جا شمرده نمی‌شوند.
+    """
+    accounts = config_store.list_accounts(user["id"])
+    if not accounts:
+        return {"accounts": [], "summary": None, "equity_curve": [], "daily": [],
+                "by_symbol": [], "trades": [], "account_count": 0}
+
+    ids = [a["id"] for a in accounts]
+    report = history.get_report(ids, days=days, mode="live")
+
+    # سود/زیان باز و اکوییتی لحظه‌ای فقط از حساب‌هایی که همین حالا واقعی و
+    # در حال اجرا هستند می‌آید؛ حساب کاغذی اکوییتی واقعی ندارد.
+    names = {a["id"]: a for a in accounts}
+    unrealized = 0.0
+    open_positions = 0
+    total_equity = total_balance = 0.0
+    live_running = 0
+    for aid in ids:
+        acc = names[aid]
+        if acc.get("trading_mode") != "live":
+            continue
+        runner = bot_manager.runners.get(aid)
+        if runner is None:
+            continue
+        live_running += 1
+        unrealized += sum(float(p.get("profit", 0) or 0) for p in (runner.positions or []))
+        open_positions += len(runner.positions or [])
+        info = runner.account_info or {}
+        total_equity += float(info.get("equity", 0) or 0)
+        total_balance += float(info.get("balance", 0) or 0)
+
+    summary = report["summary"]
+    summary["unrealized_pnl"] = unrealized
+    summary["open_positions"] = open_positions
+    summary["total_pnl_with_open"] = summary["total_pnl"] + unrealized
+    summary["total_equity"] = total_equity
+    summary["total_balance"] = total_balance
+    summary["live_running"] = live_running
+
+    # نام و حالت هر حساب به سطرهای سهم‌بندی اضافه می‌شود تا فرانت‌اند لازم
+    # نباشد دوباره لیست حساب‌ها را بگیرد و خودش join کند.
+    rows = []
+    for row in (report.get("accounts") or []):
+        acc = names.get(row["account_id"], {})
+        rows.append({**row,
+                     "name": acc.get("name", "—"),
+                     "trading_mode": acc.get("trading_mode", "paper")})
+    # حساب‌هایی که در این بازه هیچ معامله‌ی واقعی نداشته‌اند حذف می‌شوند تا
+    # جدول با ردیف‌های صفر شلوغ نشود.
+    report["accounts"] = [r for r in rows if r["trades"]]
+    report["account_count"] = len(report["accounts"])
+    report["account_info"] = None
+    report["account_stats"] = None
+    return report
+
+
 @app.post("/api/accounts/{account_id}/report/reset")
 async def reset_account_report(account_id: str, user: dict = Depends(auth.require_user)):
     """پاکسازی و ریست کامل گزارش‌های یک حساب — از این لحظه مثل حساب خام ثبت می‌شود."""

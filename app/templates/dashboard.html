@@ -1108,7 +1108,7 @@ function renderPositions() {
     return `<tr class="hover:bg-surface-variant/20 transition-colors">
       <td>${p.symbol}</td><td>${sideBadge(p)}</td>
       <td class="num">${fmtNum(p.qty)}</td><td class="num">${fmtNum(p.entry_price)}</td>
-      <td class="num text-[11px] text-on-surface-variant whitespace-nowrap">${p.open_time ? fmtDateTime(p.open_time) : '—'}</td>
+      <td class="num text-[11px] text-on-surface-variant whitespace-nowrap" title="${p.open_time ? fmtDateTime(p.open_time, true) : ''}">${p.open_time ? fmtDateTime(p.open_time) : '—'}</td>
       <td class="num">${fmtNum(p.mark_price)}</td>
       <td class="num text-sell">${p.stop_loss != null ? fmtNum(p.stop_loss) : '—'}</td>
       <td class="num text-buy">${p.take_profit != null ? fmtNum(p.take_profit) : '—'}</td>

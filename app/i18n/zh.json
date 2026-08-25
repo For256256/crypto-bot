@@ -941,5 +941,12 @@
   "dash.copy_diag_no_symbols": "没有任何交易对开启带单——请在 Toobit App 中打开跟单交易对。",
   "dash.copy_diag_followers": "当前跟随人数：{n}",
   "dash.copy_diag_profit_rate": "你从跟随者利润中的分成：{rate}%",
-  "dash.copy_diag_note": "此测试仅检查读取权限。Toobit 未记录「以带单员身份下单」的接口，因此在投入真实资金前，请用最小可行数量开一笔交易，确认它落在跟单账户而非合约账户。"
+  "dash.copy_diag_note": "此测试仅检查读取权限。Toobit 未记录「以带单员身份下单」的接口，因此在投入真实资金前，请用最小可行数量开一笔交易，确认它落在跟单账户而非合约账户。",
+  "rep.combined_option": "★ 全部实盘账户合计",
+  "rep.combined_empty": "该时间段内没有实盘交易记录。合计报告仅统计实盘交易；模拟交易不会出现在这里。",
+  "rep.by_account": "各账户明细",
+  "rep.by_account_hint": "仅统计实盘交易。当前处于模拟模式但此前做过实盘的账户，其过去的实盘交易仍会显示在这里。",
+  "rep.account_name": "账户",
+  "rep.was_live": "当前为模拟",
+  "rep.combined_equity": "{n} 个运行中实盘账户的合计权益：{eq} USDT（余额：{bal} USDT）"
 }
