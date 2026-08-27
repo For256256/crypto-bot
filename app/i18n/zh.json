@@ -983,5 +983,7 @@
   "rep.cp_fl_more": "显示 {shown} / {total}。",
   "rep.cp_fl_empty": "目前还没有人跟随你。",
   "rep.cp_days": "{n} 天",
-  "rep.cp_hours": "{n} 小时"
+  "rep.cp_hours": "{n} 小时",
+  "sidebar.version": "版本",
+  "sidebar.version_title": "服务器当前运行的提交。无需登录即可查看：/api/version"
 }

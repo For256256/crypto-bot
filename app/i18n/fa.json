@@ -983,5 +983,7 @@
   "rep.cp_fl_more": "{shown} نفر از {total} نفر نمایش داده شده است.",
   "rep.cp_fl_empty": "هنوز کسی شما را دنبال نمی‌کند.",
   "rep.cp_days": "{n} روز",
-  "rep.cp_hours": "{n} ساعت"
+  "rep.cp_hours": "{n} ساعت",
+  "sidebar.version": "نسخه",
+  "sidebar.version_title": "شناسه‌ی کامیتی که این سرور روی آن اجرا می‌شود. برای بررسی بدون ورود: /api/version"
 }

@@ -983,5 +983,7 @@
   "rep.cp_fl_more": "Showing {shown} of {total}.",
   "rep.cp_fl_empty": "Nobody is following you yet.",
   "rep.cp_days": "{n}d",
-  "rep.cp_hours": "{n}h"
+  "rep.cp_hours": "{n}h",
+  "sidebar.version": "build",
+  "sidebar.version_title": "Commit this server is running. Check without logging in at /api/version"
 }

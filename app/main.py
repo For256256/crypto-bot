@@ -25,6 +25,7 @@ from app.core import telegram
 from app.core import mailer
 from app.core import i18n
 from app.core import backup
+from app.core import version as app_version
 from app.core import twofa
 from app.core.errors import ApiError
 from app.core.exchanges.toobit import normalize_symbol
@@ -95,6 +96,9 @@ def render(request: Request, template: str, user: dict | None = None, **ctx):
         # صرافی‌های قابل انتخاب در این زبان (تبدیل فقط فارسی)
         "allowed_exchanges": i18n.allowed_exchanges(lang),
         "catalog": i18n.get_catalog(lang),
+        # نسخه‌ی در حال اجرا، در نوار کناری هر صفحه — تا بعد از هر آپدیت
+        # بدون حدس‌زدن معلوم باشد مرورگر کد جدید را گرفته یا نه.
+        "app_version": app_version.INFO,
         "t": lambda key, **params: i18n.translate(lang, key, **params),
         **ctx,
     }
@@ -1630,6 +1634,19 @@ async def combined_report(days: int = 30, user: dict = Depends(auth.require_user
     report["account_info"] = None
     report["account_stats"] = None
     return report
+
+
+@app.get("/api/version")
+async def get_version():
+    """نسخه‌ی در حال اجرا — عمداً بدون نیاز به لاگین.
+
+    کل فایده‌اش این است که بعد از هر به‌روزرسانی، با یک باز کردن آدرس در
+    مرورگر (حتی روی موبایل و بدون ورود) معلوم شود سرور روی چه کدی است. اگر
+    پشت لاگین بود، دقیقاً در همان موقعیتی که بیشترین کاربرد را دارد —
+    وقتی معلوم نیست چه چیزی درست کار نمی‌کند — قابل استفاده نبود.
+    فقط شناسه‌ی کامیت و زمان استقرار برمی‌گردد، نه چیزی از پیکربندی.
+    """
+    return app_version.INFO
 
 
 @app.get("/api/accounts/{account_id}/copy-report")
