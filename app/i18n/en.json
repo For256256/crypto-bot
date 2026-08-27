@@ -987,5 +987,7 @@
   "sidebar.version": "build",
   "sidebar.version_title": "Commit this server is running. Check without logging in at /api/version",
   "dash.account_type_futures_sub": "margin / regular",
-  "dash.account_type_copy_sub": "lead account"
+  "dash.account_type_copy_sub": "lead account",
+  "dash.th_followers": "Followers",
+  "dash.followers_on_trade": "{n} follower(s) riding this trade with {amount} USDT"
 }

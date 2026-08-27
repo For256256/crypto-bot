@@ -98,6 +98,11 @@ class AccountRunner:
         # حلقه‌ی ربات هر دقیقه اجرا می‌شود؛ بدون کش، هر tick یک درخواست اضافه
         # به صرافی می‌رفت که نه لازم است نه مؤدبانه.
         self._trend_cache: dict = {}
+        # اطلاعات کپی‌ترید هر پوزیشن (چند فالوور، چه سرمایه‌ای). در _tick
+        # تازه می‌شود نه در status_dict — چون status_dict همگام است و
+        # داشبورد آن را با هر پول‌کردن صدا می‌زند.
+        self._lead_orders: dict = {}
+        self._lead_orders_at: float = 0.0
         # فقط یک‌بار درباره‌ی کوتاه بودن تاریخچه‌ی تایم‌فریم روند هشدار بدهیم
         self._trend_history_warned: set = set()
 
@@ -235,6 +240,7 @@ class AccountRunner:
         self.status, self.status_key = "فعال", "running"
         self._diagnose_missing_targets()
         await self._refresh_net_transfers()
+        await self._refresh_lead_orders()
 
         # ۲) ثبت نقطه‌ی اکوییتی (هر ۵ دقیقه)
         now_ts = loop.time()
@@ -899,6 +905,31 @@ class AccountRunner:
             self._net_transfers = value
             self._net_transfers_at = now
 
+    LEAD_ORDERS_TTL = 60         # ثانیه
+
+    async def _refresh_lead_orders(self):
+        """تعداد فالوور و سرمایه‌ی آن‌ها روی هر پوزیشن باز (فقط حساب کپی‌ترید).
+
+        شکست این فراخوانی عمداً بی‌صدا است: این داده تزئینی است و نباید
+        نبودنش جلوی به‌روزرسانی وضعیت حساب و مدیریت پوزیشن را بگیرد. مقدار
+        قبلی هم پاک نمی‌شود تا یک خطای گذرا ستون داشبورد را خالی نکند.
+        """
+        if self.cfg.get("account_type") != "copy_trading":
+            return
+        if self.cfg.get("trading_mode") != "live":
+            return
+        getter = getattr(self.driver, "get_leader_orders_current", None)
+        if getter is None:
+            return
+        now = _utc_now().timestamp()
+        if self._lead_orders and (now - self._lead_orders_at) < self.LEAD_ORDERS_TTL:
+            return
+        try:
+            self._lead_orders = await getter()
+            self._lead_orders_at = now
+        except Exception:
+            return
+
     # ---------- وضعیت برای داشبورد ----------
     def status_dict(self) -> dict:
         equity = float(self.account_info.get("equity", 0) or 0) if self.account_info else None
@@ -931,6 +962,16 @@ class AccountRunner:
                     patch["open_time"] = record["open_time"]
                 if patch:
                     p = {**p, **patch}
+            # اطلاعات کپی‌ترید همین پوزیشن. زمان ورودِ صرافی بر رکورد خودمان
+            # ترجیح دارد: مرجع اصلی خود صرافی است و این تنها جایی است که
+            # زمان ورود را می‌دهد — حتی برای پوزیشنی که ربات بازش نکرده.
+            lead = self._lead_orders.get(f"{p.get('symbol')}|{p.get('side')}")
+            if lead:
+                extra = {"followers": lead.get("followers"),
+                         "follower_margin": lead.get("follower_margin")}
+                if lead.get("open_time"):
+                    extra["open_time"] = lead["open_time"]
+                p = {**p, **extra}
             positions.append(p)
 
         # جدیدترین ورود بالای لیست. زمان‌ها همه ISO-8601 با فرمت یکسان‌اند

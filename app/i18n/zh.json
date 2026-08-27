@@ -987,5 +987,7 @@
   "sidebar.version": "版本",
   "sidebar.version_title": "服务器当前运行的提交。无需登录即可查看：/api/version",
   "dash.account_type_futures_sub": "保证金／常规",
-  "dash.account_type_copy_sub": "带单账户"
+  "dash.account_type_copy_sub": "带单账户",
+  "dash.th_followers": "跟随者",
+  "dash.followers_on_trade": "{n} 人以 {amount} USDT 跟随这笔交易"
 }

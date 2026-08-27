@@ -298,6 +298,39 @@ class ToobitDriver(ExchangeDriver):
             "trading_days": _f(data.get("tradingDays")),
         }
 
+    async def get_leader_orders_current(self) -> dict:
+        """پوزیشن‌های باز حساب لیدر، همراه با اطلاعاتی که اندپوینت معمولی
+        پوزیشن‌ها ندارد: چند نفر روی این معامله سوارند و با چه سرمایه‌ای.
+
+        خروجی با کلید «نماد|جهت» برمی‌گردد تا موتور بتواند سریع به
+        پوزیشن‌های خودش بچسباندش. زمان ورود هم این‌جا هست — برخلاف اندپوینت
+        فیوچرز که هیچ فیلد زمانی ندارد.
+        """
+        payload = await self._request("GET", f"{COPY_TRADING_PREFIX}/leader/orders/current",
+                                      signed=True)
+        data = self._v2_data(payload)
+        out = {}
+        for r in (data if isinstance(data, list) else []):
+            if not isinstance(r, dict):
+                continue
+            symbol = r.get("symbolId") or r.get("symbol")
+            if not symbol:
+                continue
+            side = "long" if str(r.get("isLong", 1)) not in ("0", "False", "false") else "short"
+            open_time = None
+            ms = _f(r.get("openTime"))
+            if ms:
+                from datetime import datetime, timezone
+                open_time = datetime.fromtimestamp(ms / 1000, timezone.utc)\
+                                    .isoformat(timespec="seconds")
+            out[f"{symbol}|{side}"] = {
+                "followers": _f(r.get("totalFollowerCount")),
+                "follower_margin": _f(r.get("totalFollowerMargin")),
+                "open_time": open_time,
+                "leverage": _f(r.get("leverage")),
+            }
+        return out
+
     async def get_leader_profit_sharings(self) -> list:
         """تاریخچه‌ی هفتگی تقسیم سود با دنبال‌کننده‌ها.
 
