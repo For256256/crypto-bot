@@ -927,9 +927,9 @@
   "str.backtest_trend_note": "The {tf} trend filter was active — {n} signals were skipped for being counter-trend.",
   "dash.th_open_time": "Entry time",
   "common.close": "Close",
-  "dash.account_type": "Which exchange account should trades run on?",
-  "dash.account_type_futures": "Futures account (default)",
-  "dash.account_type_copy": "Copy-trading account (lead trader)",
+  "dash.account_type": "Account type — which exchange account do trades open on?",
+  "dash.account_type_futures": "Futures",
+  "dash.account_type_copy": "Copy trading",
   "dash.account_type_hint": "Toobit's order endpoints have no parameter for selecting an account — which account a trade lands on is decided by the API key itself. So this option does not reroute orders; it checks that the key you entered is the right type and that your symbols are allowed.",
   "dash.account_type_copy_note": "This mode needs a separate key created in the Toobit app under “API Management → Copy Trading API” (up to 2 key sets per account). A regular futures key will not work here and “Test connection” will reject it. With the right key, trades open on the copy-trading account and followers copy them.",
   "dash.copy_badge": "copy trading",
@@ -985,5 +985,7 @@
   "rep.cp_days": "{n}d",
   "rep.cp_hours": "{n}h",
   "sidebar.version": "build",
-  "sidebar.version_title": "Commit this server is running. Check without logging in at /api/version"
+  "sidebar.version_title": "Commit this server is running. Check without logging in at /api/version",
+  "dash.account_type_futures_sub": "margin / regular",
+  "dash.account_type_copy_sub": "lead account"
 }
