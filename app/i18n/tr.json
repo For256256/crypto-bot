@@ -983,5 +983,7 @@
   "rep.cp_fl_more": "{total} kişiden {shown} tanesi gösteriliyor.",
   "rep.cp_fl_empty": "Henüz sizi takip eden yok.",
   "rep.cp_days": "{n} gün",
-  "rep.cp_hours": "{n} saat"
+  "rep.cp_hours": "{n} saat",
+  "sidebar.version": "sürüm",
+  "sidebar.version_title": "Bu sunucunun çalıştığı commit. Giriş yapmadan kontrol: /api/version"
 }

@@ -983,5 +983,7 @@
   "rep.cp_fl_more": "Показано {shown} из {total}.",
   "rep.cp_fl_empty": "Пока никто на вас не подписан.",
   "rep.cp_days": "{n} дн.",
-  "rep.cp_hours": "{n} ч."
+  "rep.cp_hours": "{n} ч.",
+  "sidebar.version": "сборка",
+  "sidebar.version_title": "Коммит, на котором работает сервер. Проверить без входа: /api/version"
 }

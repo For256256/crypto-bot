@@ -281,9 +281,12 @@ tailwind.config = {
   <div class="px-4 mt-4">
     <div class="glass-card rounded-lg p-3 flex items-center gap-2">
       <span class="material-symbols-outlined text-buy text-lg">terminal</span>
-      <div>
+      <div class="min-w-0">
         <p class="text-xs text-on-surface-variant">{{ t('sidebar.system_status') }}</p>
         <p class="text-xs text-buy" id="sysStatus">{{ t('sidebar.checking') }}</p>
+        <p class="text-[10px] text-on-surface-variant mt-1 mono-num" dir="ltr"
+           title="{{ t('sidebar.version_title') }}">
+          {{ t('sidebar.version') }} {{ app_version.commit }}</p>
       </div>
     </div>
   </div>
