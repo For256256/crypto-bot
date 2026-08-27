@@ -32,6 +32,14 @@ TAKER_FEE_RATE = 0.0006
 # شرط دسترسی: نوع کلید API باید COPY_TRADING باشد — کلید فیوچرز معمولی رد می‌شود.
 COPY_TRADING_PREFIX = "/api/v2/copy-trading"
 
+
+def _f(v, default: float | None = None):
+    """تبدیل امن به float — اعداد این اندپوینت‌ها همه به‌صورت رشته می‌آیند."""
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
 # نگاشت تایم‌فریم داخلی پروژه به interval کندل Toobit
 INTERVAL_MAP = {
     "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m",
@@ -222,10 +230,97 @@ class ToobitDriver(ExchangeDriver):
             })
         return out
 
-    async def get_leader_followers(self) -> list:
-        payload = await self._request("GET", f"{COPY_TRADING_PREFIX}/leader/followers", signed=True)
+    async def get_leader_followers(self, page: int = 1, size: int = 50) -> dict:
+        """فهرست دنبال‌کننده‌ها به‌همراه تعداد کل.
+
+        پاسخ این اندپوینت صفحه‌بندی‌شده است ({pages, total, list}) و پیش‌فرض
+        هر صفحه ۱۰ ردیف است. برای همین «تعداد فالوور» باید از فیلد total
+        خوانده شود نه از طول لیست — وگرنه هر لیدری با بیش از یک صفحه
+        دنبال‌کننده، عدد ناقص می‌دید.
+        """
+        payload = await self._request(
+            "GET", f"{COPY_TRADING_PREFIX}/leader/followers",
+            {"page": max(int(page), 1), "size": max(min(int(size), 100), 1)}, signed=True)
+        data = payload.get("data") if isinstance(payload, dict) else payload
+        rows, total = [], None
+        if isinstance(data, dict):
+            rows = data.get("list") if isinstance(data.get("list"), list) else []
+            total = data.get("total")
+        elif isinstance(data, list):
+            rows = data
+        out = []
+        for r in rows:
+            if not isinstance(r, dict):
+                continue
+            out.append({
+                "nickname": r.get("followerNickname") or "—",
+                "amount_limit": _f(r.get("followAmountLimit")),
+                "margin": _f(r.get("totalFollowMargin")),
+                "profit": _f(r.get("totalProfit")),
+                "running_ms": _f(r.get("followRunningMills")),
+            })
+        try:
+            total = int(float(total)) if total is not None else len(out)
+        except (TypeError, ValueError):
+            total = len(out)
+        return {"total": total, "list": out}
+
+    async def get_leader_trade_data(self, period: int = 30) -> dict:
+        """آمار رسمی لیدری از نگاه صرافی — همان اعدادی که دنبال‌کننده‌های
+        بالقوه در پروفایل شما می‌بینند.
+
+        بازه‌های مجاز صرافی ثابت‌اند (۷/۳۰/۹۰/۱۸۰/۳۶۵ روز)؛ نزدیک‌ترین مقدار
+        به بازه‌ی انتخابی کاربر فرستاده می‌شود.
+        """
+        allowed = (7, 30, 90, 180, 365)
+        period = min(allowed, key=lambda a: abs(a - int(period or 30)))
+        payload = await self._request("GET", f"{COPY_TRADING_PREFIX}/leader/trade-data",
+                                      {"type": period}, signed=True)
         data = self._v2_data(payload)
-        return data if isinstance(data, list) else []
+        if isinstance(data, list):
+            data = data[0] if data else {}
+        if not isinstance(data, dict):
+            return {}
+        return {
+            "period_days": period,
+            "profit_rate": _f(data.get("profitRate")),
+            "accumulated_profit": _f(data.get("accumulatedProfit")),
+            "order_count": _f(data.get("orderCount")),
+            "win_rate": _f(data.get("winRate")),
+            "current_followers": _f(data.get("currentFollowerCount")),
+            "total_followers": _f(data.get("totalFollowerCount")),
+            "follower_total_profit": _f(data.get("followerTotalProfit")),
+            "sharpe_ratio": _f(data.get("sharpeRatio")),
+            "aum": _f(data.get("assetManagementScale")),
+            # این یکی رشته‌ی نمایشی است (مثلاً «2.18:1»)، نه عدد
+            "profit_loss_ratio": data.get("profitLossRatio"),
+            "trading_frequency": _f(data.get("tradingFrequency")),
+            "trading_days": _f(data.get("tradingDays")),
+        }
+
+    async def get_leader_profit_sharings(self) -> list:
+        """تاریخچه‌ی هفتگی تقسیم سود با دنبال‌کننده‌ها.
+
+        این درآمد دومِ یک حساب کپی‌ترید است و در سود/زیان معاملات خودِ حساب
+        اصلاً دیده نمی‌شود؛ به همین دلیل گزارش کپی‌ترید باید جدا باشد.
+        """
+        payload = await self._request("GET", f"{COPY_TRADING_PREFIX}/leader/profit-sharings/history",
+                                      signed=True)
+        data = self._v2_data(payload)
+        out = []
+        for r in (data if isinstance(data, list) else []):
+            if not isinstance(r, dict):
+                continue
+            out.append({
+                "date": r.get("sharingDate") or "",
+                "year": r.get("year"),
+                "week": r.get("weekOfYear"),
+                "total": _f(r.get("totalProfitSharing")),
+                "referral_share": _f(r.get("recommendUserShare")),
+                "net": _f(r.get("realProfitShare")),
+            })
+        out.sort(key=lambda x: str(x["date"]), reverse=True)
+        return out
 
     async def get_candles(self, symbol: str, timeframe: str, count: int = 500) -> pd.DataFrame:
         interval = INTERVAL_MAP.get(timeframe, "1h")
