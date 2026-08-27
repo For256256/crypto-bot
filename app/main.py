@@ -1,6 +1,7 @@
 import asyncio
 import json
 import secrets
+from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -1445,7 +1446,8 @@ async def _diagnose_copy_trading(driver) -> dict:
     except ExchangeError as e:
         out["symbols_error"] = str(e)
     try:
-        out["followers"] = len(await driver.get_leader_followers())
+        # total از خود صرافی، نه طول لیست: پاسخ صفحه‌بندی‌شده است
+        out["followers"] = (await driver.get_leader_followers())["total"]
     except ExchangeError as e:
         out["followers_error"] = str(e)
     return out
@@ -1628,6 +1630,60 @@ async def combined_report(days: int = 30, user: dict = Depends(auth.require_user
     report["account_info"] = None
     report["account_stats"] = None
     return report
+
+
+@app.get("/api/accounts/{account_id}/copy-report")
+async def copy_trading_report(account_id: str, days: int = 30,
+                              user: dict = Depends(auth.require_user)):
+    """بخش‌های مخصوص حساب کپی‌ترید، جدا از گزارش معاملات.
+
+    چرا جدا: یک حساب لیدر دو منبع درآمد دارد — سود معاملات خودش، و سهمی که
+    از سود دنبال‌کننده‌ها می‌گیرد. دومی در سود/زیان معاملات اصلاً دیده
+    نمی‌شود، پس گزارش فیوچرز به‌تنهایی تصویر کاملی از یک حساب کپی‌ترید
+    نمی‌دهد. ضمناً معیارهایی مثل شارپ و سرمایه‌ی تحت مدیریت را خودمان
+    نمی‌توانیم حساب کنیم و فقط صرافی دارد.
+
+    اندپوینت جداست تا اگر این فراخوانی‌ها شکست خوردند، گزارش اصلی سالم بماند.
+    """
+    account = _owned_account(account_id, user)
+    if account.get("account_type") != "copy_trading" or account.get("exchange", "toobit") != "toobit":
+        raise ApiError(400, "err.not_copy_account", "این حساب از نوع کپی‌ترید نیست")
+
+    from app.core.exchanges.factory import build_driver
+    from app.core.exchanges.base import ExchangeError
+
+    driver = build_driver("live", account)
+    out = {"trade_data": None, "followers": None, "profit_sharing": None, "errors": {}}
+    try:
+        await driver.connect_public()
+        # هر بخش جدا خطا می‌گیرد: نبودن یکی نباید بقیه را از بین ببرد
+        try:
+            out["trade_data"] = await driver.get_leader_trade_data(days or 365)
+        except ExchangeError as e:
+            out["errors"]["trade_data"] = str(e)
+        try:
+            out["followers"] = await driver.get_leader_followers(size=50)
+        except ExchangeError as e:
+            out["errors"]["followers"] = str(e)
+        try:
+            rows = await driver.get_leader_profit_sharings()
+            cutoff = None
+            if days and days > 0:
+                cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+            in_range = [r for r in rows if not cutoff or str(r["date"]) >= cutoff]
+            out["profit_sharing"] = {
+                "rows": in_range[:52],
+                "total_net": sum(r["net"] or 0 for r in in_range),
+                "total_gross": sum(r["total"] or 0 for r in in_range),
+                "total_referral": sum(r["referral_share"] or 0 for r in in_range),
+            }
+        except ExchangeError as e:
+            out["errors"]["profit_sharing"] = str(e)
+    except ExchangeError as e:
+        out["errors"]["connect"] = str(e)
+    finally:
+        await driver.close()
+    return out
 
 
 @app.post("/api/accounts/{account_id}/report/reset")

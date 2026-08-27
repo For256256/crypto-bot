@@ -40,8 +40,12 @@ let tradePage = 1;
 const PAGE_SIZE = 10;
 let tradeFilter = '';
 
+let accountsById = {};
+let copyData = null;
+
 async function init() {
   const accounts = await callApi('/api/accounts');
+  accountsById = Object.fromEntries(accounts.map(a => [a.id, a]));
   const sel = document.getElementById('f_account');
   if (!accounts.length) {
     document.getElementById('reportRoot').innerHTML =
@@ -81,7 +85,15 @@ async function loadReport() {
       url = `/api/accounts/${accId}/report?days=${days}`;
       if (mode) url += `&mode=${mode}`;
     }
+    // گزارش کپی‌ترید موازی گرفته می‌شود و خطایش گزارش اصلی را از بین نمی‌برد
+    const acc = accountsById[accId];
+    const wantsCopy = !combined && acc && acc.account_type === 'copy_trading';
+    const copyPromise = wantsCopy
+      ? callApi(`/api/accounts/${accId}/copy-report?days=${days}`).catch(e => ({_failed: e.message}))
+      : Promise.resolve(null);
+
     reportData = await callApi(url);
+    copyData = await copyPromise;
     if (combined && !(reportData.accounts || []).length) {
       root.innerHTML = `<div class="glass-card rounded-2xl p-10 text-center text-on-surface-variant">${t('rep.combined_empty')}</div>`;
       return;
@@ -364,6 +376,164 @@ function onTradeSearch(v) {
   document.getElementById('tradesWrap').innerHTML = renderTradesTable();
 }
 
+// ---------- بخش‌های مخصوص حساب کپی‌ترید ----------
+// یک حساب لیدر دو منبع درآمد دارد: سود معاملات خودش، و سهمی که از سود
+// دنبال‌کننده‌ها می‌گیرد. دومی هیچ‌جای گزارش معاملات دیده نمی‌شود.
+function fmtDuration(ms) {
+  const days = Math.floor((Number(ms) || 0) / 86400000);
+  if (days >= 1) return t('rep.cp_days', {n: days});
+  const hours = Math.floor((Number(ms) || 0) / 3600000);
+  return t('rep.cp_hours', {n: hours});
+}
+
+function copyStatCard(label, value, sub, cls) {
+  return `<div class="glass-card p-5 rounded-2xl flex flex-col items-center text-center">
+    <span class="text-on-surface-variant text-xs mb-2">${label}</span>
+    <span class="mono-num text-2xl font-bold ${cls || ''}" dir="ltr">${value}</span>
+    ${sub ? `<span class="text-[11px] text-on-surface-variant mt-1">${sub}</span>` : ''}
+  </div>`;
+}
+
+function renderCopySection() {
+  if (!copyData) return '';
+  if (copyData._failed) {
+    return `<div class="glass-card p-5 rounded-2xl mb-6 border border-gold/40">
+      <div class="text-[11px] text-gold leading-6">${t('rep.cp_failed', {msg: copyData._failed})}</div>
+    </div>`;
+  }
+  const td = copyData.trade_data || {};
+  const fl = copyData.followers || {};
+  const ps = copyData.profit_sharing || {};
+  const errs = copyData.errors || {};
+  const pct = v => (v == null ? '—' : (v * 100 >= 0 ? '+' : '') + fmt(v * 100, 2) + t('common.pct'));
+
+  // ---- کارت‌های خلاصه ----
+  const cards = `<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    ${copyStatCard(t('rep.cp_sharing_income'),
+        ps.total_net != null ? (ps.total_net >= 0 ? '+' : '') + niceNum(ps.total_net) : '—',
+        'USDT', 'text-buy')}
+    ${copyStatCard(t('rep.cp_followers'),
+        // صرافی خودش فیلدی به‌نام «تعداد فعلی» دارد؛ همان مرجع است. total
+        // فهرست فقط وقتی استفاده می‌شود که آن فیلد نیامده باشد.
+        td.current_followers != null ? fmt(td.current_followers, 0) : (fl.total != null ? fl.total : '—'),
+        td.total_followers != null ? t('rep.cp_followers_total', {n: fmt(td.total_followers, 0)}) : '')}
+    ${copyStatCard(t('rep.cp_aum'), td.aum != null ? niceNum(td.aum) : '—', 'USDT', 'text-primary')}
+    ${copyStatCard(t('rep.cp_follower_profit'),
+        td.follower_total_profit != null ? (td.follower_total_profit >= 0 ? '+' : '') + niceNum(td.follower_total_profit) : '—',
+        'USDT', (td.follower_total_profit || 0) >= 0 ? 'text-buy' : 'text-sell')}
+  </div>`;
+
+  // ---- آمار رسمی صرافی ----
+  const row = (label, value, cls) => `<div class="flex justify-between items-center py-2 border-b border-outline-variant/10 last:border-0">
+      <span class="text-on-surface-variant text-xs">${label}</span>
+      <span class="mono-num text-sm font-bold ${cls || ''}" dir="ltr">${value}</span>
+    </div>`;
+  const tdBlock = errs.trade_data
+    ? `<div class="text-[11px] text-gold py-2">${errs.trade_data}</div>`
+    : `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8">
+        <div>
+          ${row(t('rep.cp_profit_rate'), pct(td.profit_rate), (td.profit_rate || 0) >= 0 ? 'text-buy' : 'text-sell')}
+          ${row(t('rep.cp_accum_profit'), td.accumulated_profit != null ? niceNum(td.accumulated_profit) + ' USDT' : '—')}
+          ${row(t('common.win_rate'), td.win_rate != null ? fmt(td.win_rate * 100, 1) + t('common.pct') : '—')}
+        </div>
+        <div>
+          ${row(t('rep.cp_sharpe'), td.sharpe_ratio != null ? fmt(td.sharpe_ratio, 2) : '—')}
+          ${row(t('rep.cp_pl_ratio'), td.profit_loss_ratio || '—')}
+          ${row(t('rep.cp_order_count'), td.order_count != null ? fmt(td.order_count, 0) : '—')}
+        </div>
+        <div>
+          ${row(t('rep.cp_trading_days'), td.trading_days != null ? fmt(td.trading_days, 0) : '—')}
+          ${row(t('rep.cp_frequency'), td.trading_frequency != null ? fmt(td.trading_frequency, 2) : '—')}
+        </div>
+      </div>`;
+
+  // ---- جدول تقسیم سود هفتگی ----
+  const psRows = (ps.rows || []).map(r => `<tr class="hover:bg-surface-variant/20 transition-colors">
+      <td class="text-[11px]" dir="ltr">${r.date}</td>
+      <td class="num">${niceNum(r.total)}</td>
+      <td class="num text-on-surface-variant text-[11px]">${niceNum(r.referral_share)}</td>
+      <td class="num text-buy font-bold">+${niceNum(r.net)}</td>
+    </tr>`).join('');
+  const psCards = (ps.rows || []).map(r => `<div class="border-b border-outline-variant/20 last:border-b-0 py-3">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <span class="font-bold text-xs" dir="ltr">${r.date}</span>
+        <span class="mono-num text-sm font-bold text-buy" dir="ltr">+${niceNum(r.net)}</span>
+      </div>
+      <div class="grid grid-cols-2 gap-x-2">
+        <div><div class="text-[10px] text-on-surface-variant mb-0.5">${t('rep.cp_ps_gross')}</div>
+             <div class="mono-num text-xs" dir="ltr">${niceNum(r.total)}</div></div>
+        <div><div class="text-[10px] text-on-surface-variant mb-0.5">${t('rep.cp_ps_referral')}</div>
+             <div class="mono-num text-xs text-on-surface-variant" dir="ltr">${niceNum(r.referral_share)}</div></div>
+      </div>
+    </div>`).join('');
+  const psBlock = errs.profit_sharing
+    ? `<div class="text-[11px] text-gold py-2">${errs.profit_sharing}</div>`
+    : ((ps.rows || []).length
+      ? `<div class="hidden md:block overflow-x-auto"><table class="of-table">
+           <thead><tr><th>${t('rep.cp_ps_date')}</th><th>${t('rep.cp_ps_gross')}</th><th>${t('rep.cp_ps_referral')}</th><th>${t('rep.cp_ps_net')}</th></tr></thead>
+           <tbody>${psRows}</tbody></table></div>
+         <div class="md:hidden">${psCards}</div>`
+      : `<div class="text-[11px] text-on-surface-variant py-3">${t('rep.cp_ps_empty')}</div>`);
+
+  // ---- جدول دنبال‌کننده‌ها ----
+  const flRows = (fl.list || []).map(f => `<tr class="hover:bg-surface-variant/20 transition-colors">
+      <td class="font-bold" dir="ltr">${f.nickname}</td>
+      <td class="num">${niceNum(f.margin)}</td>
+      <td class="num">${niceNum(f.amount_limit)}</td>
+      <td class="num ${(f.profit || 0) >= 0 ? 'text-buy' : 'text-sell'} font-bold">${(f.profit || 0) >= 0 ? '+' : ''}${niceNum(f.profit)}</td>
+      <td class="num text-on-surface-variant text-[11px]">${fmtDuration(f.running_ms)}</td>
+    </tr>`).join('');
+  const flCards = (fl.list || []).map(f => `<div class="border-b border-outline-variant/20 last:border-b-0 py-3">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <span class="font-bold text-sm" dir="ltr">${f.nickname}</span>
+        <span class="mono-num text-sm font-bold ${(f.profit || 0) >= 0 ? 'text-buy' : 'text-sell'}" dir="ltr">${(f.profit || 0) >= 0 ? '+' : ''}${niceNum(f.profit)}</span>
+      </div>
+      <div class="grid grid-cols-3 gap-x-2">
+        <div><div class="text-[10px] text-on-surface-variant mb-0.5">${t('rep.cp_fl_margin')}</div>
+             <div class="mono-num text-xs" dir="ltr">${niceNum(f.margin)}</div></div>
+        <div><div class="text-[10px] text-on-surface-variant mb-0.5">${t('rep.cp_fl_limit')}</div>
+             <div class="mono-num text-xs" dir="ltr">${niceNum(f.amount_limit)}</div></div>
+        <div><div class="text-[10px] text-on-surface-variant mb-0.5">${t('rep.cp_fl_duration')}</div>
+             <div class="mono-num text-xs" dir="ltr">${fmtDuration(f.running_ms)}</div></div>
+      </div>
+    </div>`).join('');
+  const flBlock = errs.followers
+    ? `<div class="text-[11px] text-gold py-2">${errs.followers}</div>`
+    : ((fl.list || []).length
+      ? `<div class="hidden md:block overflow-x-auto"><table class="of-table">
+           <thead><tr><th>${t('rep.cp_fl_name')}</th><th>${t('rep.cp_fl_margin')}</th><th>${t('rep.cp_fl_limit')}</th><th>${t('rep.cp_fl_profit')}</th><th>${t('rep.cp_fl_duration')}</th></tr></thead>
+           <tbody>${flRows}</tbody></table></div>
+         <div class="md:hidden">${flCards}</div>
+         ${fl.total > (fl.list || []).length ? `<div class="text-[10px] text-on-surface-variant mt-3">${t('rep.cp_fl_more', {shown: (fl.list||[]).length, total: fl.total})}</div>` : ''}`
+      : `<div class="text-[11px] text-on-surface-variant py-3">${t('rep.cp_fl_empty')}</div>`);
+
+  return `<div class="rounded-2xl border border-gold/30 bg-gold/5 p-1 mb-6">
+    <div class="px-4 pt-3 pb-1">
+      <h3 class="font-headline font-bold flex items-center gap-2 text-gold">
+        <span class="material-symbols-outlined">groups</span> ${t('rep.cp_section')}
+      </h3>
+      <p class="text-[11px] text-on-surface-variant mt-1 leading-6">${t('rep.cp_section_hint')}</p>
+    </div>
+    <div class="p-4">
+      ${cards}
+      <div class="glass-card p-5 rounded-2xl mb-4">
+        <h4 class="font-bold text-sm mb-1">${t('rep.cp_exchange_stats')}</h4>
+        <p class="text-[10px] text-on-surface-variant mb-3 leading-5">${t('rep.cp_exchange_stats_hint', {n: td.period_days || '—'})}</p>
+        ${tdBlock}
+      </div>
+      <div class="glass-card p-5 rounded-2xl mb-4">
+        <h4 class="font-bold text-sm mb-1">${t('rep.cp_sharing_title')}</h4>
+        <p class="text-[10px] text-on-surface-variant mb-3 leading-5">${t('rep.cp_sharing_hint')}</p>
+        ${psBlock}
+      </div>
+      <div class="glass-card p-5 rounded-2xl">
+        <h4 class="font-bold text-sm mb-3">${t('rep.cp_followers_title')}</h4>
+        ${flBlock}
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderAccountBreakdown() {
   const rows = reportData.accounts || [];
   if (!rows.length) return '';
@@ -553,6 +723,8 @@ function renderReport() {
     </h3>
     ${svgDailyPnl(reportData.daily)}
   </div>
+
+  ${renderCopySection()}
 
   ${isCombined() ? renderAccountBreakdown() : renderAccountDetails()}
 
