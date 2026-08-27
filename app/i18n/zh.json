@@ -927,9 +927,9 @@
   "str.backtest_trend_note": "{tf} 趋势过滤已启用 — {n} 个信号因逆势而被跳过。",
   "dash.th_open_time": "入场时间",
   "common.close": "关闭",
-  "dash.account_type": "交易在哪个交易所账户上执行？",
-  "dash.account_type_futures": "合约账户（默认）",
-  "dash.account_type_copy": "跟单账户（带单员）",
+  "dash.account_type": "账户类型 — 交易在哪个交易所账户上开仓？",
+  "dash.account_type_futures": "合约",
+  "dash.account_type_copy": "跟单",
   "dash.account_type_hint": "Toobit 的下单接口没有选择账户的参数——交易落在哪个账户由 API 密钥本身决定。因此该选项不会改变下单路径，而是检查你填入的密钥类型是否正确、交易对是否被允许。",
   "dash.account_type_copy_note": "此模式需要在 Toobit App 的「API 管理 → 跟单 API」中单独创建密钥（每个账户最多 2 组）。普通合约密钥在这里无效，「测试连接」会拒绝它。使用正确的密钥时，交易会在跟单账户上开仓，跟随者会复制这些交易。",
   "dash.copy_badge": "跟单",
@@ -985,5 +985,7 @@
   "rep.cp_days": "{n} 天",
   "rep.cp_hours": "{n} 小时",
   "sidebar.version": "版本",
-  "sidebar.version_title": "服务器当前运行的提交。无需登录即可查看：/api/version"
+  "sidebar.version_title": "服务器当前运行的提交。无需登录即可查看：/api/version",
+  "dash.account_type_futures_sub": "保证金／常规",
+  "dash.account_type_copy_sub": "带单账户"
 }

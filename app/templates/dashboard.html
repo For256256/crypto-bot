@@ -44,11 +44,24 @@
       </div>
       <div class="sm:col-span-2" id="f_account_type_box">
         <label class="lbl">{{ t("dash.account_type") }}</label>
-        <select id="f_account_type" class="field" onchange="onAccountTypeChange()">
-          <option value="futures">{{ t("dash.account_type_futures") }}</option>
-          <option value="copy_trading">{{ t("dash.account_type_copy") }}</option>
-        </select>
-        <p class="text-[10px] text-on-surface-variant mt-1 leading-5" id="f_account_type_hint">{{ t("dash.account_type_hint") }}</p>
+        <!-- دو کارت به‌جای dropdown: این انتخاب دوحالته و مهم است و وقتی
+             شبیه بقیه‌ی فیلدها بود، کاربر اصلاً نمی‌دیدش. -->
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" id="f_at_futures" onclick="setAccountType('futures')"
+            class="acct-type flex flex-col items-center gap-1 py-3 px-2 rounded-xl border-2 transition-colors">
+            <span class="material-symbols-outlined text-xl">candlestick_chart</span>
+            <span class="text-xs font-bold">{{ t("dash.account_type_futures") }}</span>
+            <span class="text-[10px] opacity-70">{{ t("dash.account_type_futures_sub") }}</span>
+          </button>
+          <button type="button" id="f_at_copy" onclick="setAccountType('copy_trading')"
+            class="acct-type flex flex-col items-center gap-1 py-3 px-2 rounded-xl border-2 transition-colors">
+            <span class="material-symbols-outlined text-xl">groups</span>
+            <span class="text-xs font-bold">{{ t("dash.account_type_copy") }}</span>
+            <span class="text-[10px] opacity-70">{{ t("dash.account_type_copy_sub") }}</span>
+          </button>
+        </div>
+        <input type="hidden" id="f_account_type" value="futures">
+        <p class="text-[10px] text-on-surface-variant mt-2 leading-5" id="f_account_type_hint">{{ t("dash.account_type_hint") }}</p>
         <div class="mt-2 rounded-lg border border-gold/40 bg-gold/10 p-2.5 text-[10px] leading-5 hidden" id="f_copy_note">
           {{ t("dash.account_type_copy_note") }}
         </div>
@@ -374,7 +387,19 @@ function onExchangeChange() {
   // اگر باز بماند، کاربر گزینه‌ای می‌بیند که هیچ‌جا اعمال نمی‌شود.
   const isToobit = ex === 'toobit';
   document.getElementById('f_account_type_box').classList.toggle('hidden', !isToobit);
-  if (!isToobit) document.getElementById('f_account_type').value = 'futures';
+  if (!isToobit) setAccountType('futures');
+  else onAccountTypeChange();
+}
+
+const AT_ON  = 'border-primary text-primary bg-primary/10';
+const AT_OFF = 'border-outline-variant/40 text-on-surface-variant hover:bg-surface-variant';
+
+function setAccountType(value) {
+  document.getElementById('f_account_type').value = value;
+  const isCopy = value === 'copy_trading';
+  const paint = (el, on) => { el.className = el.className.replace(AT_ON, '').replace(AT_OFF, '').trim() + ' ' + (on ? AT_ON : AT_OFF); };
+  paint(document.getElementById('f_at_futures'), !isCopy);
+  paint(document.getElementById('f_at_copy'), isCopy);
   onAccountTypeChange();
 }
 
@@ -397,7 +422,7 @@ function openAccountModal(acc) {
     exSel.insertAdjacentHTML('beforeend', `<option value="${exVal}">${exVal}</option>`);
   }
   exSel.value = exVal;
-  g('f_account_type').value = (acc && acc.account_type) ? acc.account_type : 'futures';
+  setAccountType((acc && acc.account_type) ? acc.account_type : 'futures');
   onExchangeChange();
   g('f_api_key').value = acc ? (acc.api_key || '') : '';
   g('f_api_secret').value = acc ? (acc.api_secret || '') : '';

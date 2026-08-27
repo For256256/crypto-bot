@@ -927,9 +927,9 @@
   "str.backtest_trend_note": "{tf} trend filtresi etkindi — {n} sinyal trend karşıtı olduğu için atlandı.",
   "dash.th_open_time": "Giriş zamanı",
   "common.close": "Kapat",
-  "dash.account_type": "İşlemler hangi borsa hesabında yapılsın?",
-  "dash.account_type_futures": "Vadeli işlem hesabı (varsayılan)",
-  "dash.account_type_copy": "Kopya işlem hesabı (lider yatırımcı)",
+  "dash.account_type": "Hesap türü — işlemler hangi borsa hesabında açılsın?",
+  "dash.account_type_futures": "Vadeli",
+  "dash.account_type_copy": "Kopya işlem",
   "dash.account_type_hint": "Toobit'in emir uç noktalarında hesap seçmek için bir parametre yok — işlemin hangi hesaba düşeceğini API anahtarının kendisi belirler. Bu nedenle bu seçenek emirleri yönlendirmez; girdiğiniz anahtarın doğru türde olduğunu ve sembollerinizin izinli olduğunu denetler.",
   "dash.account_type_copy_note": "Bu mod için Toobit uygulamasında «API Yönetimi → Kopya İşlem API» bölümünden ayrı bir anahtar oluşturmanız gerekir (hesap başına en fazla 2 anahtar grubu). Normal vadeli işlem anahtarı burada çalışmaz ve «Bağlantıyı test et» onu reddeder. Doğru anahtarla işlemler kopya işlem hesabında açılır ve takipçiler bunları kopyalar.",
   "dash.copy_badge": "kopya işlem",
@@ -985,5 +985,7 @@
   "rep.cp_days": "{n} gün",
   "rep.cp_hours": "{n} saat",
   "sidebar.version": "sürüm",
-  "sidebar.version_title": "Bu sunucunun çalıştığı commit. Giriş yapmadan kontrol: /api/version"
+  "sidebar.version_title": "Bu sunucunun çalıştığı commit. Giriş yapmadan kontrol: /api/version",
+  "dash.account_type_futures_sub": "marjin / normal",
+  "dash.account_type_copy_sub": "lider hesap"
 }
