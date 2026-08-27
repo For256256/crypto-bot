@@ -987,5 +987,7 @@
   "sidebar.version": "sürüm",
   "sidebar.version_title": "Bu sunucunun çalıştığı commit. Giriş yapmadan kontrol: /api/version",
   "dash.account_type_futures_sub": "marjin / normal",
-  "dash.account_type_copy_sub": "lider hesap"
+  "dash.account_type_copy_sub": "lider hesap",
+  "dash.th_followers": "Takipçi",
+  "dash.followers_on_trade": "{amount} USDT ile bu işlemde {n} takipçi var"
 }

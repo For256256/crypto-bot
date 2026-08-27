@@ -987,5 +987,7 @@
   "sidebar.version": "сборка",
   "sidebar.version_title": "Коммит, на котором работает сервер. Проверить без входа: /api/version",
   "dash.account_type_futures_sub": "маржинальный / обычный",
-  "dash.account_type_copy_sub": "счёт ведущего"
+  "dash.account_type_copy_sub": "счёт ведущего",
+  "dash.th_followers": "Подписчики",
+  "dash.followers_on_trade": "{n} подписчик(ов) в этой сделке с {amount} USDT"
 }

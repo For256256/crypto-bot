@@ -1117,6 +1117,17 @@ function renderSymbols() {
   grid.innerHTML = cards + addCard;
 }
 
+// روی حساب کپی‌ترید، هر پوزیشن باز فقط پول خودِ لیدر نیست — چند نفر با
+// سرمایه‌ی خودشان همان معامله را کپی کرده‌اند. نمایشش ریسک هر معامله را
+// ملموس می‌کند. برای حساب فیوچرز این داده وجود ندارد و خط تیره می‌شود.
+function followerCell(p) {
+  if (p.followers == null) return '—';
+  // پرانتز لازم است: بدون جداکننده، «۱۲» و «1.00K» کنار هم مثل یک عدد
+  // واحد («121.00K») خوانده می‌شدند.
+  return `<span class="text-gold font-bold">${fmt(p.followers, 0)}</span>`
+       + `<span class="text-[10px] text-on-surface-variant ms-1">(${niceNum(p.follower_margin || 0)})</span>`;
+}
+
 function renderPositions() {
   const box = document.getElementById('positionsBox');
   const acc = accountsCache.find(a => a.id === selectedAccountId);
@@ -1132,7 +1143,9 @@ function renderPositions() {
     const cls = (p.profit || 0) >= 0 ? 'text-buy' : 'text-sell';
     return `<tr class="hover:bg-surface-variant/20 transition-colors">
       <td>${p.symbol}</td><td>${sideBadge(p)}</td>
-      <td class="num">${fmtNum(p.qty)}</td><td class="num">${fmtNum(p.entry_price)}</td>
+      <td class="num">${fmtNum(p.qty)}</td>
+      <td class="num">${followerCell(p)}</td>
+      <td class="num">${fmtNum(p.entry_price)}</td>
       <td class="num text-[11px] text-on-surface-variant whitespace-nowrap" title="${p.open_time ? fmtDateTime(p.open_time, true) : ''}">${p.open_time ? fmtDateTime(p.open_time) : '—'}</td>
       <td class="num">${fmtNum(p.mark_price)}</td>
       <td class="num text-sell">${p.stop_loss != null ? fmtNum(p.stop_loss) : '—'}</td>
@@ -1169,6 +1182,9 @@ function renderPositions() {
         ${cell(t('dash.th_tp'), p.take_profit != null ? fmtNum(p.take_profit) : '—', 'text-buy')}
         ${cell(t('dash.th_open_time'), p.open_time ? fmtDateTime(p.open_time) : '—')}
       </div>
+      ${p.followers != null ? `<div class="mt-3 rounded-lg border border-gold/30 bg-gold/5 px-3 py-2 text-[11px] leading-5 text-gold">
+        ${t('dash.followers_on_trade', {n: fmt(p.followers, 0), amount: niceNum(p.follower_margin || 0)})}
+      </div>` : ''}
       <div class="flex justify-end mt-3">
         <button class="btn-ghost !py-1 !px-3 text-[11px] !border-sell/40 !text-sell"
                 onclick="closePosition('${acc.id}','${p.id}','${p.symbol}')">${t('dash.close')}</button>
@@ -1181,7 +1197,7 @@ function renderPositions() {
       <h3 class="font-headline font-bold flex items-center gap-2"><span class="material-symbols-outlined text-primary">candlestick_chart</span> ${t('dash.open_positions')}</h3>
     </div>
     <div class="hidden md:block overflow-x-auto"><table class="of-table">
-      <thead><tr><th>${t('common.symbol')}</th><th>${t('dash.th_side')}</th><th>${t('dash.th_qty')}</th><th>${t('dash.th_entry')}</th><th>${t('dash.th_open_time')}</th><th>${t('dash.th_current')}</th><th>${t('dash.th_sl')}</th><th>${t('dash.th_tp')}</th><th>${t('dash.th_pnl')}</th><th></th></tr></thead>
+      <thead><tr><th>${t('common.symbol')}</th><th>${t('dash.th_side')}</th><th>${t('dash.th_qty')}</th><th>${t('dash.th_followers')}</th><th>${t('dash.th_entry')}</th><th>${t('dash.th_open_time')}</th><th>${t('dash.th_current')}</th><th>${t('dash.th_sl')}</th><th>${t('dash.th_tp')}</th><th>${t('dash.th_pnl')}</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
     <div class="md:hidden">${cards}</div>

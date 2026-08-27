@@ -987,5 +987,7 @@
   "sidebar.version": "نسخه",
   "sidebar.version_title": "شناسه‌ی کامیتی که این سرور روی آن اجرا می‌شود. برای بررسی بدون ورود: /api/version",
   "dash.account_type_futures_sub": "مارجین/معمولی",
-  "dash.account_type_copy_sub": "حساب لیدر"
+  "dash.account_type_copy_sub": "حساب لیدر",
+  "dash.th_followers": "فالوور",
+  "dash.followers_on_trade": "{n} نفر با {amount} USDT روی این معامله سوارند"
 }
