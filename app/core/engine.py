@@ -52,6 +52,15 @@ DEFAULT_SL_TP_ATR_MULT = 3.0
 DEFAULT_MAX_MARGIN_PER_TRADE_PCT = 25.0
 
 
+def _num_or_none(v):
+    """float یا None — رکورد ناقص صرافی نباید حلقه را بشکند."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if f == f else None      # NaN را هم رد می‌کند
+
+
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -241,6 +250,7 @@ class AccountRunner:
         self._diagnose_missing_targets()
         await self._refresh_net_transfers()
         await self._refresh_lead_orders()
+        await self._update_trailing_stops()
 
         # ۲) ثبت نقطه‌ی اکوییتی (هر ۵ دقیقه)
         now_ts = loop.time()
@@ -904,6 +914,90 @@ class AccountRunner:
         if value is not None:
             self._net_transfers = value
             self._net_transfers_at = now
+
+    # ---------- حد ضرر دنبال‌کننده ----------
+    # کمینه‌ی جابه‌جایی، به‌صورت کسری از فاصله‌ی تریلینگ. بدون این، در یک روند
+    # آرام هر tick یک درخواست به صرافی می‌رفت بدون اینکه عملاً چیزی عوض شود.
+    TRAIL_MIN_STEP_RATIO = 0.1
+
+    def _known_stop_loss(self, p: dict) -> float | None:
+        """حد ضرر فعلی این پوزیشن، از پاسخ صرافی یا حافظه‌ی خودمان."""
+        sl = p.get("stop_loss")
+        if sl:
+            return float(sl)
+        record = (self._live_position_targets.get(p.get("id"))
+                  or position_targets.get_targets(self.account_id, p.get("symbol"), p.get("side")))
+        sl = (record or {}).get("stop_loss")
+        return float(sl) if sl else None
+
+    async def _update_trailing_stops(self):
+        """حد ضرر پوزیشن‌های سودده را پشت قیمت بازار می‌کشد.
+
+        عمداً سمت خودمان پیاده شده و نه با تریلینگ داخلی صرافی: در آن حالت
+        معلوم نیست حد ضرر ثابت باقی می‌ماند یا پاک می‌شود، و اگر پاک شود
+        پوزیشن تا لحظه‌ی فعال‌شدن تریلینگ بی‌محافظ می‌ماند. این‌جا همان حد ضرر
+        ثابت فقط جابه‌جا می‌شود، پس در هر لحظه یک حد ضرر واقعی روی صرافی هست
+        و بدترین حالتِ خرابی این است که دیگر جلو نرود.
+        """
+        if not self.cfg.get("trailing_enabled"):
+            return
+        setter = getattr(self.driver, "update_stop_loss", None)
+        if setter is None:
+            return
+        try:
+            activation = float(self.cfg.get("trailing_activation_pct") or 0)
+            distance = float(self.cfg.get("trailing_distance_pct") or 0)
+        except (TypeError, ValueError):
+            return
+        if distance <= 0:
+            return
+
+        for p in list(self.positions):
+            entry = _num_or_none(p.get("entry_price"))
+            mark = _num_or_none(p.get("mark_price"))
+            side = p.get("side")
+            if not entry or not mark or side not in ("long", "short"):
+                continue
+
+            # چقدر قیمت به نفع پوزیشن حرکت کرده (درصدِ قیمت ورود)
+            move_pct = ((mark - entry) / entry * 100) if side == "long" else ((entry - mark) / entry * 100)
+            if move_pct < activation:
+                continue
+
+            current = self._known_stop_loss(p)
+            if current is None:
+                # حد ضرر فعلی را نمی‌دانیم؛ جابه‌جا کردنش می‌تواند حد ضرر
+                # بهتری را که روی صرافی هست خراب کند. عمداً کاری نمی‌کنیم.
+                continue
+
+            candidate = mark * (1 - distance / 100) if side == "long" else mark * (1 + distance / 100)
+            improvement = (candidate - current) if side == "long" else (current - candidate)
+            if improvement <= 0:
+                continue                      # هرگز عقب نمی‌رود
+            if improvement < mark * (distance / 100) * self.TRAIL_MIN_STEP_RATIO:
+                continue                      # جابه‌جایی ناچیز، درخواست هدر ندهیم
+
+            take_profit = p.get("take_profit")
+            if not take_profit:
+                record = (self._live_position_targets.get(p.get("id"))
+                          or position_targets.get_targets(self.account_id, p.get("symbol"), p.get("side")))
+                take_profit = (record or {}).get("take_profit")
+            try:
+                await setter(p, candidate, take_profit)
+            except Exception as e:
+                self.log(f"{p.get('symbol')}: جابه‌جایی حد ضرر دنبال‌کننده ناموفق: {e}", "warn")
+                continue
+
+            p["stop_loss"] = candidate
+            if p.get("id") in self._live_position_targets:
+                self._live_position_targets[p["id"]]["stop_loss"] = candidate
+            record = position_targets.get_targets(self.account_id, p.get("symbol"), p.get("side")) or {}
+            position_targets.set_targets(self.account_id, p.get("symbol"), p.get("side"),
+                                         candidate, take_profit, record.get("open_time"))
+            self.log(
+                f"{p.get('symbol')}: حد ضرر دنبال‌کننده جابه‌جا شد → {candidate:g} "
+                f"(قیمت {mark:g}، سود {move_pct:.2f}٪)"
+            )
 
     LEAD_ORDERS_TTL = 60         # ثانیه
 

@@ -989,5 +989,12 @@
   "dash.account_type_futures_sub": "保证金／常规",
   "dash.account_type_copy_sub": "带单账户",
   "dash.th_followers": "跟随者",
-  "dash.followers_on_trade": "{n} 人以 {amount} USDT 跟随这笔交易"
+  "dash.followers_on_trade": "{n} 人以 {amount} USDT 跟随这笔交易",
+  "dash.trailing": "追踪止损",
+  "dash.trailing_badge": "追踪 {pct}%",
+  "dash.trailing_activation": "启动盈利 (%)",
+  "dash.trailing_activation_hint": "在价格朝有利方向走出这么多之前，止损不会被调整。数值太小会让普通的市场波动过早把你止损出局。",
+  "dash.trailing_distance": "距离价格 (%)",
+  "dash.trailing_distance_hint": "止损始终保持在市价后方这个距离。越紧锁定的利润越多，但提前离场的概率也越高。",
+  "dash.trailing_hint": "当持仓盈利足够时，止损开始跟随价格并锁定收益。它只会朝盈利方向移动，价格回撤时绝不后退。移动由机器人在每个轮询周期执行，因此不要把信号检查间隔设得太长。如果机器人停止运行，止损会以最后的数值留在交易所——只是不再前进。"
 }

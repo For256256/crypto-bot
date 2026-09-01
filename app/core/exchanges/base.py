@@ -53,3 +53,12 @@ class ExchangeDriver(ABC):
     @abstractmethod
     async def close_position(self, position: dict) -> dict:
         """بستن کامل یک پوزیشن (همان dict خروجی get_open_positions)."""
+
+    async def update_stop_loss(self, position: dict, stop_loss: float,
+                               take_profit: float | None = None) -> None:
+        """جابه‌جا کردن حد ضرر یک پوزیشن باز (برای حد ضرر دنبال‌کننده).
+
+        عمداً abstract نیست تا درایورهای موجود بدون پیاده‌سازی نشکنند؛
+        موتور قبل از صدا زدن، وجودش را چک می‌کند.
+        """
+        raise NotImplementedError

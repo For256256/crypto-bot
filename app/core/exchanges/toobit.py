@@ -524,6 +524,24 @@ class ToobitDriver(ExchangeDriver):
         await self._attach_targets(positions)
         return positions
 
+    async def update_stop_loss(self, position: dict, stop_loss: float,
+                               take_profit: float | None = None) -> None:
+        """حد ضرر پوزیشن باز را جابه‌جا می‌کند (همان اندپوینتی که موقع ورود
+        استفاده می‌شود).
+
+        حد سود هم عمداً دوباره فرستاده می‌شود: پارامترها اختیاری‌اند و اگر
+        فقط stopLoss بفرستیم، معلوم نیست صرافی حد سود قبلی را نگه می‌دارد یا
+        پاک می‌کند. فرستادن هر دو این ابهام را حذف می‌کند.
+        """
+        params = {
+            "symbol": position["symbol"],
+            "side": "LONG" if position.get("side") == "long" else "SHORT",
+            "stopLoss": self._fmt_num(stop_loss),
+        }
+        if take_profit:
+            params["takeProfit"] = self._fmt_num(take_profit)
+        await self._request("POST", "/api/v1/futures/position/trading-stop", params, signed=True)
+
     async def _fetch_conditional_orders(self) -> list:
         """سفارش‌های شرطی باز (همان چیزی که trading-stop می‌سازد).
 

@@ -989,5 +989,12 @@
   "dash.account_type_futures_sub": "marjin / normal",
   "dash.account_type_copy_sub": "lider hesap",
   "dash.th_followers": "Takipçi",
-  "dash.followers_on_trade": "{amount} USDT ile bu işlemde {n} takipçi var"
+  "dash.followers_on_trade": "{amount} USDT ile bu işlemde {n} takipçi var",
+  "dash.trailing": "Takip eden zarar durdur (trailing)",
+  "dash.trailing_badge": "trailing %{pct}",
+  "dash.trailing_activation": "Kârda başlangıç (%)",
+  "dash.trailing_activation_hint": "Fiyat lehinize bu kadar hareket edene dek stop'a dokunulmaz. Çok küçük bir değer, sıradan piyasa gürültüsünün sizi erkenden dışarı atmasına yol açar.",
+  "dash.trailing_distance": "Fiyattan uzaklık (%)",
+  "dash.trailing_distance_hint": "Stop her zaman piyasa fiyatının bu kadar gerisinde kalır. Daha dar olması daha çok kâr kilitler ama erken çıkış olasılığını artırır.",
+  "dash.trailing_hint": "Pozisyon yeterince kâra geçtiğinde stop fiyatı takip etmeye başlar ve kazancı kilitler. Yalnızca kârlı yönde hareket eder, fiyat geri çekildiğinde asla geri gitmez. Taşıma işlemini bot her tarama döngüsünde yapar, bu yüzden sinyal kontrol aralığını çok uzun tutmayın. Bot kapanırsa stop son değeriyle borsada kalır — sadece ilerlemeyi durdurur."
 }

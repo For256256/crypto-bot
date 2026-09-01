@@ -162,6 +162,17 @@ class PaperDriver(ExchangeDriver):
         self.positions.append(position)
         return {"orderId": position["id"], "tp_sl_set": True}
 
+    async def update_stop_loss(self, position: dict, stop_loss: float,
+                               take_profit: float | None = None) -> None:
+        """در حالت کاغذی، حد ضرر همان dict داخل حافظه است — همان چیزی که
+        _refresh_positions برای شبیه‌سازی خوردن SL نگاه می‌کند."""
+        target = next((p for p in self.positions if p["id"] == position.get("id")), None)
+        if target is None:
+            raise ExchangeError("پوزیشن paper برای جابه‌جایی حد ضرر پیدا نشد.")
+        target["stop_loss"] = stop_loss
+        if take_profit:
+            target["take_profit"] = take_profit
+
     async def close_position(self, position: dict) -> dict:
         pos_id = position.get("id")
         target = next((p for p in self.positions if p["id"] == pos_id), None)
