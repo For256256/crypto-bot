@@ -140,6 +140,10 @@ class AccountIn(BaseModel):
     poll_interval_seconds: int = 60
     recycle_on_new_signal: bool = False
     reversal_policy: str = "none"
+    # حد ضرر دنبال‌کننده
+    trailing_enabled: bool = False
+    trailing_activation_pct: float = 1.0
+    trailing_distance_pct: float = 1.0
     invert_signals: bool = False
     # فیلتر روند تایم‌فریم بالاتر
     trend_filter_enabled: bool = False

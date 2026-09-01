@@ -989,5 +989,12 @@
   "dash.account_type_futures_sub": "margin / regular",
   "dash.account_type_copy_sub": "lead account",
   "dash.th_followers": "Followers",
-  "dash.followers_on_trade": "{n} follower(s) riding this trade with {amount} USDT"
+  "dash.followers_on_trade": "{n} follower(s) riding this trade with {amount} USDT",
+  "dash.trailing": "Trailing stop-loss",
+  "dash.trailing_badge": "trailing {pct}%",
+  "dash.trailing_activation": "Start at profit (%)",
+  "dash.trailing_activation_hint": "The stop is left alone until price has moved this far in your favour. Too small a number lets ordinary market noise take you out early.",
+  "dash.trailing_distance": "Distance from price (%)",
+  "dash.trailing_distance_hint": "The stop stays this far behind the market price. Tighter locks in more profit but raises the chance of an early exit.",
+  "dash.trailing_hint": "Once the position is far enough into profit, the stop-loss starts following the price and locks the gain in. It only ever moves in the profitable direction and never retreats when price pulls back. The move is made by the bot on each polling cycle, so don't set the signal interval too long. If the bot goes down, the stop stays on the exchange at its last value — it just stops advancing."
 }
