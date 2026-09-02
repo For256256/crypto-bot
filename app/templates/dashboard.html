@@ -1152,6 +1152,25 @@ function renderSymbols() {
 // روی حساب کپی‌ترید، هر پوزیشن باز فقط پول خودِ لیدر نیست — چند نفر با
 // سرمایه‌ی خودشان همان معامله را کپی کرده‌اند. نمایشش ریسک هر معامله را
 // ملموس می‌کند. برای حساب فیوچرز این داده وجود ندارد و خط تیره می‌شود.
+// وضعیت تریلینگ کنار حد ضرر. بدون این، وقتی تریلینگ روشن است ولی هنوز
+// کاری نمی‌کند (سود کافی نیست، یا حد ضرر خوانده نشده) کاربر هیچ نشانه‌ای
+// نمی‌بیند و فکر می‌کند قابلیت خراب است.
+const TRAIL_STATE = {
+  waiting: 'text-on-surface-variant',
+  active:  'text-buy',
+  holding: 'text-buy',
+  blocked: 'text-sell',
+};
+function trailingChip(p) {
+  const tr = p.trailing;
+  if (!tr || !tr.state || tr.state === 'unknown') return '';
+  const cls = TRAIL_STATE[tr.state] || TRAIL_STATE.waiting;
+  const label = tr.state === 'waiting'
+    ? t('dash.trail_waiting', {now: fmt(tr.move_pct, 2), need: tr.activation})
+    : t('dash.trail_' + tr.state);
+  return `<span class="block text-[9px] ${cls} mt-0.5" title="${t('dash.trail_tip')}">${label}</span>`;
+}
+
 function followerCell(p) {
   if (p.followers == null) return '—';
   // پرانتز لازم است: بدون جداکننده، «۱۲» و «1.00K» کنار هم مثل یک عدد
@@ -1180,7 +1199,7 @@ function renderPositions() {
       <td class="num">${fmtNum(p.entry_price)}</td>
       <td class="num text-[11px] text-on-surface-variant whitespace-nowrap" title="${p.open_time ? fmtDateTime(p.open_time, true) : ''}">${p.open_time ? fmtDateTime(p.open_time) : '—'}</td>
       <td class="num">${fmtNum(p.mark_price)}</td>
-      <td class="num text-sell">${p.stop_loss != null ? fmtNum(p.stop_loss) : '—'}</td>
+      <td class="num text-sell">${p.stop_loss != null ? fmtNum(p.stop_loss) : '—'}${trailingChip(p)}</td>
       <td class="num text-buy">${p.take_profit != null ? fmtNum(p.take_profit) : '—'}</td>
       <td class="num ${cls} font-bold">${fmt(p.profit)}</td>
       <td><button class="btn-ghost !py-1 !px-3 text-[11px] !border-sell/40 !text-sell" onclick="closePosition('${acc.id}','${p.id}','${p.symbol}')">${t('dash.close')}</button></td>
@@ -1210,7 +1229,7 @@ function renderPositions() {
         ${cell(t('dash.th_qty'), fmtNum(p.qty))}
         ${cell(t('dash.th_entry'), fmtNum(p.entry_price))}
         ${cell(t('dash.th_current'), fmtNum(p.mark_price))}
-        ${cell(t('dash.th_sl'), p.stop_loss != null ? fmtNum(p.stop_loss) : '—', 'text-sell')}
+        ${cell(t('dash.th_sl'), (p.stop_loss != null ? fmtNum(p.stop_loss) : '—') + trailingChip(p), 'text-sell')}
         ${cell(t('dash.th_tp'), p.take_profit != null ? fmtNum(p.take_profit) : '—', 'text-buy')}
         ${cell(t('dash.th_open_time'), p.open_time ? fmtDateTime(p.open_time) : '—')}
       </div>

@@ -112,6 +112,10 @@ class AccountRunner:
         # داشبورد آن را با هر پول‌کردن صدا می‌زند.
         self._lead_orders: dict = {}
         self._lead_orders_at: float = 0.0
+        # وضعیت تریلینگ هر پوزیشن، برای نمایش در داشبورد + آخرین دلیلی که
+        # لاگ شده، تا هر tick یک خط تکراری در لاگ ننشیند.
+        self._trail_state: dict = {}
+        self._trail_logged: dict = {}
         # فقط یک‌بار درباره‌ی کوتاه بودن تاریخچه‌ی تایم‌فریم روند هشدار بدهیم
         self._trend_history_warned: set = set()
 
@@ -930,6 +934,18 @@ class AccountRunner:
         sl = (record or {}).get("stop_loss")
         return float(sl) if sl else None
 
+    def _trail_note(self, key: str, reason: str, message: str, level: str = "info"):
+        """یک دلیل را فقط وقتی لاگ می‌کند که نسبت به دفعه‌ی قبل عوض شده باشد.
+
+        بدون این، «منتظر سود کافی» هر دقیقه یک خط در لاگ می‌نوشت و لاگ را
+        بی‌مصرف می‌کرد؛ با سکوت کامل هم کاربر نمی‌فهمید چرا هیچ اتفاقی
+        نمی‌افتد. این وسط را می‌گیرد: هر تغییر وضعیت یک بار گزارش می‌شود.
+        """
+        if self._trail_logged.get(key) == reason:
+            return
+        self._trail_logged[key] = reason
+        self.log(message, level)
+
     async def _update_trailing_stops(self):
         """حد ضرر پوزیشن‌های سودده را پشت قیمت بازار می‌کشد.
 
@@ -952,30 +968,51 @@ class AccountRunner:
         if distance <= 0:
             return
 
+        seen = set()
         for p in list(self.positions):
+            symbol, side = p.get("symbol"), p.get("side")
+            key = f"{symbol}|{side}"
+            seen.add(key)
             entry = _num_or_none(p.get("entry_price"))
             mark = _num_or_none(p.get("mark_price"))
-            side = p.get("side")
             if not entry or not mark or side not in ("long", "short"):
+                self._trail_state[key] = {"state": "unknown"}
                 continue
 
             # چقدر قیمت به نفع پوزیشن حرکت کرده (درصدِ قیمت ورود)
             move_pct = ((mark - entry) / entry * 100) if side == "long" else ((entry - mark) / entry * 100)
             if move_pct < activation:
+                self._trail_state[key] = {"state": "waiting", "move_pct": move_pct,
+                                          "activation": activation}
+                self._trail_note(key, "waiting",
+                                 f"{symbol}: تریلینگ منتظر سود کافی است — الان {move_pct:+.2f}٪، "
+                                 f"آستانه‌ی شروع {activation:g}٪.")
                 continue
 
             current = self._known_stop_loss(p)
             if current is None:
                 # حد ضرر فعلی را نمی‌دانیم؛ جابه‌جا کردنش می‌تواند حد ضرر
-                # بهتری را که روی صرافی هست خراب کند. عمداً کاری نمی‌کنیم.
+                # بهتری را که روی صرافی هست خراب کند. عمداً کاری نمی‌کنیم —
+                # ولی حتماً می‌گوییم، وگرنه تریلینگ برای همیشه بی‌صدا
+                # هیچ کاری نمی‌کند و کاربر فکر می‌کند خراب است.
+                self._trail_state[key] = {"state": "blocked", "move_pct": move_pct}
+                self._trail_note(key, "no_sl",
+                                 f"{symbol}: تریلینگ کار نمی‌کند چون حد ضرر فعلی این پوزیشن "
+                                 "از صرافی خوانده نشد. اگر پوزیشن را ربات باز نکرده باشد، "
+                                 "یک حد ضرر روی صرافی تنظیم کنید تا تریلینگ بتواند جابه‌جایش کند.",
+                                 "warn")
                 continue
 
             candidate = mark * (1 - distance / 100) if side == "long" else mark * (1 + distance / 100)
             improvement = (candidate - current) if side == "long" else (current - candidate)
-            if improvement <= 0:
-                continue                      # هرگز عقب نمی‌رود
-            if improvement < mark * (distance / 100) * self.TRAIL_MIN_STEP_RATIO:
-                continue                      # جابه‌جایی ناچیز، درخواست هدر ندهیم
+            if improvement <= 0 or improvement < mark * (distance / 100) * self.TRAIL_MIN_STEP_RATIO:
+                # یا قیمت برگشته (حد ضرر عمداً عقب نمی‌رود) یا جابه‌جایی آن‌قدر
+                # کوچک است که ارزش یک درخواست به صرافی را ندارد.
+                self._trail_state[key] = {"state": "holding", "move_pct": move_pct,
+                                          "stop_loss": current}
+                self._trail_note(key, "holding",
+                                 f"{symbol}: تریلینگ فعال است — حد ضرر روی {current:g} نگه داشته شده.")
+                continue
 
             take_profit = p.get("take_profit")
             if not take_profit:
@@ -994,10 +1031,18 @@ class AccountRunner:
             record = position_targets.get_targets(self.account_id, p.get("symbol"), p.get("side")) or {}
             position_targets.set_targets(self.account_id, p.get("symbol"), p.get("side"),
                                          candidate, take_profit, record.get("open_time"))
+            self._trail_state[key] = {"state": "active", "move_pct": move_pct,
+                                      "stop_loss": candidate}
+            self._trail_logged[key] = "moved"
             self.log(
-                f"{p.get('symbol')}: حد ضرر دنبال‌کننده جابه‌جا شد → {candidate:g} "
-                f"(قیمت {mark:g}، سود {move_pct:.2f}٪)"
+                f"{symbol}: حد ضرر دنبال‌کننده جابه‌جا شد → {candidate:g} "
+                f"(قیمت {mark:g}، سود {move_pct:+.2f}٪)"
             )
+
+        # پوزیشن‌های بسته‌شده نباید وضعیت قدیمی‌شان بماند
+        for stale in [k for k in self._trail_state if k not in seen]:
+            self._trail_state.pop(stale, None)
+            self._trail_logged.pop(stale, None)
 
     LEAD_ORDERS_TTL = 60         # ثانیه
 
@@ -1059,6 +1104,9 @@ class AccountRunner:
             # اطلاعات کپی‌ترید همین پوزیشن. زمان ورودِ صرافی بر رکورد خودمان
             # ترجیح دارد: مرجع اصلی خود صرافی است و این تنها جایی است که
             # زمان ورود را می‌دهد — حتی برای پوزیشنی که ربات بازش نکرده.
+            trail = self._trail_state.get(f"{p.get('symbol')}|{p.get('side')}")
+            if trail:
+                p = {**p, "trailing": trail}
             lead = self._lead_orders.get(f"{p.get('symbol')}|{p.get('side')}")
             if lead:
                 extra = {"followers": lead.get("followers"),
