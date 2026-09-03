@@ -68,10 +68,35 @@ def set_targets(account_id: str, symbol: str, side: str,
         return
     with _lock:
         data = _load()
-        data.setdefault(account_id, {})[_key(symbol, side)] = {
+        acc = data.setdefault(account_id, {})
+        prev = acc.get(_key(symbol, side)) or {}
+        acc[_key(symbol, side)] = {
             "stop_loss": stop_loss, "take_profit": take_profit,
             "open_time": open_time,
+            # پرچم تریلینگ صرافی عمداً حفظ می‌شود: این تابع فقط SL/TP را
+            # می‌نویسد و نباید حافظه‌ی «این پوزیشن به صرافی سپرده شده» را پاک
+            # کند، وگرنه بعد از یک نوشتنِ ساده دوباره تریلینگ ست می‌شد.
+            "trailing_armed": prev.get("trailing_armed", False),
         }
+        _save(data)
+
+
+def set_trailing_armed(account_id: str, symbol: str, side: str, armed: bool = True):
+    """ثبت اینکه تریلینگِ خودِ صرافی روی این پوزیشن تنظیم شده است.
+
+    روی دیسک است نه در حافظه، چون با ری‌استارت سرویس باید بدانیم این پوزیشن
+    قبلاً به صرافی سپرده شده؛ وگرنه دوباره تریلینگ ست می‌کردیم و لنگرِ
+    دنبال‌کننده از قیمت لحظه‌ی ری‌استارت شروع می‌شد — یعنی حد ضررِ سفت‌شده
+    دوباره شل می‌شد.
+    """
+    with _lock:
+        data = _load()
+        acc = data.setdefault(account_id, {})
+        record = acc.setdefault(_key(symbol, side),
+                                {"stop_loss": None, "take_profit": None, "open_time": None})
+        if record.get("trailing_armed") == armed:
+            return
+        record["trailing_armed"] = armed
         _save(data)
 
 

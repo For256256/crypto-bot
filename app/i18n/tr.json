@@ -996,10 +996,18 @@
   "dash.trailing_activation_hint": "Fiyat lehinize bu kadar hareket edene dek stop'a dokunulmaz. Çok küçük bir değer, sıradan piyasa gürültüsünün sizi erkenden dışarı atmasına yol açar.",
   "dash.trailing_distance": "Fiyattan uzaklık (%)",
   "dash.trailing_distance_hint": "Stop her zaman piyasa fiyatının bu kadar gerisinde kalır. Daha dar olması daha çok kâr kilitler ama erken çıkış olasılığını artırır.",
-  "dash.trailing_hint": "Pozisyon yeterince kâra geçtiğinde stop fiyatı takip etmeye başlar ve kazancı kilitler. Yalnızca kârlı yönde hareket eder, fiyat geri çekildiğinde asla geri gitmez. Taşıma işlemini bot her tarama döngüsünde yapar, bu yüzden sinyal kontrol aralığını çok uzun tutmayın. Bot kapanırsa stop son değeriyle borsada kalır — sadece ilerlemeyi durdurur.",
+  "dash.trailing_hint": "Pozisyon yeterince kâra geçtiğinde zarar durdur fiyatı takip etmeye başlar ve kârı kilitler. Yalnızca kâr yönünde hareket eder, fiyat geri çekildiğinde asla geri gitmez. Kâr eşiğine ulaşılana kadar girişte belirlenen zarar durdur emrine dokunulmaz.",
   "dash.trail_waiting": "trailing: %{now} / %{need}",
   "dash.trail_active": "trailing etkin",
   "dash.trail_holding": "trailing tutuyor",
   "dash.trail_blocked": "trailing durdu — loglara bakın",
-  "dash.trail_tip": "Bu pozisyon için takip eden stop durumu. Ayrıntılar loglarda."
+  "dash.trail_tip": "Bu pozisyon için takip eden stop durumu. Ayrıntılar loglarda.",
+  "dash.trailing_mode": "Stop'u taşıyan",
+  "dash.trailing_mode_bot": "Bot (varsayılan)",
+  "dash.trailing_mode_exchange": "Borsa",
+  "dash.trailing_mode_bot_hint": "Bot her kontrol döngüsünde stop seviyesini ileri taşır; bu yüzden sinyal kontrol aralığını çok uzun tutmayın. Sabit zarar durdur ve kâr al emirleriniz yerinde kalır, ancak bot kapanırsa stop borsadaki son değerinde kalır ve artık ilerlemez.",
+  "dash.trailing_mode_exchange_hint": "Kâr eşiğine ulaşıldığı anda takip eden stop borsanın kendi motoruna devredilir ve artık botun çalışmasına bağlı olmaz. Dikkat: Toobit takip eden stop ile sabit zarar durdur ve kâr al emirlerini birlikte tutmaz; bu nedenle o anda borsadaki her ikisi de silinir ve pozisyon yalnızca takip eden stop ile kapanır. Eşiğe ulaşılana kadar sabit zarar durdur emrine dokunulmaz.",
+  "dash.trailing_badge_exchange": "Borsa takibi %{pct}",
+  "dash.trail_exchange": "Borsada takip ({pct}%)",
+  "closed_by.TRAIL": "Borsa takip eden stop"
 }
