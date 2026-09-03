@@ -62,3 +62,13 @@ class ExchangeDriver(ABC):
         موتور قبل از صدا زدن، وجودش را چک می‌کند.
         """
         raise NotImplementedError
+
+    async def set_trailing_stop(self, position: dict, callback_rate: float,
+                                active_price: float | None = None) -> dict:
+        """سپردن دنبال‌کردنِ حد ضرر به خود صرافی.
+
+        callback_rate کسر است نه درصد (۰٫۰۱ یعنی ۱٪). خروجی، پاسخ خام صرافی
+        است تا فراخوان بتواند تأیید کند که واقعاً تریلینگ ثبت شده. مثل
+        update_stop_loss عمداً abstract نیست.
+        """
+        raise NotImplementedError

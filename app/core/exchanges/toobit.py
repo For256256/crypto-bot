@@ -536,11 +536,50 @@ class ToobitDriver(ExchangeDriver):
         params = {
             "symbol": position["symbol"],
             "side": "LONG" if position.get("side") == "long" else "SHORT",
+            # صریح فرستاده می‌شود (هرچند پیش‌فرض هم همین است) تا اگر این پوزیشن
+            # قبلاً روی تریلینگِ صرافی بوده، برگشتن به حد ضرر ثابت قطعی باشد.
+            "stopType": "FIXED_STOP",
             "stopLoss": self._fmt_num(stop_loss),
         }
         if take_profit:
             params["takeProfit"] = self._fmt_num(take_profit)
         await self._request("POST", "/api/v1/futures/position/trading-stop", params, signed=True)
+
+    async def set_trailing_stop(self, position: dict, callback_rate: float,
+                                active_price: float | None = None) -> dict:
+        """تریلینگ داخلی خود صرافی را روی این پوزیشن ست می‌کند.
+
+        دو نکته‌ی مستند که رفتار این‌جا را تعیین می‌کنند:
+
+        ۱) fallbackQuantity با fallbackType=RATE کسر است نه درصد — نمونه‌ی
+           پاسخ رسمی برای ۱٪ مقدار "0.01" را نشان می‌دهد. فرستادن "1" یعنی
+           ۱۰۰٪ برگشت، یعنی حد ضرری که عملاً هیچ‌وقت نمی‌خورد.
+
+        ۲) طبق همان مستند، در حالت TRAILING_STOP مقدار takeProfit و stopLoss
+           ثابت خالی برمی‌گردد؛ یعنی این تنظیم جای حد ضرر و حد سود ثابت را
+           می‌گیرد و آن‌ها را پاک می‌کند. به همین دلیل موتور فقط وقتی این را
+           صدا می‌زند که پوزیشن از قبل وارد سود شده باشد.
+
+        activePrice عمداً فرستاده نمی‌شود: آستانه‌ی فعال‌سازی را خودِ ربات
+        قبل از این فراخوان چک کرده، و اگر قیمتی را بفرستیم که قیمت بازار
+        همین حالا از آن گذشته است، معلوم نیست صرافی آن را «رسیده» حساب کند یا
+        منتظر عبور دوباره‌ای بماند که شاید هرگز رخ ندهد — و در آن فاصله
+        پوزیشن نه حد ضرر ثابت دارد نه تریلینگ فعال.
+        """
+        if callback_rate <= 0:
+            raise ExchangeError("نرخ برگشت تریلینگ باید بزرگ‌تر از صفر باشد.")
+        params = {
+            "symbol": position["symbol"],
+            "side": "LONG" if position.get("side") == "long" else "SHORT",
+            "stopType": "TRAILING_STOP",
+            "fallbackType": "RATE",
+            "fallbackQuantity": self._fmt_num(callback_rate),
+        }
+        if active_price:
+            params["activePrice"] = self._fmt_num(active_price)
+        data = await self._request("POST", "/api/v1/futures/position/trading-stop",
+                                   params, signed=True)
+        return data if isinstance(data, dict) else {}
 
     async def _fetch_conditional_orders(self) -> list:
         """سفارش‌های شرطی باز (همان چیزی که trading-stop می‌سازد).
@@ -582,6 +621,11 @@ class ToobitDriver(ExchangeDriver):
         by_symbol: dict = {}
         for o in orders:
             sym = o.get("symbol")
+            # سفارش تریلینگ صرافی حد ضرر ثابت نیست؛ قیمت تریگرش لنگرِ متحرک
+            # است و اگر این‌جا خوانده شود، به‌عنوان SL یا TP ثابت (بسته به
+            # اینکه بالای ورود باشد یا پایینش) در داشبورد جا می‌زند.
+            if str(o.get("stopType", "")).upper() == "TRAILING_STOP":
+                continue
             try:
                 trigger = float(o.get("stopPrice") or 0)
             except (TypeError, ValueError):

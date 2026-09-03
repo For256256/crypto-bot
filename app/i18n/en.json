@@ -996,10 +996,18 @@
   "dash.trailing_activation_hint": "The stop is left alone until price has moved this far in your favour. Too small a number lets ordinary market noise take you out early.",
   "dash.trailing_distance": "Distance from price (%)",
   "dash.trailing_distance_hint": "The stop stays this far behind the market price. Tighter locks in more profit but raises the chance of an early exit.",
-  "dash.trailing_hint": "Once the position is far enough into profit, the stop-loss starts following the price and locks the gain in. It only ever moves in the profitable direction and never retreats when price pulls back. The move is made by the bot on each polling cycle, so don't set the signal interval too long. If the bot goes down, the stop stays on the exchange at its last value — it just stops advancing.",
+  "dash.trailing_hint": "Once the position is far enough into profit, the stop-loss starts following the price and locks in gains. It only ever moves in the direction of profit and never steps back when the price pulls back. Before the profit threshold is reached, the stop-loss set at entry is left untouched.",
   "dash.trail_waiting": "trailing: {now}% of {need}%",
   "dash.trail_active": "trailing active",
   "dash.trail_holding": "trailing held",
   "dash.trail_blocked": "trailing stalled — see logs",
-  "dash.trail_tip": "Trailing stop-loss status for this position. Details in the logs."
+  "dash.trail_tip": "Trailing stop-loss status for this position. Details in the logs.",
+  "dash.trailing_mode": "Stop-loss moved by",
+  "dash.trailing_mode_bot": "The bot (default)",
+  "dash.trailing_mode_exchange": "The exchange",
+  "dash.trailing_mode_bot_hint": "The bot moves the stop on every check cycle, so do not set the signal interval too long. Your fixed stop-loss and take-profit stay in place, but if the bot goes offline the stop stays at its last value on the exchange and simply stops advancing.",
+  "dash.trailing_mode_exchange_hint": "Once the profit threshold is reached, trailing is handed to the exchange's own engine and no longer depends on the bot running. Note: Toobit does not keep a trailing stop alongside a fixed stop-loss and take-profit, so both are removed on the exchange at that moment and the position will be closed by the trailing stop alone. Before the threshold is reached, the fixed stop-loss is left untouched.",
+  "dash.trailing_badge_exchange": "Exchange trailing {pct}%",
+  "dash.trail_exchange": "Trailing on exchange ({pct}%)",
+  "closed_by.TRAIL": "Exchange trailing"
 }

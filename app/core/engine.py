@@ -116,6 +116,10 @@ class AccountRunner:
         # لاگ شده، تا هر tick یک خط تکراری در لاگ ننشیند.
         self._trail_state: dict = {}
         self._trail_logged: dict = {}
+        # پوزیشن‌هایی که سپردنِ تریلینگ به صرافی برایشان شکست خورده؛ تا
+        # بسته‌شدنشان با روش خود ربات جلو می‌رویم و هر چرخه دوباره به صرافی
+        # درخواست نمی‌زنیم.
+        self._trail_exchange_failed: set = set()
         # فقط یک‌بار درباره‌ی کوتاه بودن تاریخچه‌ی تایم‌فریم روند هشدار بدهیم
         self._trend_history_warned: set = set()
 
@@ -346,7 +350,8 @@ class AccountRunner:
                         "estimated": True,
                         "close_time": _utc_now().isoformat(timespec="seconds"),
                     })
-                    label = {"SL": "حد ضرر", "TP": "حد سود"}.get(closed_by, closed_by)
+                    label = {"SL": "حد ضرر", "TP": "حد سود",
+                             "TRAIL": "تریلینگ صرافی"}.get(closed_by, closed_by)
                     self.log(
                         f"پوزیشن {prev['symbol']} در سمت صرافی بسته شد ({label}) "
                         f"(سود/زیان تقریبی خالص از کارمزد: {realized:+.2f} USDT — کارمزد برآوردی: {fee:.2f})"
@@ -401,6 +406,11 @@ class AccountRunner:
                 return "SL"
             if tp and price <= tp:
                 return "TP"
+        # تریلینگ صرافی حد ضرر و حد سود ثابت را پاک می‌کند، پس قیمت از هیچ سطح
+        # ذخیره‌شده‌ای رد نشده؛ ولی می‌دانیم پوزیشن به تریلینگ سپرده شده بود و
+        # «صرافی» گفتن در گزارش، علت واقعی را پنهان می‌کند.
+        if targets.get("trailing_armed"):
+            return "TRAIL"
         return "exchange"
 
     async def record_live_close(self, position: dict, closed_by: str):
@@ -427,7 +437,8 @@ class AccountRunner:
         position_targets.clear_targets(self.account_id, position.get("symbol"),
                                        position.get("side"))
         emoji = "✅" if realized >= 0 else "🔴"
-        label = {"SL": "حد ضرر", "TP": "حد سود", "manual": "دستی", "reversal": "تغییر جهت"}.get(closed_by, closed_by)
+        label = {"SL": "حد ضرر", "TP": "حد سود", "manual": "دستی",
+                 "reversal": "تغییر جهت", "TRAIL": "تریلینگ صرافی"}.get(closed_by, closed_by)
         self._notify_owner(f"{emoji} پوزیشن {position['symbol']} بسته شد ({label}) — سود/زیان: {realized:+.2f} USDT",
                            kind="trade", symbol=position.get("symbol", ""))
 
@@ -946,20 +957,72 @@ class AccountRunner:
         self._trail_logged[key] = reason
         self.log(message, level)
 
+    async def _arm_exchange_trailing(self, p: dict, key: str, distance: float,
+                                     move_pct: float) -> bool:
+        """تریلینگ این پوزیشن را به خود صرافی می‌سپارد.
+
+        فقط بعد از عبور از آستانه‌ی سود صدا زده می‌شود، چون این کار حد ضرر و
+        حد سود ثابت را روی صرافی پاک می‌کند؛ اگر زودتر انجام می‌شد، پوزیشن از
+        لحظه‌ی ورود تا رسیدن به آستانه هیچ محافظی نداشت.
+
+        خروجی False یعنی صرافی قبول نکرد؛ در آن حالت حد ضرر ثابت دست‌نخورده
+        سر جایش است و از همان چرخه با روش خود ربات ادامه می‌دهیم.
+        """
+        symbol, side = p.get("symbol"), p.get("side")
+        try:
+            resp = await self.driver.set_trailing_stop(p, distance / 100)
+        except Exception as e:
+            self._trail_exchange_failed.add(key)
+            self.log(f"{symbol}: صرافی تریلینگ را قبول نکرد ({e}) — حد ضرر ثابت "
+                     "دست‌نخورده ماند و ربات خودش آن را جابه‌جا می‌کند.", "warn")
+            return False
+        stop_type = str((resp or {}).get("stopType") or "").upper()
+        if stop_type and stop_type != "TRAILING_STOP":
+            # پاسخ رسید ولی چیزی که ثبت شده تریلینگ نیست؛ نباید فرض کنیم شد.
+            self._trail_exchange_failed.add(key)
+            self.log(f"{symbol}: پاسخ صرافی به درخواست تریلینگ «{stop_type}» بود نه "
+                     "TRAILING_STOP — ربات خودش حد ضرر را جابه‌جا می‌کند.", "warn")
+            return False
+
+        position_targets.set_trailing_armed(self.account_id, symbol, side)
+        # روی صرافی دیگر حد ضرر/سود ثابتی وجود ندارد؛ داشبورد نباید مقدار
+        # قدیمی را تا پول بعدی نشان دهد.
+        p["stop_loss"] = None
+        p["take_profit"] = None
+        if p.get("id") in self._live_position_targets:
+            self._live_position_targets[p["id"]]["trailing_armed"] = True
+        self._trail_state[key] = {"state": "exchange", "move_pct": move_pct,
+                                  "distance": distance}
+        self._trail_logged[key] = "exchange"
+        self.log(f"{symbol}: تریلینگ به خود صرافی سپرده شد — فاصله‌ی {distance:g}٪ از "
+                 f"قیمت بازار (سود فعلی {move_pct:+.2f}٪). حد ضرر و حد سود ثابت روی "
+                 "صرافی حذف شدند، چون توبیت این دو را هم‌زمان با تریلینگ نگه "
+                 "نمی‌دارد؛ از این پس بستن پوزیشن با همین تریلینگ انجام می‌شود و "
+                 "به روشن بودن ربات وابسته نیست.")
+        return True
+
     async def _update_trailing_stops(self):
         """حد ضرر پوزیشن‌های سودده را پشت قیمت بازار می‌کشد.
 
-        عمداً سمت خودمان پیاده شده و نه با تریلینگ داخلی صرافی: در آن حالت
-        معلوم نیست حد ضرر ثابت باقی می‌ماند یا پاک می‌شود، و اگر پاک شود
-        پوزیشن تا لحظه‌ی فعال‌شدن تریلینگ بی‌محافظ می‌ماند. این‌جا همان حد ضرر
-        ثابت فقط جابه‌جا می‌شود، پس در هر لحظه یک حد ضرر واقعی روی صرافی هست
-        و بدترین حالتِ خرابی این است که دیگر جلو نرود.
+        دو حالت دارد (تنظیم trailing_mode روی حساب):
+
+        - bot: خود ربات در هر چرخه حد ضرر ثابت را جلو می‌برد. در هر لحظه یک
+          حد ضرر واقعی روی صرافی هست و بدترین حالتِ خرابی این است که دیگر جلو
+          نرود.
+        - exchange: به‌محض عبور از آستانه‌ی سود، کار به تریلینگ داخلی صرافی
+          سپرده می‌شود؛ بعد از آن به روشن بودن ربات وابسته نیست، ولی حد ضرر و
+          حد سود ثابت روی صرافی پاک می‌شوند (رفتار مستندشده‌ی توبیت).
+
+        در هر دو حالت تا قبل از آستانه‌ی سود، حد ضرر ثابتِ لحظه‌ی ورود
+        دست‌نخورده می‌ماند.
         """
         if not self.cfg.get("trailing_enabled"):
             return
         setter = getattr(self.driver, "update_stop_loss", None)
-        if setter is None:
+        arm = getattr(self.driver, "set_trailing_stop", None)
+        if setter is None and arm is None:
             return
+        exchange_mode = self.cfg.get("trailing_mode") == "exchange"
         try:
             activation = float(self.cfg.get("trailing_activation_pct") or 0)
             distance = float(self.cfg.get("trailing_distance_pct") or 0)
@@ -981,12 +1044,42 @@ class AccountRunner:
 
             # چقدر قیمت به نفع پوزیشن حرکت کرده (درصدِ قیمت ورود)
             move_pct = ((mark - entry) / entry * 100) if side == "long" else ((entry - mark) / entry * 100)
+
+            record = (self._live_position_targets.get(p.get("id"))
+                      or position_targets.get_targets(self.account_id, symbol, side) or {})
+            if record.get("trailing_armed"):
+                # کار دست صرافی است؛ نه چیزی برای جابه‌جا کردن داریم نه باید
+                # حد ضرر ثابتی بسازیم که تریلینگ را از بین ببرد. حتی اگر
+                # کاربر تنظیم را به حالت ربات برگردانده باشد، این پوزیشن تا
+                # بسته‌شدن روی صرافی می‌ماند — که محافظت واقعی دارد.
+                self._trail_state[key] = {"state": "exchange", "move_pct": move_pct,
+                                          "distance": distance}
+                self._trail_note(key, "exchange",
+                                 f"{symbol}: تریلینگ روی خود صرافی فعال است "
+                                 f"(فاصله‌ی {distance:g}٪) — ربات دیگر دستش نمی‌زند.")
+                continue
+
             if move_pct < activation:
                 self._trail_state[key] = {"state": "waiting", "move_pct": move_pct,
                                           "activation": activation}
                 self._trail_note(key, "waiting",
                                  f"{symbol}: تریلینگ منتظر سود کافی است — الان {move_pct:+.2f}٪، "
                                  f"آستانه‌ی شروع {activation:g}٪.")
+                continue
+
+            if exchange_mode and key not in self._trail_exchange_failed:
+                if arm is None:
+                    self._trail_exchange_failed.add(key)
+                    self._trail_note(key, "no_exchange_trailing",
+                                     f"{symbol}: این صرافی تریلینگ داخلی ندارد — "
+                                     "ربات خودش حد ضرر را جابه‌جا می‌کند.", "warn")
+                elif await self._arm_exchange_trailing(p, key, distance, move_pct):
+                    continue
+                # ناموفق بود: حد ضرر ثابت هنوز سر جایش است، پس در همین چرخه
+                # با روش خود ربات ادامه می‌دهیم.
+
+            if setter is None:
+                self._trail_state[key] = {"state": "blocked", "move_pct": move_pct}
                 continue
 
             current = self._known_stop_loss(p)
@@ -1014,11 +1107,7 @@ class AccountRunner:
                                  f"{symbol}: تریلینگ فعال است — حد ضرر روی {current:g} نگه داشته شده.")
                 continue
 
-            take_profit = p.get("take_profit")
-            if not take_profit:
-                record = (self._live_position_targets.get(p.get("id"))
-                          or position_targets.get_targets(self.account_id, p.get("symbol"), p.get("side")))
-                take_profit = (record or {}).get("take_profit")
+            take_profit = p.get("take_profit") or record.get("take_profit")
             try:
                 await setter(p, candidate, take_profit)
             except Exception as e:
@@ -1028,9 +1117,9 @@ class AccountRunner:
             p["stop_loss"] = candidate
             if p.get("id") in self._live_position_targets:
                 self._live_position_targets[p["id"]]["stop_loss"] = candidate
-            record = position_targets.get_targets(self.account_id, p.get("symbol"), p.get("side")) or {}
-            position_targets.set_targets(self.account_id, p.get("symbol"), p.get("side"),
-                                         candidate, take_profit, record.get("open_time"))
+            stored = position_targets.get_targets(self.account_id, symbol, side) or {}
+            position_targets.set_targets(self.account_id, symbol, side,
+                                         candidate, take_profit, stored.get("open_time"))
             self._trail_state[key] = {"state": "active", "move_pct": move_pct,
                                       "stop_loss": candidate}
             self._trail_logged[key] = "moved"
@@ -1043,6 +1132,7 @@ class AccountRunner:
         for stale in [k for k in self._trail_state if k not in seen]:
             self._trail_state.pop(stale, None)
             self._trail_logged.pop(stale, None)
+        self._trail_exchange_failed &= seen
 
     LEAD_ORDERS_TTL = 60         # ثانیه
 

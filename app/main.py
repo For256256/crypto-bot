@@ -144,6 +144,7 @@ class AccountIn(BaseModel):
     trailing_enabled: bool = False
     trailing_activation_pct: float = 1.0
     trailing_distance_pct: float = 1.0
+    trailing_mode: str = "bot"           # bot | exchange
     invert_signals: bool = False
     # فیلتر روند تایم‌فریم بالاتر
     trend_filter_enabled: bool = False

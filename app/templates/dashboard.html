@@ -141,6 +141,14 @@
           <label for="f_trailing_enabled" class="text-xs font-bold">{{ t("dash.trailing") }}</label>
         </div>
         <div id="f_trailing_box" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 hidden">
+          <div class="sm:col-span-2">
+            <label class="lbl">{{ t("dash.trailing_mode") }}</label>
+            <select id="f_trailing_mode" class="field" onchange="onTrailingModeChange()">
+              <option value="bot">{{ t("dash.trailing_mode_bot") }}</option>
+              <option value="exchange">{{ t("dash.trailing_mode_exchange") }}</option>
+            </select>
+            <p id="f_trailing_mode_hint" class="text-[10px] text-on-surface-variant mt-1 leading-5">{{ t("dash.trailing_mode_bot_hint") }}</p>
+          </div>
           <div>
             <label class="lbl">{{ t("dash.trailing_activation") }}</label>
             <input id="f_trailing_activation_pct" class="field mono-num" dir="ltr" type="number" step="0.1" min="0" value="1">
@@ -425,6 +433,7 @@ function setAccountType(value) {
 function onTrailingToggle() {
   const on = document.getElementById('f_trailing_enabled').checked;
   document.getElementById('f_trailing_box').classList.toggle('hidden', !on);
+  onTrailingModeChange();
 }
 
 function onAccountTypeChange() {
@@ -468,6 +477,7 @@ function openAccountModal(acc) {
   g('f_reversal_policy').value = (acc && acc.reversal_policy) ? acc.reversal_policy : 'none';
   g('f_accept_webhook').checked = acc ? !!acc.accept_webhook : true;
   g('f_trailing_enabled').checked = acc ? !!acc.trailing_enabled : false;
+  g('f_trailing_mode').value = (acc && acc.trailing_mode === 'exchange') ? 'exchange' : 'bot';
   g('f_trailing_activation_pct').value = (acc && acc.trailing_activation_pct != null) ? acc.trailing_activation_pct : 1;
   g('f_trailing_distance_pct').value = (acc && acc.trailing_distance_pct != null) ? acc.trailing_distance_pct : 1;
   onTrailingToggle();
@@ -503,6 +513,7 @@ async function saveAccount() {
     reversal_policy: g('f_reversal_policy').value,
     accept_webhook: g('f_accept_webhook').checked,
     trailing_enabled: g('f_trailing_enabled').checked,
+    trailing_mode: g('f_trailing_mode').value === 'exchange' ? 'exchange' : 'bot',
     trailing_activation_pct: Math.max(parseFloat(g('f_trailing_activation_pct').value) || 0, 0),
     trailing_distance_pct: Math.max(parseFloat(g('f_trailing_distance_pct').value) || 1, 0.1),
     trend_filter_enabled: g('f_trend_filter_enabled').checked,
@@ -1129,7 +1140,7 @@ function renderAccountBar() {
     ${acc.invert_signals ? `<span class="ms-2 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 font-bold">${t('dash.invert_badge')}</span>` : ''}
     ${acc.trend_filter_enabled ? `<span class="ms-2 px-1.5 py-0.5 rounded bg-primary/15 text-primary font-bold">${t('dash.trend_badge', {tf: acc.trend_filter_timeframe || '4h'})}</span>` : ''}
     ${acc.account_type === 'copy_trading' ? `<span class="ms-2 px-1.5 py-0.5 rounded bg-gold/15 text-gold font-bold">${t('dash.copy_badge')}</span>` : ''}
-    ${acc.trailing_enabled ? `<span class="ms-2 px-1.5 py-0.5 rounded bg-buy/15 text-buy font-bold">${t('dash.trailing_badge', {pct: acc.trailing_distance_pct ?? 1})}</span>` : ''}
+    ${acc.trailing_enabled ? `<span class="ms-2 px-1.5 py-0.5 rounded bg-buy/15 text-buy font-bold">${t(acc.trailing_mode === 'exchange' ? 'dash.trailing_badge_exchange' : 'dash.trailing_badge', {pct: acc.trailing_distance_pct ?? 1})}</span>` : ''}
   </div>`;
 }
 
@@ -1157,17 +1168,30 @@ function renderSymbols() {
 // نمی‌بیند و فکر می‌کند قابلیت خراب است.
 const TRAIL_STATE = {
   waiting: 'text-on-surface-variant',
-  active:  'text-buy',
-  holding: 'text-buy',
-  blocked: 'text-sell',
+  active:   'text-buy',
+  holding:  'text-buy',
+  exchange: 'text-gold',
+  blocked:  'text-sell',
 };
+function onTrailingModeChange() {
+  const el = document.getElementById('f_trailing_mode');
+  const hint = document.getElementById('f_trailing_mode_hint');
+  if (!el || !hint) return;
+  const exchange = el.value === 'exchange';
+  hint.textContent = t(exchange ? 'dash.trailing_mode_exchange_hint' : 'dash.trailing_mode_bot_hint');
+  hint.classList.toggle('text-sell', exchange);
+  hint.classList.toggle('text-on-surface-variant', !exchange);
+}
+
 function trailingChip(p) {
   const tr = p.trailing;
   if (!tr || !tr.state || tr.state === 'unknown') return '';
   const cls = TRAIL_STATE[tr.state] || TRAIL_STATE.waiting;
   const label = tr.state === 'waiting'
     ? t('dash.trail_waiting', {now: fmt(tr.move_pct, 2), need: tr.activation})
-    : t('dash.trail_' + tr.state);
+    : tr.state === 'exchange'
+      ? t('dash.trail_exchange', {pct: tr.distance})
+      : t('dash.trail_' + tr.state);
   return `<span class="block text-[9px] ${cls} mt-0.5" title="${t('dash.trail_tip')}">${label}</span>`;
 }
 
