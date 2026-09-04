@@ -941,6 +941,8 @@ function signalBadge(sig) {
   const s = sig ? sig.signal : null;
   if (s === 'buy') return `<span class="px-2 py-0.5 rounded text-[10px] bg-buy/20 text-buy">${t('dash.signal_buy')}</span>`;
   if (s === 'sell') return `<span class="px-2 py-0.5 rounded text-[10px] bg-sell/20 text-sell">${t('dash.signal_sell')}</span>`;
+  // بعضی استراتژی‌ها قانون خروج خودشان را دارند و سیگنال close می‌دهند
+  if (s === 'close') return `<span class="px-2 py-0.5 rounded text-[10px] bg-gold/20 text-gold">${t('dash.signal_close')}</span>`;
   return `<span class="px-2 py-0.5 rounded text-[10px] bg-outline-variant/30 text-on-surface-variant">${t('dash.signal_none')}</span>`;
 }
 

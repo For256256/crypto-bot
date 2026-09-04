@@ -146,6 +146,11 @@ def run_backtest(df: pd.DataFrame, strategy_key: str, params: dict | None = None
         except Exception:
             sig = {"signal": "none"}
 
+        # استراتژی می‌تواند قانون خروج خودش را داشته باشد (سیگنال close) —
+        # دقیقاً مثل موتور واقعی، و روی همین کندل بسته می‌شود.
+        if sig["signal"] == "close" and position is not None:
+            close_position(close, when, "strategy")
+
         if sig["signal"] in ("buy", "sell"):
             side = sig["signal"]
             if invert:

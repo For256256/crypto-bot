@@ -533,6 +533,117 @@ def fib786_reversal(df: pd.DataFrame, p: dict) -> dict:
     return out
 
 
+# ---------- ۱۱) بازگشت به کیجن‌سن صاف ----------
+def kijun_flat_reversion(df: pd.DataFrame, p: dict) -> dict:
+    """وقتی کیجن‌سن صاف می‌شود و قیمت از آن دور می‌افتد، بازگشت به سمت کیجن.
+
+    منطق کیجن‌سن این را ممکن می‌کند: چون میانه‌ی سقف و کف ۲۶ کندل اخیر است
+    (نه میانگین متحرک)، تا وقتی آن سقف و کف عوض نشوند دقیقاً افقی می‌ماند.
+    خط افقی یعنی بازار در آن پنجره تعادل دارد، و فاصله‌ی زیاد قیمت از آن یعنی
+    کشیدگی نسبت به همان تعادل.
+
+    تنکن‌سن (۹) نقش ماشه را دارد: چون پنجره‌اش کوتاه‌تر است زودتر از کیجن
+    برمی‌گردد، و عبور قیمت از آن در جهت کیجن یعنی بازگشت واقعاً شروع شده — نه
+    اینکه فقط دور باشد.
+
+    مثل استراتژی فیبوناچی، حد ضرر و حد سود را خودش می‌سازد. خروج هم دست
+    خودش است: با صاف‌ماندن کیجن معامله باز می‌ماند و لحظه‌ای که کیجن از حالت
+    افقی درآمد سیگنال close می‌دهد.
+    """
+    tenkan_len = max(1, int(p.get("tenkan_length", 9)))
+    kijun_len = max(2, int(p.get("kijun_length", 26)))
+    flat_bars = max(1, int(p.get("flat_bars", 5)))
+    flat_tol_pct = float(p.get("flat_tolerance_pct", 0.02))
+    min_dist_atr = float(p.get("min_distance_atr", 1.5))
+    tp_extension = float(p.get("tp_extension", 1.0))
+    sl_buffer_pct = float(p.get("sl_buffer_pct", 0.2))
+    max_stop_pct = float(p.get("max_stop_pct", 3.0))
+    require_turn = bool(int(p.get("require_tenkan_turn", 1)))
+    exit_on_move = bool(int(p.get("exit_on_kijun_move", 1)))
+    atr_len = int(p.get("atr_length", 14))
+
+    atr_v = ind.atr(df, atr_len).iat[-1]
+    last = len(df) - 1
+    extra = {"atr": atr_v}
+    if len(df) < kijun_len + flat_bars + atr_len + 5 or not pd.notna(atr_v) or atr_v <= 0:
+        return _signal("none", df, extra, atr_v)
+
+    lines = ind.ichimoku_lines(df, tenkan_len, kijun_len)
+    tenkan = lines["tenkan"].to_numpy()
+    kijun = lines["kijun"].to_numpy()
+    close, low, high = (df["close"].to_numpy(), df["low"].to_numpy(), df["high"].to_numpy())
+    extra.update({"tenkan": tenkan[last], "kijun": kijun[last]})
+
+    def flat_at(i: int) -> bool:
+        """کیجن در کندل i نسبت به flat_bars کندل قبلش تکان نخورده باشد."""
+        if i - flat_bars < 0:
+            return False
+        base = kijun[i]
+        if not pd.notna(base) or base <= 0:
+            return False
+        tol = base * flat_tol_pct / 100
+        return all(pd.notna(kijun[i - k]) and abs(base - kijun[i - k]) <= tol
+                   for k in range(1, flat_bars + 1))
+
+    flat_now = flat_at(last)
+    if exit_on_move and not flat_now and flat_at(last - 1):
+        # کیجن از حالت افقی درآمد: همان لحظه‌ای که استراتژی می‌گوید معامله دیگر
+        # اعتبار ندارد. فقط روی همین کندلِ گذار صادر می‌شود، نه هر کندلِ بعدش.
+        out = _signal("close", df, extra, atr_v)
+        out["reject"] = "kijun_moved"
+        return out
+    if not flat_now:
+        return _signal("none", df, extra, atr_v)
+
+    k_now, c_now, c_prev = kijun[last], close[last], close[last - 1]
+    t_now, t_prev = tenkan[last], tenkan[last - 1]
+    if not (pd.notna(t_now) and pd.notna(t_prev)):
+        return _signal("none", df, extra, atr_v)
+
+    distance = k_now - c_now                 # مثبت یعنی قیمت زیر کیجن است
+    extra["distance_atr"] = distance / atr_v
+    if abs(distance) < min_dist_atr * atr_v:
+        return _signal("none", df, extra, atr_v)
+
+    side = "buy" if distance > 0 else "sell"
+    if side == "buy":
+        crossed = c_now > t_now and c_prev <= t_prev
+        turned = t_now >= t_prev
+    else:
+        crossed = c_now < t_now and c_prev >= t_prev
+        turned = t_now <= t_prev
+    if not crossed or (require_turn and not turned):
+        return _signal("none", df, extra, atr_v)
+
+    # حد ضرر پشت دورترین نقطه‌ی همین پنجره‌ی صافِ کیجن — یعنی همان‌جایی که
+    # اگر قیمت از آن هم رد شود، فرضِ «کشیدگی و بازگشت» غلط از آب درآمده.
+    seg = last
+    tol = k_now * flat_tol_pct / 100
+    while seg > 0 and pd.notna(kijun[seg - 1]) and abs(kijun[seg - 1] - k_now) <= tol:
+        seg -= 1
+    entry = c_now
+    if side == "buy":
+        sl = float(low[seg:last + 1].min()) * (1 - sl_buffer_pct / 100)
+        tp = k_now + tp_extension * distance
+        risk, reward = entry - sl, tp - entry
+    else:
+        sl = float(high[seg:last + 1].max()) * (1 + sl_buffer_pct / 100)
+        tp = k_now + tp_extension * distance
+        risk, reward = sl - entry, entry - tp
+    if risk <= 0 or reward <= 0 or entry <= 0:
+        return _signal("none", df, extra, atr_v)
+    extra["rr"] = reward / risk
+    if risk / entry * 100 > max_stop_pct:
+        out = _signal("none", df, extra, atr_v)
+        out["reject"] = "stop"
+        return out
+
+    out = _signal(side, df, extra, atr_v)
+    out["stop_loss"] = float(sl)
+    out["take_profit"] = float(tp)
+    return out
+
+
 STRATEGIES = {
     "supertrend_ema_rsi": {
         "label": "SuperTrend + EMA + RSI",
@@ -630,12 +741,29 @@ STRATEGIES = {
             # همان کلید استراتژی شوک: ترجمه‌ی مشترک دارد و معنایش هم یکی است
             {"key": "body_ratio_min", "label": "حداقل نسبت بدنه به دامنه کندل", "type": "float", "default": 0.40, "step": 0.05},
             {"key": "confirm_window", "label": "مهلت تأیید بعد از لمس (کندل)", "type": "int", "default": 10},
-            {"key": "sl_buffer_pct", "label": "فاصله حد ضرر از پیوت (٪)", "type": "float", "default": 0.2, "step": 0.05},
+            {"key": "sl_buffer_pct", "label": "فاصله حد ضرر از سقف/کف ساختار (٪)", "type": "float", "default": 0.2, "step": 0.05},
             {"key": "max_stop_pct", "label": "حداکثر فاصله حد ضرر (٪)", "type": "float", "default": 2.0, "step": 0.1},
             {"key": "min_rr", "label": "حداقل نسبت ریسک به پاداش", "type": "float", "default": 3.0, "step": 0.1},
             {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
         ],
         "fn": fib786_reversal,
+    },
+    "kijun_flat_reversion": {
+        "label": "بازگشت به کیجن‌سن صاف (ایچیموکو)",
+        "params_schema": [
+            {"key": "tenkan_length", "label": "دوره تنکن‌سن", "type": "int", "default": 9},
+            {"key": "kijun_length", "label": "دوره کیجن‌سن", "type": "int", "default": 26},
+            {"key": "flat_bars", "label": "حداقل کندل صاف بودن کیجن", "type": "int", "default": 5},
+            {"key": "flat_tolerance_pct", "label": "تحمل صاف بودن (٪ قیمت)", "type": "float", "default": 0.02, "step": 0.01},
+            {"key": "min_distance_atr", "label": "حداقل فاصله قیمت از کیجن (ضریب ATR)", "type": "float", "default": 1.5, "step": 0.1},
+            {"key": "require_tenkan_turn", "label": "برگشت تنکن الزامی باشد (۱ = بله)", "type": "int", "default": 1},
+            {"key": "tp_extension", "label": "ادامه حد سود بعد از کیجن (ضریب فاصله)", "type": "float", "default": 1.0, "step": 0.1},
+            {"key": "exit_on_kijun_move", "label": "خروج وقتی کیجن از حالت صاف درآمد (۱ = بله)", "type": "int", "default": 1},
+            {"key": "sl_buffer_pct", "label": "فاصله حد ضرر از سقف/کف ساختار (٪)", "type": "float", "default": 0.2, "step": 0.05},
+            {"key": "max_stop_pct", "label": "حداکثر فاصله حد ضرر (٪)", "type": "float", "default": 3.0, "step": 0.1},
+            {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
+        ],
+        "fn": kijun_flat_reversion,
     },
     "adaptive_regime": {
         "label": "خودکار: انتخاب استراتژی بر اساس وضعیت بازار",

@@ -207,3 +207,18 @@ def pivot_points(df: pd.DataFrame, strength: int = 3) -> pd.DataFrame:
     return pd.DataFrame({"pivot_high": (h > h_left) & (h >= h_right),
                          "pivot_low": (lo < l_left) & (lo <= l_right)},
                         index=df.index)
+
+
+def ichimoku_lines(df: pd.DataFrame, tenkan_length: int = 9,
+                   kijun_length: int = 26) -> pd.DataFrame:
+    """تنکن‌سن و کیجن‌سن ایچیموکو.
+
+    هر دو «میانه‌ی بازه» هستند نه میانگین متحرک: وسط بالاترین سقف و
+    پایین‌ترین کف N کندل اخیر. همین باعث می‌شود تا وقتی سقف و کف آن پنجره
+    عوض نشده‌اند، خط دقیقاً صاف (افقی) بماند — رفتاری که میانگین متحرک هرگز
+    ندارد و پایه‌ی استراتژی «کیجن صاف» است.
+    """
+    def mid(length: int) -> pd.Series:
+        return (df["high"].rolling(length).max() + df["low"].rolling(length).min()) / 2
+    return pd.DataFrame({"tenkan": mid(tenkan_length), "kijun": mid(kijun_length)},
+                        index=df.index)
