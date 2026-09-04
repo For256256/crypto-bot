@@ -8,6 +8,9 @@
 خروجی سیگنال: {"signal": "buy"|"sell"|"none", "close": float, "atr": float|None,
                "source": "strategy", "extra": {نام‌اندیکاتور: مقدار}}
 """
+import math
+
+import numpy as np
 import pandas as pd
 
 from app.core.strategies import indicators as ind
@@ -533,6 +536,263 @@ def fib786_reversal(df: pd.DataFrame, p: dict) -> dict:
     return out
 
 
+# ---------- ۱۱) بازگشت به کیجن‌سن صاف ----------
+def kijun_flat_reversion(df: pd.DataFrame, p: dict) -> dict:
+    """وقتی کیجن‌سن صاف می‌شود و قیمت از آن دور می‌افتد، بازگشت به سمت کیجن.
+
+    منطق کیجن‌سن این را ممکن می‌کند: چون میانه‌ی سقف و کف ۲۶ کندل اخیر است
+    (نه میانگین متحرک)، تا وقتی آن سقف و کف عوض نشوند دقیقاً افقی می‌ماند.
+    خط افقی یعنی بازار در آن پنجره تعادل دارد، و فاصله‌ی زیاد قیمت از آن یعنی
+    کشیدگی نسبت به همان تعادل.
+
+    تنکن‌سن (۹) نقش ماشه را دارد: چون پنجره‌اش کوتاه‌تر است زودتر از کیجن
+    برمی‌گردد، و عبور قیمت از آن در جهت کیجن یعنی بازگشت واقعاً شروع شده — نه
+    اینکه فقط دور باشد.
+
+    مثل استراتژی فیبوناچی، حد ضرر و حد سود را خودش می‌سازد. خروج هم دست
+    خودش است: با صاف‌ماندن کیجن معامله باز می‌ماند و لحظه‌ای که کیجن از حالت
+    افقی درآمد سیگنال close می‌دهد.
+    """
+    tenkan_len = max(1, int(p.get("tenkan_length", 9)))
+    kijun_len = max(2, int(p.get("kijun_length", 26)))
+    flat_bars = max(1, int(p.get("flat_bars", 5)))
+    flat_tol_pct = float(p.get("flat_tolerance_pct", 0.02))
+    min_dist_atr = float(p.get("min_distance_atr", 1.5))
+    tp_extension = float(p.get("tp_extension", 1.0))
+    sl_buffer_pct = float(p.get("sl_buffer_pct", 0.2))
+    max_stop_pct = float(p.get("max_stop_pct", 3.0))
+    require_turn = bool(int(p.get("require_tenkan_turn", 1)))
+    exit_on_move = bool(int(p.get("exit_on_kijun_move", 1)))
+    atr_len = int(p.get("atr_length", 14))
+
+    atr_v = ind.atr(df, atr_len).iat[-1]
+    last = len(df) - 1
+    extra = {"atr": atr_v}
+    if len(df) < kijun_len + flat_bars + atr_len + 5 or not pd.notna(atr_v) or atr_v <= 0:
+        return _signal("none", df, extra, atr_v)
+
+    lines = ind.ichimoku_lines(df, tenkan_len, kijun_len)
+    tenkan = lines["tenkan"].to_numpy()
+    kijun = lines["kijun"].to_numpy()
+    close, low, high = (df["close"].to_numpy(), df["low"].to_numpy(), df["high"].to_numpy())
+    extra.update({"tenkan": tenkan[last], "kijun": kijun[last]})
+
+    def flat_at(i: int) -> bool:
+        """کیجن در کندل i نسبت به flat_bars کندل قبلش تکان نخورده باشد."""
+        if i - flat_bars < 0:
+            return False
+        base = kijun[i]
+        if not pd.notna(base) or base <= 0:
+            return False
+        tol = base * flat_tol_pct / 100
+        return all(pd.notna(kijun[i - k]) and abs(base - kijun[i - k]) <= tol
+                   for k in range(1, flat_bars + 1))
+
+    flat_now = flat_at(last)
+    if exit_on_move and not flat_now and flat_at(last - 1):
+        # کیجن از حالت افقی درآمد: همان لحظه‌ای که استراتژی می‌گوید معامله دیگر
+        # اعتبار ندارد. فقط روی همین کندلِ گذار صادر می‌شود، نه هر کندلِ بعدش.
+        out = _signal("close", df, extra, atr_v)
+        out["reject"] = "kijun_moved"
+        return out
+    if not flat_now:
+        return _signal("none", df, extra, atr_v)
+
+    k_now, c_now, c_prev = kijun[last], close[last], close[last - 1]
+    t_now, t_prev = tenkan[last], tenkan[last - 1]
+    if not (pd.notna(t_now) and pd.notna(t_prev)):
+        return _signal("none", df, extra, atr_v)
+
+    distance = k_now - c_now                 # مثبت یعنی قیمت زیر کیجن است
+    extra["distance_atr"] = distance / atr_v
+    if abs(distance) < min_dist_atr * atr_v:
+        return _signal("none", df, extra, atr_v)
+
+    side = "buy" if distance > 0 else "sell"
+    if side == "buy":
+        crossed = c_now > t_now and c_prev <= t_prev
+        turned = t_now >= t_prev
+    else:
+        crossed = c_now < t_now and c_prev >= t_prev
+        turned = t_now <= t_prev
+    if not crossed or (require_turn and not turned):
+        return _signal("none", df, extra, atr_v)
+
+    # حد ضرر پشت دورترین نقطه‌ی همین پنجره‌ی صافِ کیجن — یعنی همان‌جایی که
+    # اگر قیمت از آن هم رد شود، فرضِ «کشیدگی و بازگشت» غلط از آب درآمده.
+    seg = last
+    tol = k_now * flat_tol_pct / 100
+    while seg > 0 and pd.notna(kijun[seg - 1]) and abs(kijun[seg - 1] - k_now) <= tol:
+        seg -= 1
+    entry = c_now
+    if side == "buy":
+        sl = float(low[seg:last + 1].min()) * (1 - sl_buffer_pct / 100)
+        tp = k_now + tp_extension * distance
+        risk, reward = entry - sl, tp - entry
+    else:
+        sl = float(high[seg:last + 1].max()) * (1 + sl_buffer_pct / 100)
+        tp = k_now + tp_extension * distance
+        risk, reward = sl - entry, entry - tp
+    if risk <= 0 or reward <= 0 or entry <= 0:
+        return _signal("none", df, extra, atr_v)
+    extra["rr"] = reward / risk
+    if risk / entry * 100 > max_stop_pct:
+        out = _signal("none", df, extra, atr_v)
+        out["reject"] = "stop"
+        return out
+
+    out = _signal(side, df, extra, atr_v)
+    out["stop_loss"] = float(sl)
+    out["take_profit"] = float(tp)
+    return out
+
+
+# ---------- ۱۲) مومنتوم سری‌زمانی با فیلتر نوسان ----------
+def tsmom_vol_filter(df: pd.DataFrame, p: dict) -> dict:
+    """جهت را از علامت بازده بلندمدت می‌گیرد، نه از تقاطع میانگین‌ها.
+
+    این خانواده (Time-Series Momentum) پرارجاع‌ترین استراتژی سیستماتیک
+    آکادمیک است و تفاوت مهمش با استراتژی‌های روندی موجودِ این پروژه همین
+    است: هیچ اندیکاتوری وسط نیست، فقط «قیمت امروز نسبت به N کندل قبل بالاتر
+    است یا پایین‌تر». ورود و خروج روی *تغییر علامت* همان بازده انجام می‌شود.
+
+    فیلتر نوسان هم از همان ادبیات می‌آید: در رژیم‌های پرنوسان، مومنتوم بدتر
+    کار می‌کند. نوسان تحقق‌یافته با *تاریخ خودِ همان نماد* مقایسه می‌شود نه با
+    یک عدد ثابت، چون نوسان ۲٪ برای یک نماد زیاد است و برای دیگری معمولی.
+
+    برای اینکه با تنظیمات پیش‌فرض حساب هم درست کار کند، چرخه دو کندلی است:
+    کندلِ تغییر علامت سیگنال close می‌دهد (پوزیشن قبلی بسته می‌شود) و کندل
+    بعد ورود در جهت جدید انجام می‌شود. اگر ورود را روی همان کندلِ چرخش
+    می‌دادیم، سیاست پیش‌فرض «برخورد با سیگنال معکوس» آن را نادیده می‌گرفت و
+    پوزیشن قدیمی تا حد ضررش باز می‌ماند.
+    """
+    lookback = max(2, int(p.get("lookback", 180)))
+    vol_length = max(2, int(p.get("vol_length", 20)))
+    # ۱۵۰ و نه بیشتر: بک‌تست از کندل ۲۱۰ شروع می‌شود، پس پنجره‌ی بزرگ‌تر
+    # باعث می‌شد فیلتر نوسان در ابتدای هر بک‌تست بی‌اثر باشد و نتیجه با اجرای
+    # زنده (که ۵۰۰ کندل در دست دارد) یکی نباشد.
+    vol_window = max(10, int(p.get("vol_percentile_window", 150)))
+    vol_max_pct = float(p.get("vol_percentile_max", 80))
+    atr_mult = float(p.get("atr_mult_sl", 2.0))
+    rr = float(p.get("risk_reward", 1.5))
+    exit_on_flip = bool(int(p.get("exit_on_flip", 1)))
+    atr_len = int(p.get("atr_length", 14))
+
+    atr_v = ind.atr(df, atr_len).iat[-1]
+    last = len(df) - 1
+    extra = {"atr": atr_v}
+    if len(df) < lookback + 3 or not pd.notna(atr_v) or atr_v <= 0:
+        return _signal("none", df, extra, atr_v)
+
+    close = df["close"].to_numpy()
+    def sign_at(i: int) -> int:
+        base = close[i - lookback]
+        if base <= 0:
+            return 0
+        r = close[i] / base - 1
+        return 1 if r > 0 else (-1 if r < 0 else 0)
+
+    now, prev, prev2 = sign_at(last), sign_at(last - 1), sign_at(last - 2)
+    extra["momentum_pct"] = (close[last] / close[last - lookback] - 1) * 100
+
+    if exit_on_flip and now != prev and now != 0:
+        out = _signal("close", df, extra, atr_v)
+        out["reject"] = "momentum_flip"
+        return out
+
+    # ورود فقط یک کندل بعد از چرخش، و فقط اگر جهت همان مانده باشد
+    if not (now != 0 and now == prev and prev != prev2):
+        return _signal("none", df, extra, atr_v)
+
+    vol = ind.realized_vol(df["close"], vol_length)
+    rank = ind.rolling_percentile_rank(vol, vol_window).iat[-1]
+    extra["vol_percentile"] = rank
+    if pd.notna(rank) and rank > vol_max_pct:
+        out = _signal("none", df, extra, atr_v)
+        out["reject"] = "high_vol"
+        return out
+
+    side = "buy" if now > 0 else "sell"
+    entry = float(close[last])
+    dist = atr_mult * atr_v
+    sl = entry - dist if side == "buy" else entry + dist
+    tp = entry + rr * dist if side == "buy" else entry - rr * dist
+    if sl <= 0 or tp <= 0:
+        return _signal("none", df, extra, atr_v)
+    out = _signal(side, df, extra, atr_v)
+    out["stop_loss"] = sl
+    out["take_profit"] = tp
+    return out
+
+
+# ---------- ۱۳) بازگشت کوتاه‌مدت با فیلتر نوسان ----------
+def short_term_reversal(df: pd.DataFrame, p: dict) -> dict:
+    """حرکت‌های کوتاه و بیش‌ازحدِ چند کندل اخیر را در خلاف جهتشان معامله می‌کند.
+
+    تفاوتش با استراتژی «معکوس RSI» موجود این است که معیارش خودِ بازده است نه
+    یک اسیلاتور: بازده k کندل اخیر بر نوسان همان دوره تقسیم می‌شود تا عددی
+    بی‌واحد (z) به دست بیاید. با این کار یک حرکت ۳٪ در بازار آرام «بزرگ» و
+    همان ۳٪ در بازار پرنوسان «معمولی» حساب می‌شود — چیزی که آستانه‌ی ثابت
+    RSI نمی‌تواند تشخیص بدهد.
+
+    خروج هم با همان معیار است: وقتی z به صفر برگشت یعنی همان کشیدگی‌ای که
+    دلیل ورود بود از بین رفته.
+    """
+    k = max(2, int(p.get("lookback", 6)))
+    vol_length = max(2, int(p.get("vol_length", 30)))
+    entry_z = abs(float(p.get("entry_z", 2.5)))
+    exit_z = abs(float(p.get("exit_z", 0.5)))
+    vol_window = max(10, int(p.get("vol_percentile_window", 150)))
+    vol_max_pct = float(p.get("vol_percentile_max", 90))
+    atr_mult = float(p.get("atr_mult_sl", 1.5))
+    rr = float(p.get("risk_reward", 1.0))
+    atr_len = int(p.get("atr_length", 14))
+
+    atr_v = ind.atr(df, atr_len).iat[-1]
+    extra = {"atr": atr_v}
+    if len(df) < max(k, vol_length) + atr_len + 5 or not pd.notna(atr_v) or atr_v <= 0:
+        return _signal("none", df, extra, atr_v)
+
+    close = df["close"]
+    vol = ind.realized_vol(close, vol_length)
+    sigma = vol.iat[-1]
+    if not pd.notna(sigma) or sigma <= 0:
+        return _signal("none", df, extra, atr_v)
+
+    base = float(close.iat[-1 - k])
+    if base <= 0:
+        return _signal("none", df, extra, atr_v)
+    ret = float(np.log(close.iat[-1] / base))
+    z = ret / (sigma * math.sqrt(k))          # کشیدگی، بر حسب انحراف معیار
+    extra["reversal_z"] = z
+
+    if abs(z) <= exit_z:
+        out = _signal("close", df, extra, atr_v)
+        out["reject"] = "z_back_to_normal"
+        return out
+    if abs(z) < entry_z:
+        return _signal("none", df, extra, atr_v)
+
+    rank = ind.rolling_percentile_rank(vol, vol_window).iat[-1]
+    extra["vol_percentile"] = rank
+    if pd.notna(rank) and rank > vol_max_pct:
+        out = _signal("none", df, extra, atr_v)
+        out["reject"] = "high_vol"
+        return out
+
+    side = "buy" if z < 0 else "sell"          # خلاف جهت حرکت اخیر
+    entry = float(close.iat[-1])
+    dist = atr_mult * atr_v
+    sl = entry - dist if side == "buy" else entry + dist
+    tp = entry + rr * dist if side == "buy" else entry - rr * dist
+    if sl <= 0 or tp <= 0:
+        return _signal("none", df, extra, atr_v)
+    out = _signal(side, df, extra, atr_v)
+    out["stop_loss"] = sl
+    out["take_profit"] = tp
+    return out
+
+
 STRATEGIES = {
     "supertrend_ema_rsi": {
         "label": "SuperTrend + EMA + RSI",
@@ -630,12 +890,60 @@ STRATEGIES = {
             # همان کلید استراتژی شوک: ترجمه‌ی مشترک دارد و معنایش هم یکی است
             {"key": "body_ratio_min", "label": "حداقل نسبت بدنه به دامنه کندل", "type": "float", "default": 0.40, "step": 0.05},
             {"key": "confirm_window", "label": "مهلت تأیید بعد از لمس (کندل)", "type": "int", "default": 10},
-            {"key": "sl_buffer_pct", "label": "فاصله حد ضرر از پیوت (٪)", "type": "float", "default": 0.2, "step": 0.05},
+            {"key": "sl_buffer_pct", "label": "فاصله حد ضرر از سقف/کف ساختار (٪)", "type": "float", "default": 0.2, "step": 0.05},
             {"key": "max_stop_pct", "label": "حداکثر فاصله حد ضرر (٪)", "type": "float", "default": 2.0, "step": 0.1},
             {"key": "min_rr", "label": "حداقل نسبت ریسک به پاداش", "type": "float", "default": 3.0, "step": 0.1},
             {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
         ],
         "fn": fib786_reversal,
+    },
+    "kijun_flat_reversion": {
+        "label": "بازگشت به کیجن‌سن صاف (ایچیموکو)",
+        "params_schema": [
+            {"key": "tenkan_length", "label": "دوره تنکن‌سن", "type": "int", "default": 9},
+            {"key": "kijun_length", "label": "دوره کیجن‌سن", "type": "int", "default": 26},
+            {"key": "flat_bars", "label": "حداقل کندل صاف بودن کیجن", "type": "int", "default": 5},
+            {"key": "flat_tolerance_pct", "label": "تحمل صاف بودن (٪ قیمت)", "type": "float", "default": 0.02, "step": 0.01},
+            {"key": "min_distance_atr", "label": "حداقل فاصله قیمت از کیجن (ضریب ATR)", "type": "float", "default": 1.5, "step": 0.1},
+            {"key": "require_tenkan_turn", "label": "برگشت تنکن الزامی باشد (۱ = بله)", "type": "int", "default": 1},
+            {"key": "tp_extension", "label": "ادامه حد سود بعد از کیجن (ضریب فاصله)", "type": "float", "default": 1.0, "step": 0.1},
+            {"key": "exit_on_kijun_move", "label": "خروج وقتی کیجن از حالت صاف درآمد (۱ = بله)", "type": "int", "default": 1},
+            {"key": "sl_buffer_pct", "label": "فاصله حد ضرر از سقف/کف ساختار (٪)", "type": "float", "default": 0.2, "step": 0.05},
+            {"key": "max_stop_pct", "label": "حداکثر فاصله حد ضرر (٪)", "type": "float", "default": 3.0, "step": 0.1},
+            {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
+        ],
+        "fn": kijun_flat_reversion,
+    },
+    "tsmom_vol_filter": {
+        "label": "مومنتوم سری‌زمانی با فیلتر نوسان",
+        "research": True,
+        "params_schema": [
+            {"key": "lookback", "label": "دوره بازده مومنتوم (کندل)", "type": "int", "default": 180},
+            {"key": "vol_length", "label": "دوره نوسان تحقق‌یافته", "type": "int", "default": 20},
+            {"key": "vol_percentile_window", "label": "پنجره مقایسه نوسان (کندل)", "type": "int", "default": 150},
+            {"key": "vol_percentile_max", "label": "حداکثر صدک نوسان برای ورود", "type": "float", "default": 80, "step": 5},
+            {"key": "atr_mult_sl", "label": "ضریب ATR حد ضرر", "type": "float", "default": 2.0, "step": 0.1},
+            {"key": "risk_reward", "label": "نسبت پاداش به ریسک", "type": "float", "default": 1.5, "step": 0.1},
+            {"key": "exit_on_flip", "label": "خروج با چرخش جهت مومنتوم (۱ = بله)", "type": "int", "default": 1},
+            {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
+        ],
+        "fn": tsmom_vol_filter,
+    },
+    "short_term_reversal": {
+        "label": "بازگشت کوتاه‌مدت با فیلتر نوسان",
+        "research": True,
+        "params_schema": [
+            {"key": "lookback", "label": "دوره بازده مومنتوم (کندل)", "type": "int", "default": 6},
+            {"key": "vol_length", "label": "دوره نوسان تحقق‌یافته", "type": "int", "default": 30},
+            {"key": "entry_z", "label": "آستانه ورود (انحراف معیار)", "type": "float", "default": 2.5, "step": 0.1},
+            {"key": "exit_z", "label": "آستانه خروج (انحراف معیار)", "type": "float", "default": 0.5, "step": 0.1},
+            {"key": "vol_percentile_window", "label": "پنجره مقایسه نوسان (کندل)", "type": "int", "default": 150},
+            {"key": "vol_percentile_max", "label": "حداکثر صدک نوسان برای ورود", "type": "float", "default": 90, "step": 5},
+            {"key": "atr_mult_sl", "label": "ضریب ATR حد ضرر", "type": "float", "default": 1.5, "step": 0.1},
+            {"key": "risk_reward", "label": "نسبت پاداش به ریسک", "type": "float", "default": 1.0, "step": 0.1},
+            {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
+        ],
+        "fn": short_term_reversal,
     },
     "adaptive_regime": {
         "label": "خودکار: انتخاب استراتژی بر اساس وضعیت بازار",
@@ -653,7 +961,11 @@ STRATEGIES = {
 def list_strategies() -> list:
     """برای API داشبورد: [{key, label, params_schema}]"""
     return [
-        {"key": key, "label": cfg["label"], "params_schema": cfg["params_schema"]}
+        {"key": key, "label": cfg["label"], "params_schema": cfg["params_schema"],
+         # نشانه‌ی «برگرفته از پژوهش منتشرشده» — در داشبورد با $ نمایش داده
+         # می‌شود. ادعای سودده بودن نیست؛ فقط می‌گوید منطقش از یک ادبیات
+         # اندازه‌گیری‌شده آمده نه از یک قاعده‌ی سرانگشتی.
+         "research": bool(cfg.get("research"))}
         for key, cfg in STRATEGIES.items()
     ]
 

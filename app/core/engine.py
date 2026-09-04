@@ -438,7 +438,8 @@ class AccountRunner:
                                        position.get("side"))
         emoji = "✅" if realized >= 0 else "🔴"
         label = {"SL": "حد ضرر", "TP": "حد سود", "manual": "دستی",
-                 "reversal": "تغییر جهت", "TRAIL": "تریلینگ صرافی"}.get(closed_by, closed_by)
+                 "reversal": "تغییر جهت", "TRAIL": "تریلینگ صرافی",
+                 "strategy": "قانون خروج استراتژی"}.get(closed_by, closed_by)
         self._notify_owner(f"{emoji} پوزیشن {position['symbol']} بسته شد ({label}) — سود/زیان: {realized:+.2f} USDT",
                            kind="trade", symbol=position.get("symbol", ""))
 
@@ -571,6 +572,13 @@ class AccountRunner:
                     "timeframe": tinfo.get("timeframe", ""),
                     "stale": bool(tinfo.get("stale")),
                 }
+
+        if sig["signal"] == "close":
+            # استراتژی‌هایی مثل «بازگشت به کیجن‌سن صاف» قانون خروج خودشان را
+            # دارند. اگر پوزیشنی نباشد، این یک no-op بی‌صداست.
+            if any(p["symbol"] == symbol for p in self.positions):
+                await self.close_symbol_positions(symbol, "استراتژی", "strategy")
+            return
 
         if sig["signal"] in ("buy", "sell"):
             raw = sig["signal"]
@@ -843,6 +851,24 @@ class AccountRunner:
             return None
         return qty
 
+    async def close_symbol_positions(self, symbol: str, by: str, reason: str) -> str:
+        """بستن همه‌ی پوزیشن‌های یک نماد. مشترک بین سیگنال close وبهوک و
+        استراتژی‌هایی که قانون خروج خودشان را دارند."""
+        targets = [p for p in self.positions if p["symbol"] == symbol]
+        if not targets:
+            return "پوزیشن بازی روی این نماد نیست"
+        for p in targets:
+            try:
+                await self.driver.close_position(p)
+                if not isinstance(self.driver, PaperDriver):
+                    await self.record_live_close(p, reason)
+                self.log(f"{symbol}: پوزیشن با سیگنال close {by} بسته شد.")
+            except ExchangeError as e:
+                self.log(f"{symbol}: بستن با {by} ناموفق: {e}", "error")
+                return f"خطا در بستن: {e}"
+        self.positions = [p for p in self.positions if p["symbol"] != symbol]
+        return f"{len(targets)} پوزیشن بسته شد"
+
     # ---------- وبهوک ----------
     async def handle_signal(self, symbol: str, signal: str, price: float | None,
                             stop_loss: float | None, take_profit: float | None) -> str:
@@ -853,20 +879,7 @@ class AccountRunner:
             return "نماد در این حساب فعال نیست"
 
         if signal == "close":
-            targets = [p for p in self.positions if p["symbol"] == symbol]
-            if not targets:
-                return "پوزیشن بازی روی این نماد نیست"
-            for p in targets:
-                try:
-                    await self.driver.close_position(p)
-                    if not isinstance(self.driver, PaperDriver):
-                        await self.record_live_close(p, "manual")
-                    self.log(f"{symbol}: پوزیشن با سیگنال close وبهوک بسته شد.")
-                except ExchangeError as e:
-                    self.log(f"{symbol}: بستن با وبهوک ناموفق: {e}", "error")
-                    return f"خطا در بستن: {e}"
-            self.positions = [p for p in self.positions if p["symbol"] != symbol]
-            return f"{len(targets)} پوزیشن بسته شد"
+            return await self.close_symbol_positions(symbol, "وبهوک", "manual")
 
         atr = None
         try:

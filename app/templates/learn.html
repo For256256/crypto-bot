@@ -116,7 +116,8 @@ const STRAT_ICON = {
   supertrend_ema_rsi: 'trending_up', macd_trend: 'waves', bollinger_rsi: 'compress',
   ma_kijun_psar: 'stacked_line_chart', donchian_breakout: 'open_in_full',
   rsi_contrarian: 'swap_vert', volatility_shock: 'bolt', hybrid_trend_breakout: 'hub',
-  fib786_reversal: 'timeline',
+  fib786_reversal: 'timeline', kijun_flat_reversion: 'horizontal_rule',
+  tsmom_vol_filter: 'show_chart', short_term_reversal: 'sync_alt',
 };
 // برچسب نوع بازار مناسب هر استراتژی — برای اینکه کاربر سریع بفهمد کدام
 // استراتژی در کدام شرایط کار می‌کند.
@@ -125,7 +126,8 @@ const STRAT_REGIME = {
   supertrend_ema_rsi: 'trend', macd_trend: 'trend', bollinger_rsi: 'range',
   ma_kijun_psar: 'trend', donchian_breakout: 'volatile', rsi_contrarian: 'range',
   volatility_shock: 'volatile', hybrid_trend_breakout: 'trend',
-  fib786_reversal: 'range',
+  fib786_reversal: 'range', kijun_flat_reversion: 'range',
+  tsmom_vol_filter: 'trend', short_term_reversal: 'range',
 };
 const REGIME_STYLE = {
   trend: 'bg-buy/10 text-buy border-buy/20',
@@ -171,7 +173,7 @@ function card(st) {
     <summary class="p-5 flex items-center gap-3">
       <span class="material-symbols-outlined text-primary">${STRAT_ICON[k] || 'insights'}</span>
       <div class="flex-1 min-w-0">
-        <div class="font-bold text-on-surface text-sm">${esc(st.label)}</div>
+        <div class="font-bold text-on-surface text-sm">${st.research ? `<span class="text-gold" title="${t('str.research_tip')}">$</span> ` : ''}${esc(st.label)}</div>
         <div class="text-on-surface-variant text-xs mt-0.5">${t('learn.s.' + k + '.goal')}</div>
       </div>
       <span class="px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${REGIME_STYLE[regime]}">
@@ -207,12 +209,17 @@ function card(st) {
 // [کلید, میانه٪, میانگین٪, سهم مجموعه‌های سودده٪, میانگین معاملات, نرخ برد٪, بدترین٪]
 const BT_ROWS = [
   ['rsi_contrarian',        +0.84, +0.42, 61.1,  6.4, 56.4,  -4.85],
+  ['short_term_reversal',   +0.41, -0.16, 55.6,  6.1, 60.6,  -5.85],
   ['volatility_shock',      +0.22, -0.35, 55.6, 11.9, 53.0, -11.71],
   ['bollinger_rsi',         +0.11, -0.14, 61.1, 10.6, 55.5,  -7.23],
+  // نُه مجموعه از هجده‌تا هیچ معامله‌ای نداشتند، پس میانه‌ی صفر یعنی «بی‌معامله»
+  // نه ثبات؛ ستون میانگین و تعداد معاملات را با هم بخوانید.
+  ['kijun_flat_reversion',   0.00, -0.19, 16.7,  1.3, 33.3,  -1.69],
   ['adaptive_regime',       +0.04, -0.41, 50.0, 12.2, 52.6, -11.71],
   // با پیش‌فرض‌های خودِ Specification (حداقل R:R = ۳) عملاً معامله نمی‌کند:
   // در کل ۱۸ مجموعه فقط ۲ ورود. عدد میانه‌ی صفر یعنی «هیچ معامله‌ای»، نه ثبات.
   ['fib786_reversal',        0.00, -0.12,  0.0,  0.1,  0.0,  -1.08],
+  ['tsmom_vol_filter',      -0.78, -1.28, 44.4, 12.3, 34.2, -10.40],
   ['supertrend_ema_rsi',    -0.86, -1.02, 27.8, 11.7, 50.0,  -7.06],
   ['hybrid_trend_breakout', -2.06, -2.40,  5.6,  9.0, 40.6,  -7.41],
   ['ma_kijun_psar',         -2.13, -1.46, 33.3, 15.4, 49.2,  -8.31],

@@ -381,7 +381,7 @@ function filterSymbolList() {
 async function loadStrategies() {
   strategiesCache = await callApi('/api/strategies');
   document.getElementById('s_strategy').innerHTML =
-    strategiesCache.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
+    strategiesCache.map(s => `<option value="${s.key}">${s.research ? '$ ' : ''}${s.label}</option>`).join('');
   renderStrategyParams();
 }
 
@@ -941,6 +941,8 @@ function signalBadge(sig) {
   const s = sig ? sig.signal : null;
   if (s === 'buy') return `<span class="px-2 py-0.5 rounded text-[10px] bg-buy/20 text-buy">${t('dash.signal_buy')}</span>`;
   if (s === 'sell') return `<span class="px-2 py-0.5 rounded text-[10px] bg-sell/20 text-sell">${t('dash.signal_sell')}</span>`;
+  // بعضی استراتژی‌ها قانون خروج خودشان را دارند و سیگنال close می‌دهند
+  if (s === 'close') return `<span class="px-2 py-0.5 rounded text-[10px] bg-gold/20 text-gold">${t('dash.signal_close')}</span>`;
   return `<span class="px-2 py-0.5 rounded text-[10px] bg-outline-variant/30 text-on-surface-variant">${t('dash.signal_none')}</span>`;
 }
 
@@ -989,7 +991,8 @@ function trendBadge(sig) {
 }
 
 function renderSymbolCard(acc, sym, sig, uid) {
-  const stLabel = (strategiesCache.find(x => x.key === sym.strategy) || {}).label || sym.strategy;
+  const stEntry = strategiesCache.find(x => x.key === sym.strategy) || {};
+  const stLabel = (stEntry.research ? '$ ' : '') + (stEntry.label || sym.strategy);
   const rows = [];
   if (sig && sig.close !== undefined) rows.push([t('dash.price'), fmtNum(sig.close)]);
   const extras = Object.entries((sig && sig.extra) || {}).slice(0, 6);
@@ -1327,7 +1330,7 @@ function openBulkModal() {
   if (!acc) return;
   document.getElementById('bulkCount').textContent = t('dash.bulk_count', {n: (acc.symbols || []).length});
   document.getElementById('b_strategy').innerHTML =
-    strategiesCache.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
+    strategiesCache.map(s => `<option value="${s.key}">${s.research ? '$ ' : ''}${s.label}</option>`).join('');
   renderBulkStrategyParams();
   openModal('bulkModalBg');
 }
