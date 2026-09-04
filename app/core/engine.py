@@ -574,7 +574,12 @@ class AccountRunner:
 
         if sig["signal"] in ("buy", "sell"):
             raw = sig["signal"]
-            result = await self._handle_entry_signal(sym_cfg, raw, sig["close"], None, None, sig.get("atr"))
+            # بعضی استراتژی‌ها (مثل بازگشت فیبوناچی) حد ضرر و حد سود را خودشان
+            # از ساختار قیمت می‌سازند؛ آن‌ها بر فرمول ATR مقدم‌اند. بقیه این دو
+            # کلید را ندارند و مثل قبل خالی رد می‌شوند.
+            result = await self._handle_entry_signal(sym_cfg, raw, sig["close"],
+                                                     sig.get("stop_loss"), sig.get("take_profit"),
+                                                     sig.get("atr"))
             if result == "trend_blocked":
                 sig["trend_blocked"] = True
             if self.cfg.get("invert_signals"):

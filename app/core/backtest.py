@@ -169,10 +169,18 @@ def run_backtest(df: pd.DataFrame, strategy_key: str, params: dict | None = None
                         close_position(close, when, "reversal")
             if not blocked and position is None:
                 atr_v = atr_series.iat[i]
-                if pd.notna(atr_v) and atr_v > 0:
+                # حد ضرر/سودِ خودِ استراتژی مقدم است — دقیقاً مثل موتور واقعی.
+                # در حالت معکوس حول قیمت ورود آینه می‌شود، باز هم مثل موتور.
+                sl, tp = sig.get("stop_loss"), sig.get("take_profit")
+                if sl and tp and invert:
+                    sl, tp = 2 * close - sl, 2 * close - tp
+                if sl and tp and (sl <= 0 or tp <= 0):
+                    sl = tp = None
+                if not (sl and tp) and pd.notna(atr_v) and atr_v > 0:
                     dist = sl_tp_atr_mult * atr_v
                     sl = close - dist if wanted == "long" else close + dist
                     tp = close + dist if wanted == "long" else close - dist
+                if sl and tp and abs(close - sl) > 0:
                     risk_amount = equity * RISK_PCT / 100
                     qty = risk_amount / abs(close - sl)
                     # کارمزد ورود همین‌جا حساب می‌شود اما از اکوییتی کم نمی‌شود؛
