@@ -174,3 +174,36 @@ def psar(df: pd.DataFrame, step: float = 0.02, max_step: float = 0.2) -> pd.Seri
         out[i] = sar
 
     return pd.Series(out, index=df.index)
+
+
+def pivot_points(df: pd.DataFrame, strength: int = 3) -> pd.DataFrame:
+    """نقاط چرخش (Swing High/Low) با «قدرت پیوت» مشخص.
+
+    یک کندل وقتی Swing High است که سقفش از `strength` کندل قبل *بزرگ‌تر* و از
+    `strength` کندل بعد *بزرگ‌تر یا مساوی* باشد (و برعکس برای Swing Low).
+    نامساوی اکید در یک سمت و غیراکید در سمت دیگر عمدی است: با دو نامساوی اکید،
+    یک سقف دوقلوی کاملاً مسطح هیچ‌وقت پیوت شناخته نمی‌شد، و با دو نامساوی
+    غیراکید، یک ناحیه‌ی صاف چند کندلِ پشت‌سرهم را پیوت اعلام می‌کرد.
+
+    نکته‌ی مهم برای استفاده‌ی بدون نگاه به آینده: پیوتِ کندل i تا `strength`
+    کندل بعد قابل تشخیص نیست، چون به کندل‌های سمت راستش نگاه می‌کند. پس فراخوان
+    باید فقط پیوت‌هایی را به کار ببرد که اندیسشان حداقل `strength` کندل قبل از
+    کندل جاری است — وگرنه عملاً از آینده خبر داده است.
+    """
+    h, lo = df["high"], df["low"]
+    # با shift برداری حساب می‌شود نه با حلقه: بک‌تست این تابع را برای هر کندل
+    # روی یک پنجره‌ی بزرگ‌شونده صدا می‌زند، پس هزینه‌اش مربعی جمع می‌شود.
+    shifts = range(1, strength + 1)
+    # skipna=False لازم است: با پیش‌فرض pandas، وقتی بخشی از پنجره NaN است
+    # (لبه‌ی سری) از بقیه ماکسیمم گرفته می‌شد و کندلی که هنوز بال راست کاملش را
+    # ندارد پیوت اعلام می‌شد — یعنی تصمیم با داده‌ی ناقص.
+    h_left = pd.concat([h.shift(k) for k in shifts], axis=1).max(axis=1, skipna=False)
+    h_right = pd.concat([h.shift(-k) for k in shifts], axis=1).max(axis=1, skipna=False)
+    l_left = pd.concat([lo.shift(k) for k in shifts], axis=1).min(axis=1, skipna=False)
+    l_right = pd.concat([lo.shift(-k) for k in shifts], axis=1).min(axis=1, skipna=False)
+    # لبه‌های سری NaN می‌شوند و مقایسه با NaN همیشه False است، یعنی `strength`
+    # کندل ابتدایی و انتهایی خودبه‌خود پیوت شناخته نمی‌شوند — همان چیزی که
+    # می‌خواهیم.
+    return pd.DataFrame({"pivot_high": (h > h_left) & (h >= h_right),
+                         "pivot_low": (lo < l_left) & (lo <= l_right)},
+                        index=df.index)

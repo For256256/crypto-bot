@@ -390,6 +390,149 @@ def adaptive_regime(df: pd.DataFrame, p: dict) -> dict:
     return tagged(_signal("none", df, {"atr": atr_v}, atr_v), "unclear", None)
 
 
+# ---------- ۱۰) بازگشت از فیبوناچی ۰٫۷۸۶ ----------
+def fib786_reversal(df: pd.DataFrame, p: dict) -> dict:
+    """اصلاح عمیق تا سطح ۰٫۷۸۶ و ورود روی کندلِ تأییدِ برگشت.
+
+    برخلاف بقیه‌ی استراتژی‌های این فایل، حد ضرر و حد سود اینجا جزء خودِ
+    استراتژی‌اند نه چیزی که موتور از ATR بسازد: حد ضرر پشت همان swing ای است
+    که ساختار را می‌سازد و حد سود روی swing مقابل. فیلتر نسبت ریسک به پاداش هم
+    بدون این دو عدد اصلاً معنا ندارد.
+
+    تابع بدون حافظه است و کل ساختار را هر بار از روی داده بازمی‌سازد: پیوت‌ها،
+    ایمپالس، اولین لمس ۰٫۷۸۶ و اولین کندل تأیید بعد از آن. سیگنال فقط وقتی
+    صادر می‌شود که *همین کندلِ آخر* آن اولین تأیید باشد؛ همین شرط، بدون نیاز به
+    نگه‌داشتن state، هم قانون «هر ساختار فقط یک بار» را برقرار می‌کند و هم
+    نتیجه‌ی بک‌تست را با اجرای زنده یکی نگه می‌دارد.
+    """
+    strength = max(1, int(p.get("pivot_strength", 3)))
+    fib_level = float(p.get("fib_level", 0.786))
+    atr_len = int(p.get("atr_length", 14))
+    min_impulse_atr = float(p.get("min_impulse_atr", 1.5))
+    body_ratio_min = float(p.get("body_ratio_min", 0.40))
+    confirm_window = int(p.get("confirm_window", 10))
+    sl_buffer_pct = float(p.get("sl_buffer_pct", 0.2))
+    max_stop_pct = float(p.get("max_stop_pct", 2.0))
+    min_rr = float(p.get("min_rr", 3.0))
+
+    atr_series = ind.atr(df, atr_len)
+    atr_v = atr_series.iat[-1]
+    last = len(df) - 1
+    extra = {"atr": atr_v}
+    none_out = lambda: _signal("none", df, extra, atr_v)
+
+    # حداقل داده: خودِ ایمپالس + بال‌های پیوت + پنجره‌ی تأیید
+    if len(df) < 2 * strength + confirm_window + atr_len + 5:
+        return none_out()
+    if not pd.notna(atr_v) or atr_v <= 0:
+        return none_out()
+
+    piv = ind.pivot_points(df, strength)
+    # فقط پیوت‌هایی که تا کندل جاری واقعاً تأیید شده‌اند: پیوتِ کندل i به
+    # `strength` کندل بعدش نگاه می‌کند، پس استفاده از پیوت‌های جدیدتر از
+    # last-strength یعنی خبر داشتن از آینده.
+    usable = last - strength
+    highs = piv["pivot_high"].to_numpy()[: usable + 1].nonzero()[0]
+    lows = piv["pivot_low"].to_numpy()[: usable + 1].nonzero()[0]
+    if not len(highs) or not len(lows):
+        return none_out()
+
+    high, low = df["high"].to_numpy(), df["low"].to_numpy()
+    close, open_ = df["close"].to_numpy(), df["open"].to_numpy()
+
+    def evaluate(i_a: int, i_b: int, side: str) -> dict | None:
+        """i_a پیوتِ شروع ایمپالس، i_b پیوتِ پایان آن.
+
+        None یعنی اصلاً ساختاری برای گفتن نیست. اگر ساختار هست و کندل تأییدش
+        هم همین کندل آخر است ولی یک فیلتر عددی ردش کرده، دیکشنری با
+        signal=None و همان اعداد برمی‌گردد تا داشبورد بتواند بگوید «setup بود،
+        R:R نرسید» — سکوت کامل همان چیزی است که کاربر را به اشتباه می‌اندازد.
+        """
+        a = low[i_a] if side == "buy" else high[i_a]
+        b = high[i_b] if side == "buy" else low[i_b]
+        # موج باید واقعاً در جهت درست باشد: در روند نزولی ممکن است سقفِ
+        # تأییدشده‌ی بعدی پایین‌تر از کفِ قبلی باشد و آن‌وقت «ایمپالس صعودی»
+        # فقط یک عدد مثبتِ بی‌معنا می‌شد.
+        impulse = (b - a) if side == "buy" else (a - b)
+        if impulse <= 0 or impulse < min_impulse_atr * atr_v:
+            return None
+        fib = b - fib_level * (b - a)          # برای هر دو جهت درست است
+
+        # اولین لمس ۰٫۷۸۶ بعد از پایان ایمپالس
+        touch = None
+        for i in range(i_b + 1, last + 1):
+            hit = low[i] <= fib if side == "buy" else high[i] >= fib
+            if hit:
+                touch = i
+                break
+        if touch is None:
+            return None
+
+        # ساختار نباید شکسته باشد: بسته‌شدن آن‌سوی پیوتِ مبنا یعنی setup باطل
+        for i in range(i_b + 1, last + 1):
+            broken = close[i] < a if side == "buy" else close[i] > a
+            if broken:
+                return None
+
+        # اولین کندل تأیید بعد از لمس؛ باید دقیقاً همین کندل آخر باشد
+        for i in range(touch, min(touch + confirm_window, last) + 1):
+            r = high[i] - low[i]
+            if r <= 0:
+                continue
+            ok = (close[i] > fib and close[i] > open_[i]) if side == "buy" \
+                else (close[i] < fib and close[i] < open_[i])
+            if not (ok and abs(close[i] - open_[i]) / r >= body_ratio_min):
+                continue
+            if i != last:
+                return None       # تأیید قبلاً رخ داده؛ این ساختار مصرف شده
+            entry = close[last]
+            sl = a * (1 - sl_buffer_pct / 100) if side == "buy" else a * (1 + sl_buffer_pct / 100)
+            tp = b
+            risk = (entry - sl) if side == "buy" else (sl - entry)
+            reward = (tp - entry) if side == "buy" else (entry - tp)
+            if risk <= 0 or reward <= 0 or entry <= 0:
+                return None
+            rr = reward / risk
+            base = {"signal": None, "fib": fib, "rr": rr, "sl": sl, "tp": tp,
+                    "swing_a": a, "swing_b": b}
+            if risk / entry * 100 > max_stop_pct:
+                return {**base, "reject": "stop"}
+            if rr < min_rr:
+                return {**base, "reject": "rr"}
+            return {**base, "signal": side}
+        return None
+
+    # آخرین ایمپالس صعودی: کف تأییدشده، و سقف تأییدشده‌ی بعد از آن
+    setup = None
+    last_high = int(highs[-1])
+    before = lows[lows < last_high]
+    if len(before):
+        setup = evaluate(int(before[-1]), last_high, "buy")
+    if setup is None:
+        last_low = int(lows[-1])
+        before = highs[highs < last_low]
+        if len(before):
+            setup = evaluate(int(before[-1]), last_low, "sell")
+    if setup is None:
+        return none_out()
+
+    extra.update({"fib_786": setup["fib"], "swing_from": setup["swing_a"],
+                  "swing_to": setup["swing_b"], "rr": setup["rr"]})
+    if setup["signal"] is None:
+        # ساختار درست بود ولی عدد نرسید؛ اعداد را برمی‌گردانیم تا در داشبورد
+        # دیده شود چرا ورودی انجام نشد.
+        out = _signal("none", df, extra, atr_v)
+        out["reject"] = setup["reject"]
+        return out
+
+    out = _signal(setup["signal"], df, extra, atr_v)
+    # حد ضرر و حد سودِ خودِ استراتژی؛ موتور و بک‌تست وقتی این دو باشند سراغ
+    # فرمول ATR نمی‌روند.
+    out["stop_loss"] = float(setup["sl"])
+    out["take_profit"] = float(setup["tp"])
+    return out
+
+
 STRATEGIES = {
     "supertrend_ema_rsi": {
         "label": "SuperTrend + EMA + RSI",
@@ -477,6 +620,22 @@ STRATEGIES = {
             {"key": "volume_mult", "label": "ضریب تأیید حجم", "type": "float", "default": 1.2, "step": 0.1},
         ],
         "fn": hybrid_trend_breakout,
+    },
+    "fib786_reversal": {
+        "label": "بازگشت از فیبوناچی ۰٫۷۸۶",
+        "params_schema": [
+            {"key": "pivot_strength", "label": "قدرت پیوت (کندل چپ و راست)", "type": "int", "default": 3},
+            {"key": "fib_level", "label": "سطح فیبوناچی ورود", "type": "float", "default": 0.786, "step": 0.001},
+            {"key": "min_impulse_atr", "label": "حداقل اندازه موج (ضریب ATR)", "type": "float", "default": 1.5, "step": 0.1},
+            # همان کلید استراتژی شوک: ترجمه‌ی مشترک دارد و معنایش هم یکی است
+            {"key": "body_ratio_min", "label": "حداقل نسبت بدنه به دامنه کندل", "type": "float", "default": 0.40, "step": 0.05},
+            {"key": "confirm_window", "label": "مهلت تأیید بعد از لمس (کندل)", "type": "int", "default": 10},
+            {"key": "sl_buffer_pct", "label": "فاصله حد ضرر از پیوت (٪)", "type": "float", "default": 0.2, "step": 0.05},
+            {"key": "max_stop_pct", "label": "حداکثر فاصله حد ضرر (٪)", "type": "float", "default": 2.0, "step": 0.1},
+            {"key": "min_rr", "label": "حداقل نسبت ریسک به پاداش", "type": "float", "default": 3.0, "step": 0.1},
+            {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
+        ],
+        "fn": fib786_reversal,
     },
     "adaptive_regime": {
         "label": "خودکار: انتخاب استراتژی بر اساس وضعیت بازار",

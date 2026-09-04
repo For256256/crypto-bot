@@ -116,6 +116,7 @@ const STRAT_ICON = {
   supertrend_ema_rsi: 'trending_up', macd_trend: 'waves', bollinger_rsi: 'compress',
   ma_kijun_psar: 'stacked_line_chart', donchian_breakout: 'open_in_full',
   rsi_contrarian: 'swap_vert', volatility_shock: 'bolt', hybrid_trend_breakout: 'hub',
+  fib786_reversal: 'timeline',
 };
 // برچسب نوع بازار مناسب هر استراتژی — برای اینکه کاربر سریع بفهمد کدام
 // استراتژی در کدام شرایط کار می‌کند.
@@ -124,6 +125,7 @@ const STRAT_REGIME = {
   supertrend_ema_rsi: 'trend', macd_trend: 'trend', bollinger_rsi: 'range',
   ma_kijun_psar: 'trend', donchian_breakout: 'volatile', rsi_contrarian: 'range',
   volatility_shock: 'volatile', hybrid_trend_breakout: 'trend',
+  fib786_reversal: 'range',
 };
 const REGIME_STYLE = {
   trend: 'bg-buy/10 text-buy border-buy/20',
@@ -208,6 +210,9 @@ const BT_ROWS = [
   ['volatility_shock',      +0.22, -0.35, 55.6, 11.9, 53.0, -11.71],
   ['bollinger_rsi',         +0.11, -0.14, 61.1, 10.6, 55.5,  -7.23],
   ['adaptive_regime',       +0.04, -0.41, 50.0, 12.2, 52.6, -11.71],
+  // با پیش‌فرض‌های خودِ Specification (حداقل R:R = ۳) عملاً معامله نمی‌کند:
+  // در کل ۱۸ مجموعه فقط ۲ ورود. عدد میانه‌ی صفر یعنی «هیچ معامله‌ای»، نه ثبات.
+  ['fib786_reversal',        0.00, -0.12,  0.0,  0.1,  0.0,  -1.08],
   ['supertrend_ema_rsi',    -0.86, -1.02, 27.8, 11.7, 50.0,  -7.06],
   ['hybrid_trend_breakout', -2.06, -2.40,  5.6,  9.0, 40.6,  -7.41],
   ['ma_kijun_psar',         -2.13, -1.46, 33.3, 15.4, 49.2,  -8.31],
