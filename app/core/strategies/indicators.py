@@ -222,3 +222,23 @@ def ichimoku_lines(df: pd.DataFrame, tenkan_length: int = 9,
         return (df["high"].rolling(length).max() + df["low"].rolling(length).min()) / 2
     return pd.DataFrame({"tenkan": mid(tenkan_length), "kijun": mid(kijun_length)},
                         index=df.index)
+
+
+def realized_vol(close: pd.Series, length: int = 20) -> pd.Series:
+    """نوسان تحقق‌یافته: انحراف معیار بازده‌های لگاریتمی روی پنجره‌ی length.
+
+    عمداً بازده لگاریتمی و نه درصدی: در بازاری که ۳۰٪ می‌افتد و ۳۰٪ بالا
+    می‌رود، بازده درصدی متقارن نیست ولی لگاریتمی هست، و نوسانی که می‌خواهیم
+    اندازه بگیریم باید نسبت به جهت حرکت بی‌طرف باشد.
+    """
+    return np.log(close / close.shift(1)).rolling(length).std()
+
+
+def rolling_percentile_rank(series: pd.Series, window: int) -> pd.Series:
+    """رتبه‌ی صدکی هر مقدار نسبت به پنجره‌ی خودش (۰ تا ۱۰۰).
+
+    برای فیلترهایی که باید «نسبت به تاریخ خودِ همین نماد» تصمیم بگیرند، نه با
+    یک عدد ثابت: نوسان ۲٪ برای بیت‌کوین زیاد است و برای یک آلت‌کوین کم.
+    """
+    return series.rolling(window).apply(
+        lambda w: (w[:-1] < w[-1]).sum() / max(len(w) - 1, 1) * 100, raw=True)

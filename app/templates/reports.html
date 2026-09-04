@@ -664,7 +664,10 @@ function renderReport() {
   const s = reportData.summary || {};
   const totalWithOpen = s.total_pnl_with_open != null ? s.total_pnl_with_open : s.total_pnl;
   const pnlCls = (totalWithOpen || 0) >= 0 ? 'text-buy' : 'text-sell';
-  const pf = s.profit_factor === null || s.profit_factor === undefined ? '∞' : fmt(s.profit_factor);
+  // بدون هیچ معامله‌ای «∞» گمراه‌کننده است؛ ∞ فقط وقتی معنا دارد که
+  // معامله‌ای بوده و هیچ‌کدام زیان‌ده نبوده‌اند.
+  const pf = !s.trades ? '—'
+    : (s.profit_factor === null || s.profit_factor === undefined ? '∞' : fmt(s.profit_factor));
   const hasUnrealized = !!s.unrealized_pnl;
   // برچسب بازه، از همان فیلتری که کاربر انتخاب کرده — «۰» یعنی کل تاریخچه.
   const daysSel = document.getElementById('f_days');

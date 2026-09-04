@@ -381,7 +381,7 @@ function filterSymbolList() {
 async function loadStrategies() {
   strategiesCache = await callApi('/api/strategies');
   document.getElementById('s_strategy').innerHTML =
-    strategiesCache.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
+    strategiesCache.map(s => `<option value="${s.key}">${s.research ? '$ ' : ''}${s.label}</option>`).join('');
   renderStrategyParams();
 }
 
@@ -991,7 +991,8 @@ function trendBadge(sig) {
 }
 
 function renderSymbolCard(acc, sym, sig, uid) {
-  const stLabel = (strategiesCache.find(x => x.key === sym.strategy) || {}).label || sym.strategy;
+  const stEntry = strategiesCache.find(x => x.key === sym.strategy) || {};
+  const stLabel = (stEntry.research ? '$ ' : '') + (stEntry.label || sym.strategy);
   const rows = [];
   if (sig && sig.close !== undefined) rows.push([t('dash.price'), fmtNum(sig.close)]);
   const extras = Object.entries((sig && sig.extra) || {}).slice(0, 6);
@@ -1329,7 +1330,7 @@ function openBulkModal() {
   if (!acc) return;
   document.getElementById('bulkCount').textContent = t('dash.bulk_count', {n: (acc.symbols || []).length});
   document.getElementById('b_strategy').innerHTML =
-    strategiesCache.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
+    strategiesCache.map(s => `<option value="${s.key}">${s.research ? '$ ' : ''}${s.label}</option>`).join('');
   renderBulkStrategyParams();
   openModal('bulkModalBg');
 }

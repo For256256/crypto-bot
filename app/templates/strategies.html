@@ -163,15 +163,22 @@ async function loadData() {
   accountsCache = accounts;
   statusCache = status.accounts || {};
   document.getElementById('bt_strategy').innerHTML =
-    strategies.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
+    strategies.map(s => `<option value="${s.key}">${s.research ? '$ ' : ''}${s.label}</option>`).join('');
   renderGuide();
   renderList();
+}
+
+// نشان «$» برای استراتژی‌هایی که منطقشان از پژوهش‌های منتشرشده آمده. ادعای
+// سودده بودن نیست؛ توضیح کاملش در صفحه‌ی آموزش است.
+function researchMark(s) {
+  if (!s || !s.research) return '';
+  return `<span class="text-gold font-bold me-1" title="${t('str.research_tip')}">$</span>`;
 }
 
 function renderGuide() {
   document.getElementById('strategyGuide').innerHTML = strategiesCache.map(s =>
     `<div class="border-r-2 border-primary/40 pr-3">
-       <div class="text-on-surface font-bold text-[13px] mb-0.5">${s.label}</div>
+       <div class="text-on-surface font-bold text-[13px] mb-0.5">${researchMark(s)}${s.label}</div>
        ${STRAT_GUIDE[s.key] || ''}
      </div>`).join('');
 }
@@ -301,7 +308,10 @@ function onBtTrendToggle() {
 
 function btStatsHtml(s) {
   const pnlCls = (s.total_pnl || 0) >= 0 ? 'text-buy' : 'text-sell';
-  const pf = s.profit_factor === null || s.profit_factor === undefined ? '∞' : fmt(s.profit_factor);
+  // بدون هیچ معامله‌ای «∞» گمراه‌کننده است؛ ∞ فقط وقتی معنا دارد که
+  // معامله‌ای بوده و هیچ‌کدام زیان‌ده نبوده‌اند.
+  const pf = !s.trades ? '—'
+    : (s.profit_factor === null || s.profit_factor === undefined ? '∞' : fmt(s.profit_factor));
   return `<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
     <div class="bg-surface-container-low rounded-lg p-3 text-center"><div class="text-[10px] text-on-surface-variant mb-1">${t('str.total_return')}</div><div class="mono-num text-lg font-bold ${pnlCls}" dir="ltr">${s.return_pct >= 0 ? '+' : ''}${fmt(s.return_pct)}${t('common.pct')}</div></div>
     <div class="bg-surface-container-low rounded-lg p-3 text-center"><div class="text-[10px] text-on-surface-variant mb-1">${t('common.win_rate')}</div><div class="mono-num text-lg font-bold text-primary" dir="ltr">${fmt(s.win_rate, 1)}${t('common.pct')}</div></div>

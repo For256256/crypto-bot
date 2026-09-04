@@ -220,7 +220,11 @@ def run_backtest(df: pd.DataFrame, strategy_key: str, params: dict | None = None
             "win_rate": (len(wins) / n * 100) if n else 0.0,
             "total_pnl": sum(pnls),
             "return_pct": (equity - START_EQUITY) / START_EQUITY * 100,
-            "profit_factor": (gross_profit / gross_loss) if gross_loss > 0 else (None if gross_profit == 0 else float("inf")),
+            # بدون معامله‌ی زیان‌ده، نسبت سود بی‌نهایت است — ولی float("inf")
+            # از سریال‌سازی JSON در پاسخ API رد نمی‌شود و کل درخواست بک‌تست را
+            # با خطای ۵۰۰ می‌شکست. None فرستاده می‌شود و سمت داشبورد ∞ نمایش
+            # داده می‌شود (وقتی اصلاً معامله‌ای نبوده، «—»).
+            "profit_factor": (gross_profit / gross_loss) if gross_loss > 0 else None,
             "max_drawdown_pct": max_dd_pct,
             "start_equity": START_EQUITY,
             "end_equity": equity,
