@@ -1101,8 +1101,13 @@ async def get_strategies(request: Request, user: dict = Depends(auth.require_use
     for st in list_strategies():
         item = dict(st)
         item["label"] = i18n.translate_or(lang, f"strategy.{st['key']}.label", st.get("label", st["key"]))
+        # برچسب گزینه‌های select/multiselect هم ترجمه می‌شود؛ کلیدشان مشترک
+        # است چون یک اندیکاتور در چند استراتژی هم‌نام است.
         item["params_schema"] = [
-            {**p, "label": i18n.translate_or(lang, f"strategy.param.{p['key']}", p.get("label", p["key"]))}
+            {**p,
+             "label": i18n.translate_or(lang, f"strategy.param.{p['key']}", p.get("label", p["key"])),
+             **({"option_labels": {o: i18n.translate_or(lang, f"indicator.{o}", o)
+                                   for o in p["options"]}} if p.get("options") else {})}
             for p in st.get("params_schema", [])
         ]
         out.append(item)

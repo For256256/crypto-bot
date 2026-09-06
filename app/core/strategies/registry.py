@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 
 from app.core.strategies import indicators as ind
+from app.core.strategies import signals as sig
 
 
 def _signal(sig: str, df: pd.DataFrame, extra: dict, atr_value=None) -> dict:
@@ -793,6 +794,91 @@ def short_term_reversal(df: pd.DataFrame, p: dict) -> dict:
     return out
 
 
+# ---------- ۱۴) استراتژی‌ساز ----------
+def custom_builder(df: pd.DataFrame, p: dict) -> dict:
+    """به‌جای یک منطق ثابت، یک اندیکاتور «پیشرو» و چند «تأییدکننده» را ترکیب می‌کند.
+
+    تقسیم نقش‌ها عمدی است: پیشرو لحظه‌ی *تغییر حالتش* ماشه را می‌کشد و
+    تأییدکننده‌ها فقط باید در همان لحظه هم‌جهت باشند. اگر قرار بود همه با هم
+    در یک کندل سیگنال بدهند، عملاً هیچ ترکیبی هیچ‌وقت سیگنال نمی‌داد.
+
+    «مهلت تأیید» همان انعطافِ لازم را می‌دهد: ماشه‌ی پیشرو تا N کندل معتبر
+    می‌ماند تا تأییدکننده‌های کندتر برسند.
+    """
+    leading = str(p.get("leading") or "supertrend")
+    raw_conf = p.get("confirmations") or []
+    if isinstance(raw_conf, str):                 # از فرم به‌صورت رشته‌ی جداشده با کاما هم قبول می‌شود
+        raw_conf = [x.strip() for x in raw_conf.split(",") if x.strip()]
+    confirmations = [c for c in raw_conf if c in sig.PROVIDERS and c != leading]
+    expiry = max(0, int(p.get("signal_expiry", 3)))
+    alternate = bool(int(p.get("alternate_signal", 1)))
+    atr_mult = float(p.get("atr_mult_sl", 2.0))
+    rr = float(p.get("risk_reward", 1.5))
+    atr_len = int(p.get("atr_length", 14))
+
+    atr_v = ind.atr(df, atr_len).iat[-1]
+    extra = {"atr": atr_v}
+    if leading not in sig.PROVIDERS or len(df) < 60 or not pd.notna(atr_v) or atr_v <= 0:
+        return _signal("none", df, extra, atr_v)
+
+    lead = sig.direction_series(leading, df, p)
+    # ماشه = لحظه‌ی تغییر حالتِ پیشرو (نه هر کندلی که حالتش برقرار است)
+    trigger = lead.where((lead != lead.shift(1)) & (lead != 0))
+    # ماشه تا `expiry` کندل معتبر می‌ماند
+    pending = trigger.ffill(limit=expiry) if expiry else trigger
+
+    checks: dict = {}
+    agree = pd.Series(True, index=df.index)
+    for key in confirmations:
+        s = sig.direction_series(key, df, p)
+        # مقدار ۲ یعنی فیلتر بدون جهت (مثل حجم): با هر جهتی موافق است
+        agree &= (s == pending) | (s == 2.0)
+        last = s.iat[-1]
+        checks[key] = 0 if pd.isna(last) else int(last)
+
+    combined = pending.where(agree)
+    # فقط لبه: کندلی که ترکیب تازه برقرار شده، نه هر کندلِ بعدیِ همان وضعیت
+    edge = combined.where(combined != combined.shift(1))
+
+    if alternate:
+        # دو سیگنال هم‌جهت پشت‌سرهم صادر نمی‌شود
+        vals = edge.to_numpy(copy=True)
+        prev = 0.0
+        for i in range(len(vals)):
+            v = vals[i]
+            if pd.isna(v):
+                continue
+            if v == prev:
+                vals[i] = np.nan
+            else:
+                prev = v
+        edge = pd.Series(vals, index=df.index)
+
+    extra["leading_dir"] = lead.iat[-1]
+    extra["confirmed"] = float(sum(1 for v in checks.values() if v != 0))
+    extra["confirmations"] = float(len(confirmations))
+    last_signal = edge.iat[-1]
+    out_none = _signal("none", df, extra, atr_v)
+    out_none["checks"] = checks
+    out_none["leading"] = leading
+    if pd.isna(last_signal) or last_signal == 0:
+        return out_none
+
+    side = "buy" if last_signal > 0 else "sell"
+    entry = float(df["close"].iat[-1])
+    dist = atr_mult * atr_v
+    sl = entry - dist if side == "buy" else entry + dist
+    tp = entry + rr * dist if side == "buy" else entry - rr * dist
+    if sl <= 0 or tp <= 0:
+        return out_none
+    out = _signal(side, df, extra, atr_v)
+    out["stop_loss"] = sl
+    out["take_profit"] = tp
+    out["checks"] = checks
+    out["leading"] = leading
+    return out
+
+
 STRATEGIES = {
     "supertrend_ema_rsi": {
         "label": "SuperTrend + EMA + RSI",
@@ -944,6 +1030,28 @@ STRATEGIES = {
             {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
         ],
         "fn": short_term_reversal,
+    },
+    "custom_builder": {
+        "label": "استراتژی‌ساز (ترکیب اندیکاتورها)",
+        "params_schema": [
+            {"key": "leading", "label": "اندیکاتور پیشرو (ماشه)", "type": "select",
+             "options": list(sig.ORDER), "default": "supertrend"},
+            {"key": "confirmations", "label": "اندیکاتورهای تأییدکننده", "type": "multiselect",
+             "options": list(sig.ORDER), "default": ["ema_filter", "rsi"]},
+            {"key": "signal_expiry", "label": "مهلت تأیید بعد از ماشه (کندل)", "type": "int", "default": 3},
+            {"key": "alternate_signal", "label": "سیگنال‌های هم‌جهت پشت‌سرهم صادر نشود (۱ = بله)", "type": "int", "default": 1},
+            {"key": "atr_mult_sl", "label": "ضریب ATR حد ضرر", "type": "float", "default": 2.0, "step": 0.1},
+            {"key": "risk_reward", "label": "نسبت پاداش به ریسک", "type": "float", "default": 1.5, "step": 0.1},
+            {"key": "ema_length", "label": "دوره EMA روند", "type": "int", "default": 200},
+            {"key": "ema_fast", "label": "EMA سریع", "type": "int", "default": 21},
+            {"key": "ema_slow", "label": "EMA کند", "type": "int", "default": 55},
+            {"key": "rsi_length", "label": "دوره RSI", "type": "int", "default": 14},
+            {"key": "st_length", "label": "دوره SuperTrend", "type": "int", "default": 10},
+            {"key": "st_multiplier", "label": "ضریب SuperTrend", "type": "float", "default": 3.0, "step": 0.5},
+            {"key": "adx_min", "label": "حداقل ADX (برای DMI)", "type": "float", "default": 20},
+            {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
+        ],
+        "fn": custom_builder,
     },
     "adaptive_regime": {
         "label": "خودکار: انتخاب استراتژی بر اساس وضعیت بازار",
