@@ -976,6 +976,200 @@ def choch_failure(df: pd.DataFrame, p: dict) -> dict:
     return out
 
 
+# ---------- ۱۶) بیتردو (چندزمانی: MA + بولینگر + واگرایی RSI + شکست خط روند) ----------
+def _htf_ma_last(close: np.ndarray, length: int, multiple: int, use_ema: bool) -> float:
+    """مقدار میانگین متحرکِ تایم‌فریم بالاتر، روی همین کندلِ جاری.
+
+    موتور فقط یک تایم‌فریم می‌دهد، ولی این استراتژی روند را در تایم‌فریم بالاتر
+    می‌خواهد. به‌جای درخواست کندل دوم (که به رابط درایور دست می‌زند)، کندل‌های
+    تایم‌فریم بالاتر از همین سری ساخته می‌شود: بستهٔ هر `multiple` کندل، یک
+    کندلِ بالاتر است و *بسته‌شدنش* همان close کندل آخر آن بسته.
+
+    نقطه‌ی لنگر عمداً کندل جاری است، نه ابتدای سری. یعنی نمونه‌برداری از آخر به
+    عقب انجام می‌شود: close[last], close[last-m], close[last-2m], … این کار
+    باعث می‌شود مقدار برگشتی دقیقاً روی مرزهای واقعیِ تایم‌فریم بالاتر با آن
+    برابر باشد و بین دو مرز هم به‌جای پرش، نرم به‌روز شود.
+    """
+    sampled = close[::-1][::multiple][:length][::-1]
+    if len(sampled) < length:
+        return float("nan")
+    if not use_ema:
+        return float(sampled.mean())
+    k = 2.0 / (length + 1.0)
+    v = float(sampled[0])
+    for x in sampled[1:]:
+        v += k * (float(x) - v)
+    return v
+
+
+def biterdo(df: pd.DataFrame, p: dict) -> dict:
+    """چهار شرطِ پشت‌سرهم، هر کدام کار خودش را می‌کند.
+
+    ۱) روند در تایم‌فریم بالاتر با میانگین متحرک بلند تعیین می‌شود و *فقط*
+       جهت مجاز را مشخص می‌کند؛ خودش هیچ ورودی نمی‌سازد.
+    ۲) برخورد به باند بولینگر می‌گوید قیمت به ناحیه‌ی اصلاحیِ مناسب رسیده.
+       این هم به‌تنهایی سیگنال نیست — فقط ناحیه است.
+    ۳) واگرایی RSI اولین تأییدیه است: قیمت سقف بالاتر بزند ولی RSI سقف
+       پایین‌تر (یا برعکس برای خرید).
+    ۴) ماشه‌ی نهایی شکست خط روندِ اصلاح است.
+
+    ترتیب مهم است و در کد هم همان ترتیب رعایت شده: هر شرط که برقرار نباشد،
+    بقیه بررسی نمی‌شوند و دلیل توقف در `reject` برمی‌گردد تا در داشبورد معلوم
+    باشد کجا گیر کرده.
+    """
+    multiple = max(1, int(p.get("htf_multiple", 4)))
+    ma_len = max(2, int(p.get("ma_length", 150)))
+    use_ema = bool(int(p.get("ma_use_ema", 1)))
+    bb_len = int(p.get("bb_length", 20))
+    bb_mult = float(p.get("bb_mult", 2.0))
+    rsi_len = int(p.get("rsi_length", 14))
+    strength = max(1, int(p.get("pivot_strength", 2)))
+    lookback = max(10, int(p.get("divergence_lookback", 60)))
+    rr = float(p.get("risk_reward", 1.0))
+    sl_buffer_pct = float(p.get("sl_buffer_pct", 0.1))
+    max_stop_pct = float(p.get("max_stop_pct", 3.0))
+    atr_len = int(p.get("atr_length", 14))
+
+    atr_v = ind.atr(df, atr_len).iat[-1]
+    extra = {"atr": atr_v}
+    last = len(df) - 1
+    need = max(ma_len * multiple, bb_len + 5, rsi_len + 5, lookback + 4 * strength) + 5
+    if len(df) < need or not pd.notna(atr_v) or atr_v <= 0:
+        return _signal("none", df, extra, atr_v)
+
+    close = df["close"].to_numpy()
+    high, low = df["high"].to_numpy(), df["low"].to_numpy()
+
+    # ۱) روند تایم‌فریم بالاتر
+    ma_v = _htf_ma_last(close, ma_len, multiple, use_ema)
+    if not math.isfinite(ma_v) or ma_v <= 0:
+        return _signal("none", df, extra, atr_v)
+    extra["htf_ma"] = ma_v
+    side = "buy" if close[last] > ma_v else "sell"
+    extra["trend"] = 1.0 if side == "buy" else -1.0
+
+    def stop(reason: str) -> dict:
+        out = _signal("none", df, extra, atr_v)
+        out["reject"] = reason
+        return out
+
+    # پیوت‌های تأییدشده: پیوتِ کندل i تا `strength` کندل بعد معلوم نیست، پس
+    # فقط تا اندیس last-strength قابل استفاده است.
+    piv = ind.pivot_points(df, strength)
+    usable = last - strength
+    col = "pivot_high" if side == "sell" else "pivot_low"
+    idxs = piv[col].to_numpy()[: usable + 1].nonzero()[0]
+    idxs = [int(i) for i in idxs if i >= last - lookback]
+    if len(idxs) < 2:
+        return stop("no_pivots")
+    # پیوتِ مرجع همیشه آخرین پیوتِ تأییدشده است — واگرایی باید *همین حالا*
+    # باشد، نه چیزی که ده سوینگ قبل اتفاق افتاده.
+    i2 = idxs[-1]
+
+    # ۲) برخورد به باند بولینگر — روی همان پیوتِ آخر، نه هر کندلی
+    bb = ind.bollinger(df["close"], bb_len, bb_mult)
+    upper = bb["bb_upper"].to_numpy()
+    lower = bb["bb_lower"].to_numpy()
+    band = upper[i2] if side == "sell" else lower[i2]
+    if not pd.notna(band):
+        return stop("no_band")
+    extra["band"] = float(band)
+    # برخورد لازم نیست دقیقاً روی خودِ کندلِ پیوت باشد؛ همان سوینگ باید به باند
+    # رسیده باشد. پس بال‌های پیوت هم شمرده می‌شوند — این همان چیزی است که روی
+    # چارت دیده می‌شود: «قیمت به ناحیه‌ی باند رسید».
+    a, b = max(0, i2 - strength), min(last, i2 + strength)
+    if side == "sell":
+        touched = bool((high[a: b + 1] >= upper[a: b + 1]).any())
+    else:
+        touched = bool((low[a: b + 1] <= lower[a: b + 1]).any())
+    extra["band_touch"] = 1.0 if touched else 0.0
+    if not touched:
+        return stop("no_band_touch")
+
+    # ۳) واگرایی RSI
+    rsi_v = ind.rsi(df["close"], rsi_len).to_numpy()
+    extra["rsi"] = float(rsi_v[last])
+    if not pd.notna(rsi_v[i2]):
+        return stop("no_rsi")
+    # جفتِ واگرایی از میان پیوت‌های قبلی انتخاب می‌شود، نه فقط بلافاصله‌قبلی.
+    # روی چارت هم همین کار را می‌کنند: سقفِ فعلی را با سقف‌های قبلیِ قابلِ
+    # مقایسه می‌سنجند. نزدیک‌ترینِ معتبر برداشته می‌شود تا خطِ واگرایی کوتاه و
+    # مربوط به همین اصلاح بماند.
+    i1 = None
+    for cand in reversed(idxs[:-1]):
+        if not pd.notna(rsi_v[cand]):
+            continue
+        if side == "sell":
+            found = high[i2] > high[cand] and rsi_v[i2] < rsi_v[cand]
+        else:
+            found = low[i2] < low[cand] and rsi_v[i2] > rsi_v[cand]
+        if found:
+            i1 = cand
+            break
+    extra["divergence"] = 0.0 if i1 is None else (1.0 if side == "buy" else -1.0)
+    if i1 is None:
+        return stop("no_divergence")
+
+    # ۴) شکست خط روندِ اصلاح
+    # خط روند از پیوت‌های *مخالفِ* پیوت‌های واگرایی رسم می‌شود و این عمدی است:
+    # در یک اصلاحِ صعودی داخل روند نزولی، واگرایی روی سقف‌ها دیده می‌شود ولی
+    # خطی که شکستنش پایان اصلاح را اعلام می‌کند، خطِ حمایتیِ زیر همان اصلاح
+    # است — یعنی از کف‌های بالارونده. اگر خط را هم از سقف‌ها می‌کشیدیم، قیمت
+    # همیشه زیر آن بود و «شکست» هیچ‌وقت به‌عنوان یک رویدادِ تازه رخ نمی‌داد.
+    line_col = "pivot_low" if side == "sell" else "pivot_high"
+    line_src = low if side == "sell" else high
+    line_idxs = piv[line_col].to_numpy()[: usable + 1].nonzero()[0]
+    line_idxs = [int(i) for i in line_idxs if i >= last - lookback]
+    if len(line_idxs) < 2:
+        return stop("no_trendline")
+    j1, j2 = line_idxs[-2], line_idxs[-1]
+    # نقطه‌ی دومِ خط باید داخل خودِ اصلاح باشد؛ نقطه‌ی اول معمولاً همان جایی
+    # است که اصلاح شروع شده و طبیعتاً کمی قبل‌تر از پیوتِ اولِ واگرایی می‌افتد.
+    if j2 <= i1:
+        return stop("no_trendline")
+    y1, y2 = float(line_src[j1]), float(line_src[j2])
+    slope = (y2 - y1) / (j2 - j1)
+    # خط باید واقعاً راهنمای اصلاح باشد: در ستاپ فروش، حمایتِ بالارونده‌ی زیر
+    # اصلاحِ صعودی؛ در ستاپ خرید، مقاومتِ پایین‌رونده‌ی روی اصلاحِ نزولی.
+    if (slope <= 0) if side == "sell" else (slope >= 0):
+        return stop("no_trendline")
+
+    def line_at(i: int) -> float:
+        return float(y1 + slope * (i - j1))
+
+    now, prev = line_at(last), line_at(last - 1)
+    if side == "sell":
+        broke = close[last] < now and close[last - 1] >= prev
+    else:
+        broke = close[last] > now and close[last - 1] <= prev
+    extra["trendline"] = now
+    extra["line_break"] = 1.0 if broke else 0.0
+    if not broke:
+        return stop("no_break")
+
+    # حد ضرر پشت آخرین سقف/کفِ ثبت‌شده پیش از شکست
+    entry = float(close[last])
+    if side == "sell":
+        sl = float(high[i2: last + 1].max()) * (1 + sl_buffer_pct / 100)
+        risk = sl - entry
+    else:
+        sl = float(low[i2: last + 1].min()) * (1 - sl_buffer_pct / 100)
+        risk = entry - sl
+    if risk <= 0 or entry <= 0:
+        return stop("bad_stop")
+    tp = entry - rr * risk if side == "sell" else entry + rr * risk
+    if tp <= 0 or sl <= 0:
+        return stop("bad_stop")
+    extra["stop_pct"] = risk / entry * 100
+    if extra["stop_pct"] > max_stop_pct:
+        return stop("stop_too_far")
+
+    out = _signal(side, df, extra, atr_v)
+    out["stop_loss"] = sl
+    out["take_profit"] = tp
+    return out
+
+
 STRATEGIES = {
     "supertrend_ema_rsi": {
         "label": "SuperTrend + EMA + RSI",
@@ -1161,6 +1355,24 @@ STRATEGIES = {
             {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
         ],
         "fn": choch_failure,
+    },
+    "biterdo": {
+        "label": "بیتردو (چندزمانی: MA + بولینگر + واگرایی RSI)",
+        "params_schema": [
+            {"key": "htf_multiple", "label": "نسبت تایم‌فریم بالاتر (چند کندل = یک کندلِ بالاتر)", "type": "int", "default": 4},
+            {"key": "ma_length", "label": "دوره میانگین متحرک روند", "type": "int", "default": 150},
+            {"key": "ma_use_ema", "label": "نوع میانگین (۱ = EMA، ۰ = ساده)", "type": "int", "default": 1},
+            {"key": "bb_length", "label": "دوره بولینگر", "type": "int", "default": 20},
+            {"key": "bb_mult", "label": "ضریب انحراف", "type": "float", "default": 2.0, "step": 0.1},
+            {"key": "rsi_length", "label": "دوره RSI", "type": "int", "default": 14},
+            {"key": "pivot_strength", "label": "قدرت پیوت (کندل چپ و راست)", "type": "int", "default": 2},
+            {"key": "divergence_lookback", "label": "حداکثر فاصله جست‌وجوی واگرایی (کندل)", "type": "int", "default": 60},
+            {"key": "risk_reward", "label": "نسبت پاداش به ریسک", "type": "float", "default": 1.0, "step": 0.1},
+            {"key": "sl_buffer_pct", "label": "فاصله حد ضرر از سقف/کف ساختار (٪)", "type": "float", "default": 0.1, "step": 0.05},
+            {"key": "max_stop_pct", "label": "حداکثر فاصله حد ضرر (٪)", "type": "float", "default": 3.0, "step": 0.1},
+            {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
+        ],
+        "fn": biterdo,
     },
     "adaptive_regime": {
         "label": "خودکار: انتخاب استراتژی بر اساس وضعیت بازار",
