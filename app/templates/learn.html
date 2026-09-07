@@ -118,7 +118,7 @@ const STRAT_ICON = {
   rsi_contrarian: 'swap_vert', volatility_shock: 'bolt', hybrid_trend_breakout: 'hub',
   fib786_reversal: 'timeline', kijun_flat_reversion: 'horizontal_rule',
   tsmom_vol_filter: 'show_chart', short_term_reversal: 'sync_alt',
-  custom_builder: 'tune',
+  custom_builder: 'tune', choch_failure: 'call_split',
 };
 // برچسب نوع بازار مناسب هر استراتژی — برای اینکه کاربر سریع بفهمد کدام
 // استراتژی در کدام شرایط کار می‌کند.
@@ -129,7 +129,7 @@ const STRAT_REGIME = {
   volatility_shock: 'volatile', hybrid_trend_breakout: 'trend',
   fib786_reversal: 'range', kijun_flat_reversion: 'range',
   tsmom_vol_filter: 'trend', short_term_reversal: 'range',
-  custom_builder: 'auto',
+  custom_builder: 'auto', choch_failure: 'trend',
 };
 const REGIME_STYLE = {
   trend: 'bg-buy/10 text-buy border-buy/20',
@@ -226,6 +226,9 @@ const BT_ROWS = [
   ['hybrid_trend_breakout', -2.06, -2.40,  5.6,  9.0, 40.6,  -7.41],
   ['ma_kijun_psar',         -2.13, -1.46, 33.3, 15.4, 49.2,  -8.31],
   ['donchian_breakout',     -2.44, -2.76, 16.7, 14.2, 44.5, -10.04],
+  // ادعای منبع اصلی: نرخ برد ~۷۰٪ در نسبت ۱:۱. اندازه‌گیری ما ۴۵٫۴٪ داد —
+  // یعنی حتی کمی زیر خط تصادف (۵۰٪ در نسبت ۱:۱).
+  ['choch_failure',         -3.48, -3.93, 11.1,  9.7, 45.4, -10.59],
   ['macd_trend',            -4.81, -4.80, 16.7, 22.4, 36.6, -11.91],
 ];
 

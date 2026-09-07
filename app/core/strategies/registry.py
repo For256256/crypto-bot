@@ -879,6 +879,103 @@ def custom_builder(df: pd.DataFrame, p: dict) -> dict:
     return out
 
 
+# ---------- ۱۵) شکست ناموفق سوینگ (CHoCH Failure) ----------
+def choch_failure(df: pd.DataFrame, p: dict) -> dict:
+    """قیمت آخرین سوینگ را فقط با «شدو» می‌شکند و همان کندل داخل برمی‌گردد.
+
+    منطق ستاپ: در یک روند نزولی، رسیدن قیمت به آخرین سقفِ اصلاح دو حالت دارد.
+    اگر کندل *بالای* آن سقف بسته شود، شکست معتبر است و ساختار نزولی شکسته —
+    این‌جا معامله‌ای نیست. ولی اگر فقط سایه از سقف رد شود و بدنه پایین آن
+    بسته شود، شکست ناموفق بوده و همان واکنش، نقطه‌ی بررسی ورود در جهت روند
+    اصلی است.
+
+    سه شرط جدا از هم لازم است و هر سه از خودِ ساختار قیمت می‌آید:
+    ۱) ساختار روندی باشد — سقف و کف‌های نزولی (یا صعودی)، نه رنج.
+    ۲) سوینگ مرجع واقعاً یک اصلاح باشد، نه هر تکان کوچکی: با قدرت پیوت
+       کنترل می‌شود که پیش‌فرضش سه کندل در هر طرف است.
+    ۳) از لحظه‌ی ساخته‌شدن سوینگ تا حالا، هیچ کندلی آن‌سوی سوینگ بسته نشده
+       باشد؛ وگرنه شکست معتبر قبلاً رخ داده و ساختار دیگر برقرار نیست.
+
+    ورود لیمیت روی FVG که در توضیح اصلی هست پیاده نشده: موتور این پروژه فقط
+    سفارش مارکت می‌فرستد. به‌جای وانمود کردن، وقتی فاصله‌ی حد ضرر از حد مجاز
+    بیشتر شود معامله انجام *نمی‌شود* — همان کاری که ورود لیمیت قرار بود با
+    نزدیک‌کردن نقطه‌ی ورود انجام دهد.
+    """
+    strength = max(1, int(p.get("pivot_strength", 3)))
+    sl_buffer_pct = float(p.get("sl_buffer_pct", 0.1))
+    max_stop_pct = float(p.get("max_stop_pct", 1.5))
+    rr = float(p.get("risk_reward", 1.0))
+    atr_len = int(p.get("atr_length", 14))
+    require_trend = bool(int(p.get("require_trend_structure", 1)))
+
+    atr_v = ind.atr(df, atr_len).iat[-1]
+    last = len(df) - 1
+    extra = {"atr": atr_v}
+    if len(df) < 4 * strength + atr_len + 20 or not pd.notna(atr_v) or atr_v <= 0:
+        return _signal("none", df, extra, atr_v)
+
+    piv = ind.pivot_points(df, strength)
+    usable = last - strength           # پیوت‌های تأییدشده تا همین کندل
+    highs = piv["pivot_high"].to_numpy()[: usable + 1].nonzero()[0]
+    lows = piv["pivot_low"].to_numpy()[: usable + 1].nonzero()[0]
+    if len(highs) < 2 or len(lows) < 2:
+        return _signal("none", df, extra, atr_v)
+
+    high, low = df["high"].to_numpy(), df["low"].to_numpy()
+    close, open_ = df["close"].to_numpy(), df["open"].to_numpy()
+
+    hh = [high[i] for i in highs[-2:]]
+    ll = [low[i] for i in lows[-2:]]
+    downtrend = hh[1] < hh[0] and ll[1] < ll[0]      # سقف و کف پایین‌تر
+    uptrend = hh[1] > hh[0] and ll[1] > ll[0]        # سقف و کف بالاتر
+    extra["structure"] = 1.0 if uptrend else (-1.0 if downtrend else 0.0)
+
+    def evaluate(side: str) -> dict | None:
+        if side == "sell":
+            idx = int(highs[-1]); level = high[idx]
+            pierced = high[last] > level and close[last] < level
+            invalidated = any(close[i] > level for i in range(idx + 1, last))
+        else:
+            idx = int(lows[-1]); level = low[idx]
+            pierced = low[last] < level and close[last] > level
+            invalidated = any(close[i] < level for i in range(idx + 1, last))
+        if idx >= last or not pierced or invalidated:
+            return None
+        entry = float(close[last])
+        # حد ضرر پشت همان سایه‌ای که شکست ناموفق را ساخت
+        sl = (float(high[last]) * (1 + sl_buffer_pct / 100) if side == "sell"
+              else float(low[last]) * (1 - sl_buffer_pct / 100))
+        risk = (sl - entry) if side == "sell" else (entry - sl)
+        if risk <= 0 or entry <= 0:
+            return None
+        tp = entry - rr * risk if side == "sell" else entry + rr * risk
+        if tp <= 0:
+            return None
+        return {"side": side, "level": float(level), "sl": sl, "tp": tp,
+                "risk_pct": risk / entry * 100}
+
+    setup = None
+    if downtrend or not require_trend:
+        setup = evaluate("sell")
+    if setup is None and (uptrend or not require_trend):
+        setup = evaluate("buy")
+    if setup is None:
+        return _signal("none", df, extra, atr_v)
+
+    extra["swing_level"] = setup["level"]
+    extra["stop_pct"] = setup["risk_pct"]
+    if setup["risk_pct"] > max_stop_pct:
+        # همان جایی که در روش اصلی سراغ ورود لیمیت روی FVG می‌رفتند
+        out = _signal("none", df, extra, atr_v)
+        out["reject"] = "stop_too_far"
+        return out
+
+    out = _signal(setup["side"], df, extra, atr_v)
+    out["stop_loss"] = setup["sl"]
+    out["take_profit"] = setup["tp"]
+    return out
+
+
 STRATEGIES = {
     "supertrend_ema_rsi": {
         "label": "SuperTrend + EMA + RSI",
@@ -1052,6 +1149,18 @@ STRATEGIES = {
             {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
         ],
         "fn": custom_builder,
+    },
+    "choch_failure": {
+        "label": "شکست ناموفق سوینگ (CHoCH Failure)",
+        "params_schema": [
+            {"key": "pivot_strength", "label": "قدرت پیوت (کندل چپ و راست)", "type": "int", "default": 3},
+            {"key": "require_trend_structure", "label": "فقط در ساختار روندی معامله شود (۱ = بله)", "type": "int", "default": 1},
+            {"key": "sl_buffer_pct", "label": "فاصله حد ضرر از سقف/کف ساختار (٪)", "type": "float", "default": 0.1, "step": 0.05},
+            {"key": "max_stop_pct", "label": "حداکثر فاصله حد ضرر (٪)", "type": "float", "default": 1.5, "step": 0.1},
+            {"key": "risk_reward", "label": "نسبت پاداش به ریسک", "type": "float", "default": 1.0, "step": 0.1},
+            {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
+        ],
+        "fn": choch_failure,
     },
     "adaptive_regime": {
         "label": "خودکار: انتخاب استراتژی بر اساس وضعیت بازار",
