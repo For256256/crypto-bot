@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 
 from app.core.strategies import indicators as ind
+from app.core.strategies import signals as sig
 
 
 def _signal(sig: str, df: pd.DataFrame, extra: dict, atr_value=None) -> dict:
@@ -793,6 +794,382 @@ def short_term_reversal(df: pd.DataFrame, p: dict) -> dict:
     return out
 
 
+# ---------- ۱۴) استراتژی‌ساز ----------
+def custom_builder(df: pd.DataFrame, p: dict) -> dict:
+    """به‌جای یک منطق ثابت، یک اندیکاتور «پیشرو» و چند «تأییدکننده» را ترکیب می‌کند.
+
+    تقسیم نقش‌ها عمدی است: پیشرو لحظه‌ی *تغییر حالتش* ماشه را می‌کشد و
+    تأییدکننده‌ها فقط باید در همان لحظه هم‌جهت باشند. اگر قرار بود همه با هم
+    در یک کندل سیگنال بدهند، عملاً هیچ ترکیبی هیچ‌وقت سیگنال نمی‌داد.
+
+    «مهلت تأیید» همان انعطافِ لازم را می‌دهد: ماشه‌ی پیشرو تا N کندل معتبر
+    می‌ماند تا تأییدکننده‌های کندتر برسند.
+    """
+    leading = str(p.get("leading") or "supertrend")
+    raw_conf = p.get("confirmations") or []
+    if isinstance(raw_conf, str):                 # از فرم به‌صورت رشته‌ی جداشده با کاما هم قبول می‌شود
+        raw_conf = [x.strip() for x in raw_conf.split(",") if x.strip()]
+    confirmations = [c for c in raw_conf if c in sig.PROVIDERS and c != leading]
+    expiry = max(0, int(p.get("signal_expiry", 3)))
+    alternate = bool(int(p.get("alternate_signal", 1)))
+    atr_mult = float(p.get("atr_mult_sl", 2.0))
+    rr = float(p.get("risk_reward", 1.5))
+    atr_len = int(p.get("atr_length", 14))
+
+    atr_v = ind.atr(df, atr_len).iat[-1]
+    extra = {"atr": atr_v}
+    if leading not in sig.PROVIDERS or len(df) < 60 or not pd.notna(atr_v) or atr_v <= 0:
+        return _signal("none", df, extra, atr_v)
+
+    lead = sig.direction_series(leading, df, p)
+    # ماشه = لحظه‌ی تغییر حالتِ پیشرو (نه هر کندلی که حالتش برقرار است)
+    trigger = lead.where((lead != lead.shift(1)) & (lead != 0))
+    # ماشه تا `expiry` کندل معتبر می‌ماند
+    pending = trigger.ffill(limit=expiry) if expiry else trigger
+
+    checks: dict = {}
+    agree = pd.Series(True, index=df.index)
+    for key in confirmations:
+        s = sig.direction_series(key, df, p)
+        # مقدار ۲ یعنی فیلتر بدون جهت (مثل حجم): با هر جهتی موافق است
+        agree &= (s == pending) | (s == 2.0)
+        last = s.iat[-1]
+        checks[key] = 0 if pd.isna(last) else int(last)
+
+    combined = pending.where(agree)
+    # فقط لبه: کندلی که ترکیب تازه برقرار شده، نه هر کندلِ بعدیِ همان وضعیت
+    edge = combined.where(combined != combined.shift(1))
+
+    if alternate:
+        # دو سیگنال هم‌جهت پشت‌سرهم صادر نمی‌شود
+        vals = edge.to_numpy(copy=True)
+        prev = 0.0
+        for i in range(len(vals)):
+            v = vals[i]
+            if pd.isna(v):
+                continue
+            if v == prev:
+                vals[i] = np.nan
+            else:
+                prev = v
+        edge = pd.Series(vals, index=df.index)
+
+    extra["leading_dir"] = lead.iat[-1]
+    extra["confirmed"] = float(sum(1 for v in checks.values() if v != 0))
+    extra["confirmations"] = float(len(confirmations))
+    last_signal = edge.iat[-1]
+    out_none = _signal("none", df, extra, atr_v)
+    out_none["checks"] = checks
+    out_none["leading"] = leading
+    if pd.isna(last_signal) or last_signal == 0:
+        return out_none
+
+    side = "buy" if last_signal > 0 else "sell"
+    entry = float(df["close"].iat[-1])
+    dist = atr_mult * atr_v
+    sl = entry - dist if side == "buy" else entry + dist
+    tp = entry + rr * dist if side == "buy" else entry - rr * dist
+    if sl <= 0 or tp <= 0:
+        return out_none
+    out = _signal(side, df, extra, atr_v)
+    out["stop_loss"] = sl
+    out["take_profit"] = tp
+    out["checks"] = checks
+    out["leading"] = leading
+    return out
+
+
+# ---------- ۱۵) شکست ناموفق سوینگ (CHoCH Failure) ----------
+def choch_failure(df: pd.DataFrame, p: dict) -> dict:
+    """قیمت آخرین سوینگ را فقط با «شدو» می‌شکند و همان کندل داخل برمی‌گردد.
+
+    منطق ستاپ: در یک روند نزولی، رسیدن قیمت به آخرین سقفِ اصلاح دو حالت دارد.
+    اگر کندل *بالای* آن سقف بسته شود، شکست معتبر است و ساختار نزولی شکسته —
+    این‌جا معامله‌ای نیست. ولی اگر فقط سایه از سقف رد شود و بدنه پایین آن
+    بسته شود، شکست ناموفق بوده و همان واکنش، نقطه‌ی بررسی ورود در جهت روند
+    اصلی است.
+
+    سه شرط جدا از هم لازم است و هر سه از خودِ ساختار قیمت می‌آید:
+    ۱) ساختار روندی باشد — سقف و کف‌های نزولی (یا صعودی)، نه رنج.
+    ۲) سوینگ مرجع واقعاً یک اصلاح باشد، نه هر تکان کوچکی: با قدرت پیوت
+       کنترل می‌شود که پیش‌فرضش سه کندل در هر طرف است.
+    ۳) از لحظه‌ی ساخته‌شدن سوینگ تا حالا، هیچ کندلی آن‌سوی سوینگ بسته نشده
+       باشد؛ وگرنه شکست معتبر قبلاً رخ داده و ساختار دیگر برقرار نیست.
+
+    ورود لیمیت روی FVG که در توضیح اصلی هست پیاده نشده: موتور این پروژه فقط
+    سفارش مارکت می‌فرستد. به‌جای وانمود کردن، وقتی فاصله‌ی حد ضرر از حد مجاز
+    بیشتر شود معامله انجام *نمی‌شود* — همان کاری که ورود لیمیت قرار بود با
+    نزدیک‌کردن نقطه‌ی ورود انجام دهد.
+    """
+    strength = max(1, int(p.get("pivot_strength", 3)))
+    sl_buffer_pct = float(p.get("sl_buffer_pct", 0.1))
+    max_stop_pct = float(p.get("max_stop_pct", 1.5))
+    rr = float(p.get("risk_reward", 1.0))
+    atr_len = int(p.get("atr_length", 14))
+    require_trend = bool(int(p.get("require_trend_structure", 1)))
+
+    atr_v = ind.atr(df, atr_len).iat[-1]
+    last = len(df) - 1
+    extra = {"atr": atr_v}
+    if len(df) < 4 * strength + atr_len + 20 or not pd.notna(atr_v) or atr_v <= 0:
+        return _signal("none", df, extra, atr_v)
+
+    piv = ind.pivot_points(df, strength)
+    usable = last - strength           # پیوت‌های تأییدشده تا همین کندل
+    highs = piv["pivot_high"].to_numpy()[: usable + 1].nonzero()[0]
+    lows = piv["pivot_low"].to_numpy()[: usable + 1].nonzero()[0]
+    if len(highs) < 2 or len(lows) < 2:
+        return _signal("none", df, extra, atr_v)
+
+    high, low = df["high"].to_numpy(), df["low"].to_numpy()
+    close, open_ = df["close"].to_numpy(), df["open"].to_numpy()
+
+    hh = [high[i] for i in highs[-2:]]
+    ll = [low[i] for i in lows[-2:]]
+    downtrend = hh[1] < hh[0] and ll[1] < ll[0]      # سقف و کف پایین‌تر
+    uptrend = hh[1] > hh[0] and ll[1] > ll[0]        # سقف و کف بالاتر
+    extra["structure"] = 1.0 if uptrend else (-1.0 if downtrend else 0.0)
+
+    def evaluate(side: str) -> dict | None:
+        if side == "sell":
+            idx = int(highs[-1]); level = high[idx]
+            pierced = high[last] > level and close[last] < level
+            invalidated = any(close[i] > level for i in range(idx + 1, last))
+        else:
+            idx = int(lows[-1]); level = low[idx]
+            pierced = low[last] < level and close[last] > level
+            invalidated = any(close[i] < level for i in range(idx + 1, last))
+        if idx >= last or not pierced or invalidated:
+            return None
+        entry = float(close[last])
+        # حد ضرر پشت همان سایه‌ای که شکست ناموفق را ساخت
+        sl = (float(high[last]) * (1 + sl_buffer_pct / 100) if side == "sell"
+              else float(low[last]) * (1 - sl_buffer_pct / 100))
+        risk = (sl - entry) if side == "sell" else (entry - sl)
+        if risk <= 0 or entry <= 0:
+            return None
+        tp = entry - rr * risk if side == "sell" else entry + rr * risk
+        if tp <= 0:
+            return None
+        return {"side": side, "level": float(level), "sl": sl, "tp": tp,
+                "risk_pct": risk / entry * 100}
+
+    setup = None
+    if downtrend or not require_trend:
+        setup = evaluate("sell")
+    if setup is None and (uptrend or not require_trend):
+        setup = evaluate("buy")
+    if setup is None:
+        return _signal("none", df, extra, atr_v)
+
+    extra["swing_level"] = setup["level"]
+    extra["stop_pct"] = setup["risk_pct"]
+    if setup["risk_pct"] > max_stop_pct:
+        # همان جایی که در روش اصلی سراغ ورود لیمیت روی FVG می‌رفتند
+        out = _signal("none", df, extra, atr_v)
+        out["reject"] = "stop_too_far"
+        return out
+
+    out = _signal(setup["side"], df, extra, atr_v)
+    out["stop_loss"] = setup["sl"]
+    out["take_profit"] = setup["tp"]
+    return out
+
+
+# ---------- ۱۶) بیتردو (چندزمانی: MA + بولینگر + واگرایی RSI + شکست خط روند) ----------
+def _htf_ma_last(close: np.ndarray, length: int, multiple: int, use_ema: bool) -> float:
+    """مقدار میانگین متحرکِ تایم‌فریم بالاتر، روی همین کندلِ جاری.
+
+    موتور فقط یک تایم‌فریم می‌دهد، ولی این استراتژی روند را در تایم‌فریم بالاتر
+    می‌خواهد. به‌جای درخواست کندل دوم (که به رابط درایور دست می‌زند)، کندل‌های
+    تایم‌فریم بالاتر از همین سری ساخته می‌شود: بستهٔ هر `multiple` کندل، یک
+    کندلِ بالاتر است و *بسته‌شدنش* همان close کندل آخر آن بسته.
+
+    نقطه‌ی لنگر عمداً کندل جاری است، نه ابتدای سری. یعنی نمونه‌برداری از آخر به
+    عقب انجام می‌شود: close[last], close[last-m], close[last-2m], … این کار
+    باعث می‌شود مقدار برگشتی دقیقاً روی مرزهای واقعیِ تایم‌فریم بالاتر با آن
+    برابر باشد و بین دو مرز هم به‌جای پرش، نرم به‌روز شود.
+    """
+    sampled = close[::-1][::multiple][:length][::-1]
+    if len(sampled) < length:
+        return float("nan")
+    if not use_ema:
+        return float(sampled.mean())
+    k = 2.0 / (length + 1.0)
+    v = float(sampled[0])
+    for x in sampled[1:]:
+        v += k * (float(x) - v)
+    return v
+
+
+def biterdo(df: pd.DataFrame, p: dict) -> dict:
+    """چهار شرطِ پشت‌سرهم، هر کدام کار خودش را می‌کند.
+
+    ۱) روند در تایم‌فریم بالاتر با میانگین متحرک بلند تعیین می‌شود و *فقط*
+       جهت مجاز را مشخص می‌کند؛ خودش هیچ ورودی نمی‌سازد.
+    ۲) برخورد به باند بولینگر می‌گوید قیمت به ناحیه‌ی اصلاحیِ مناسب رسیده.
+       این هم به‌تنهایی سیگنال نیست — فقط ناحیه است.
+    ۳) واگرایی RSI اولین تأییدیه است: قیمت سقف بالاتر بزند ولی RSI سقف
+       پایین‌تر (یا برعکس برای خرید).
+    ۴) ماشه‌ی نهایی شکست خط روندِ اصلاح است.
+
+    ترتیب مهم است و در کد هم همان ترتیب رعایت شده: هر شرط که برقرار نباشد،
+    بقیه بررسی نمی‌شوند و دلیل توقف در `reject` برمی‌گردد تا در داشبورد معلوم
+    باشد کجا گیر کرده.
+    """
+    multiple = max(1, int(p.get("htf_multiple", 4)))
+    ma_len = max(2, int(p.get("ma_length", 150)))
+    use_ema = bool(int(p.get("ma_use_ema", 1)))
+    bb_len = int(p.get("bb_length", 20))
+    bb_mult = float(p.get("bb_mult", 2.0))
+    rsi_len = int(p.get("rsi_length", 14))
+    strength = max(1, int(p.get("pivot_strength", 2)))
+    lookback = max(10, int(p.get("divergence_lookback", 60)))
+    rr = float(p.get("risk_reward", 1.0))
+    sl_buffer_pct = float(p.get("sl_buffer_pct", 0.1))
+    max_stop_pct = float(p.get("max_stop_pct", 3.0))
+    atr_len = int(p.get("atr_length", 14))
+
+    atr_v = ind.atr(df, atr_len).iat[-1]
+    extra = {"atr": atr_v}
+    last = len(df) - 1
+    need = max(ma_len * multiple, bb_len + 5, rsi_len + 5, lookback + 4 * strength) + 5
+    if len(df) < need or not pd.notna(atr_v) or atr_v <= 0:
+        return _signal("none", df, extra, atr_v)
+
+    close = df["close"].to_numpy()
+    high, low = df["high"].to_numpy(), df["low"].to_numpy()
+
+    # ۱) روند تایم‌فریم بالاتر
+    ma_v = _htf_ma_last(close, ma_len, multiple, use_ema)
+    if not math.isfinite(ma_v) or ma_v <= 0:
+        return _signal("none", df, extra, atr_v)
+    extra["htf_ma"] = ma_v
+    side = "buy" if close[last] > ma_v else "sell"
+    extra["trend"] = 1.0 if side == "buy" else -1.0
+
+    def stop(reason: str) -> dict:
+        out = _signal("none", df, extra, atr_v)
+        out["reject"] = reason
+        return out
+
+    # پیوت‌های تأییدشده: پیوتِ کندل i تا `strength` کندل بعد معلوم نیست، پس
+    # فقط تا اندیس last-strength قابل استفاده است.
+    piv = ind.pivot_points(df, strength)
+    usable = last - strength
+    col = "pivot_high" if side == "sell" else "pivot_low"
+    idxs = piv[col].to_numpy()[: usable + 1].nonzero()[0]
+    idxs = [int(i) for i in idxs if i >= last - lookback]
+    if len(idxs) < 2:
+        return stop("no_pivots")
+    # پیوتِ مرجع همیشه آخرین پیوتِ تأییدشده است — واگرایی باید *همین حالا*
+    # باشد، نه چیزی که ده سوینگ قبل اتفاق افتاده.
+    i2 = idxs[-1]
+
+    # ۲) برخورد به باند بولینگر — روی همان پیوتِ آخر، نه هر کندلی
+    bb = ind.bollinger(df["close"], bb_len, bb_mult)
+    upper = bb["bb_upper"].to_numpy()
+    lower = bb["bb_lower"].to_numpy()
+    band = upper[i2] if side == "sell" else lower[i2]
+    if not pd.notna(band):
+        return stop("no_band")
+    extra["band"] = float(band)
+    # برخورد لازم نیست دقیقاً روی خودِ کندلِ پیوت باشد؛ همان سوینگ باید به باند
+    # رسیده باشد. پس بال‌های پیوت هم شمرده می‌شوند — این همان چیزی است که روی
+    # چارت دیده می‌شود: «قیمت به ناحیه‌ی باند رسید».
+    a, b = max(0, i2 - strength), min(last, i2 + strength)
+    if side == "sell":
+        touched = bool((high[a: b + 1] >= upper[a: b + 1]).any())
+    else:
+        touched = bool((low[a: b + 1] <= lower[a: b + 1]).any())
+    extra["band_touch"] = 1.0 if touched else 0.0
+    if not touched:
+        return stop("no_band_touch")
+
+    # ۳) واگرایی RSI
+    rsi_v = ind.rsi(df["close"], rsi_len).to_numpy()
+    extra["rsi"] = float(rsi_v[last])
+    if not pd.notna(rsi_v[i2]):
+        return stop("no_rsi")
+    # جفتِ واگرایی از میان پیوت‌های قبلی انتخاب می‌شود، نه فقط بلافاصله‌قبلی.
+    # روی چارت هم همین کار را می‌کنند: سقفِ فعلی را با سقف‌های قبلیِ قابلِ
+    # مقایسه می‌سنجند. نزدیک‌ترینِ معتبر برداشته می‌شود تا خطِ واگرایی کوتاه و
+    # مربوط به همین اصلاح بماند.
+    i1 = None
+    for cand in reversed(idxs[:-1]):
+        if not pd.notna(rsi_v[cand]):
+            continue
+        if side == "sell":
+            found = high[i2] > high[cand] and rsi_v[i2] < rsi_v[cand]
+        else:
+            found = low[i2] < low[cand] and rsi_v[i2] > rsi_v[cand]
+        if found:
+            i1 = cand
+            break
+    extra["divergence"] = 0.0 if i1 is None else (1.0 if side == "buy" else -1.0)
+    if i1 is None:
+        return stop("no_divergence")
+
+    # ۴) شکست خط روندِ اصلاح
+    # خط روند از پیوت‌های *مخالفِ* پیوت‌های واگرایی رسم می‌شود و این عمدی است:
+    # در یک اصلاحِ صعودی داخل روند نزولی، واگرایی روی سقف‌ها دیده می‌شود ولی
+    # خطی که شکستنش پایان اصلاح را اعلام می‌کند، خطِ حمایتیِ زیر همان اصلاح
+    # است — یعنی از کف‌های بالارونده. اگر خط را هم از سقف‌ها می‌کشیدیم، قیمت
+    # همیشه زیر آن بود و «شکست» هیچ‌وقت به‌عنوان یک رویدادِ تازه رخ نمی‌داد.
+    line_col = "pivot_low" if side == "sell" else "pivot_high"
+    line_src = low if side == "sell" else high
+    line_idxs = piv[line_col].to_numpy()[: usable + 1].nonzero()[0]
+    line_idxs = [int(i) for i in line_idxs if i >= last - lookback]
+    if len(line_idxs) < 2:
+        return stop("no_trendline")
+    j1, j2 = line_idxs[-2], line_idxs[-1]
+    # نقطه‌ی دومِ خط باید داخل خودِ اصلاح باشد؛ نقطه‌ی اول معمولاً همان جایی
+    # است که اصلاح شروع شده و طبیعتاً کمی قبل‌تر از پیوتِ اولِ واگرایی می‌افتد.
+    if j2 <= i1:
+        return stop("no_trendline")
+    y1, y2 = float(line_src[j1]), float(line_src[j2])
+    slope = (y2 - y1) / (j2 - j1)
+    # خط باید واقعاً راهنمای اصلاح باشد: در ستاپ فروش، حمایتِ بالارونده‌ی زیر
+    # اصلاحِ صعودی؛ در ستاپ خرید، مقاومتِ پایین‌رونده‌ی روی اصلاحِ نزولی.
+    if (slope <= 0) if side == "sell" else (slope >= 0):
+        return stop("no_trendline")
+
+    def line_at(i: int) -> float:
+        return float(y1 + slope * (i - j1))
+
+    now, prev = line_at(last), line_at(last - 1)
+    if side == "sell":
+        broke = close[last] < now and close[last - 1] >= prev
+    else:
+        broke = close[last] > now and close[last - 1] <= prev
+    extra["trendline"] = now
+    extra["line_break"] = 1.0 if broke else 0.0
+    if not broke:
+        return stop("no_break")
+
+    # حد ضرر پشت آخرین سقف/کفِ ثبت‌شده پیش از شکست
+    entry = float(close[last])
+    if side == "sell":
+        sl = float(high[i2: last + 1].max()) * (1 + sl_buffer_pct / 100)
+        risk = sl - entry
+    else:
+        sl = float(low[i2: last + 1].min()) * (1 - sl_buffer_pct / 100)
+        risk = entry - sl
+    if risk <= 0 or entry <= 0:
+        return stop("bad_stop")
+    tp = entry - rr * risk if side == "sell" else entry + rr * risk
+    if tp <= 0 or sl <= 0:
+        return stop("bad_stop")
+    extra["stop_pct"] = risk / entry * 100
+    if extra["stop_pct"] > max_stop_pct:
+        return stop("stop_too_far")
+
+    out = _signal(side, df, extra, atr_v)
+    out["stop_loss"] = sl
+    out["take_profit"] = tp
+    return out
+
+
 STRATEGIES = {
     "supertrend_ema_rsi": {
         "label": "SuperTrend + EMA + RSI",
@@ -944,6 +1321,58 @@ STRATEGIES = {
             {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
         ],
         "fn": short_term_reversal,
+    },
+    "custom_builder": {
+        "label": "استراتژی‌ساز (ترکیب اندیکاتورها)",
+        "params_schema": [
+            {"key": "leading", "label": "اندیکاتور پیشرو (ماشه)", "type": "select",
+             "options": list(sig.ORDER), "default": "supertrend"},
+            {"key": "confirmations", "label": "اندیکاتورهای تأییدکننده", "type": "multiselect",
+             "options": list(sig.ORDER), "default": ["ema_filter", "rsi"]},
+            {"key": "signal_expiry", "label": "مهلت تأیید بعد از ماشه (کندل)", "type": "int", "default": 3},
+            {"key": "alternate_signal", "label": "سیگنال‌های هم‌جهت پشت‌سرهم صادر نشود (۱ = بله)", "type": "int", "default": 1},
+            {"key": "atr_mult_sl", "label": "ضریب ATR حد ضرر", "type": "float", "default": 2.0, "step": 0.1},
+            {"key": "risk_reward", "label": "نسبت پاداش به ریسک", "type": "float", "default": 1.5, "step": 0.1},
+            {"key": "ema_length", "label": "دوره EMA روند", "type": "int", "default": 200},
+            {"key": "ema_fast", "label": "EMA سریع", "type": "int", "default": 21},
+            {"key": "ema_slow", "label": "EMA کند", "type": "int", "default": 55},
+            {"key": "rsi_length", "label": "دوره RSI", "type": "int", "default": 14},
+            {"key": "st_length", "label": "دوره SuperTrend", "type": "int", "default": 10},
+            {"key": "st_multiplier", "label": "ضریب SuperTrend", "type": "float", "default": 3.0, "step": 0.5},
+            {"key": "adx_min", "label": "حداقل ADX (برای DMI)", "type": "float", "default": 20},
+            {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
+        ],
+        "fn": custom_builder,
+    },
+    "choch_failure": {
+        "label": "شکست ناموفق سوینگ (CHoCH Failure)",
+        "params_schema": [
+            {"key": "pivot_strength", "label": "قدرت پیوت (کندل چپ و راست)", "type": "int", "default": 3},
+            {"key": "require_trend_structure", "label": "فقط در ساختار روندی معامله شود (۱ = بله)", "type": "int", "default": 1},
+            {"key": "sl_buffer_pct", "label": "فاصله حد ضرر از سقف/کف ساختار (٪)", "type": "float", "default": 0.1, "step": 0.05},
+            {"key": "max_stop_pct", "label": "حداکثر فاصله حد ضرر (٪)", "type": "float", "default": 1.5, "step": 0.1},
+            {"key": "risk_reward", "label": "نسبت پاداش به ریسک", "type": "float", "default": 1.0, "step": 0.1},
+            {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
+        ],
+        "fn": choch_failure,
+    },
+    "biterdo": {
+        "label": "بیتردو (چندزمانی: MA + بولینگر + واگرایی RSI)",
+        "params_schema": [
+            {"key": "htf_multiple", "label": "نسبت تایم‌فریم بالاتر (چند کندل = یک کندلِ بالاتر)", "type": "int", "default": 4},
+            {"key": "ma_length", "label": "دوره میانگین متحرک روند", "type": "int", "default": 150},
+            {"key": "ma_use_ema", "label": "نوع میانگین (۱ = EMA، ۰ = ساده)", "type": "int", "default": 1},
+            {"key": "bb_length", "label": "دوره بولینگر", "type": "int", "default": 20},
+            {"key": "bb_mult", "label": "ضریب انحراف", "type": "float", "default": 2.0, "step": 0.1},
+            {"key": "rsi_length", "label": "دوره RSI", "type": "int", "default": 14},
+            {"key": "pivot_strength", "label": "قدرت پیوت (کندل چپ و راست)", "type": "int", "default": 2},
+            {"key": "divergence_lookback", "label": "حداکثر فاصله جست‌وجوی واگرایی (کندل)", "type": "int", "default": 60},
+            {"key": "risk_reward", "label": "نسبت پاداش به ریسک", "type": "float", "default": 1.0, "step": 0.1},
+            {"key": "sl_buffer_pct", "label": "فاصله حد ضرر از سقف/کف ساختار (٪)", "type": "float", "default": 0.1, "step": 0.05},
+            {"key": "max_stop_pct", "label": "حداکثر فاصله حد ضرر (٪)", "type": "float", "default": 3.0, "step": 0.1},
+            {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
+        ],
+        "fn": biterdo,
     },
     "adaptive_regime": {
         "label": "خودکار: انتخاب استراتژی بر اساس وضعیت بازار",

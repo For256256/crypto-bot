@@ -385,6 +385,47 @@ async function loadStrategies() {
   renderStrategyParams();
 }
 
+function esc(v) {
+  return String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// یک ورودی پارامتر استراتژی را می‌سازد. سه نوع پشتیبانی می‌شود: عدد (پیش‌فرض)،
+// select (یک انتخاب) و multiselect (چند انتخاب، به‌صورت شبکه‌ی چک‌باکس) — دو
+// نوع آخر برای «استراتژی‌ساز» لازم‌اند که ورودی‌هایش نام اندیکاتور است نه عدد.
+function paramField(prefix, p, v) {
+  const id = prefix + p.key;
+  const optLabel = o => (p.option_labels && p.option_labels[o]) || o;
+  if (p.type === 'select') {
+    const opts = (p.options || []).map(o =>
+      `<option value="${o}" ${String(v) === String(o) ? 'selected' : ''}>${esc(optLabel(o))}</option>`).join('');
+    return `<div class="sm:col-span-2"><label class="lbl">${p.label}</label>
+      <select id="${id}" class="field">${opts}</select></div>`;
+  }
+  if (p.type === 'multiselect') {
+    const chosen = Array.isArray(v) ? v.map(String) : String(v || '').split(',').map(x => x.trim());
+    const boxes = (p.options || []).map(o => `
+      <label class="flex items-center gap-1.5 text-[11px] px-2 py-1 rounded border border-outline-variant/30 cursor-pointer">
+        <input type="checkbox" class="${id}_opt" value="${o}" ${chosen.includes(String(o)) ? 'checked' : ''}>
+        <span>${esc(optLabel(o))}</span></label>`).join('');
+    return `<div class="sm:col-span-2"><label class="lbl">${p.label}</label>
+      <div id="${id}" class="flex flex-wrap gap-1.5 mt-1">${boxes}</div></div>`;
+  }
+  return `<div><label class="lbl">${p.label}</label><input id="${id}" class="field mono-num" dir="ltr" type="number" step="${p.step || (p.type === 'int' ? 1 : 'any')}" value="${v}"></div>`;
+}
+
+function readParamField(prefix, p) {
+  const id = prefix + p.key;
+  if (p.type === 'multiselect') {
+    return [...document.querySelectorAll('.' + id + '_opt')].filter(c => c.checked).map(c => c.value);
+  }
+  const el = document.getElementById(id);
+  if (!el || el.value === '') return undefined;
+  if (p.type === 'select') return el.value;
+  return p.type === 'int' ? parseInt(el.value) : parseFloat(el.value);
+}
+
 function renderStrategyParams(currentParams) {
   const key = document.getElementById('s_strategy').value;
   const st = strategiesCache.find(s => s.key === key);
@@ -393,7 +434,7 @@ function renderStrategyParams(currentParams) {
   const vals = currentParams || {};
   box.innerHTML = st.params_schema.map(p => {
     const v = (vals[p.key] !== undefined && vals[p.key] !== null) ? vals[p.key] : p.default;
-    return `<div><label class="lbl">${p.label}</label><input id="sp_${p.key}" class="field mono-num" dir="ltr" type="number" step="${p.step || (p.type === 'int' ? 1 : 'any')}" value="${v}"></div>`;
+    return paramField('sp_', p, v);
   }).join('');
 }
 
@@ -402,8 +443,8 @@ function collectStrategyParams() {
   const st = strategiesCache.find(s => s.key === key);
   const params = {};
   if (st) for (const p of st.params_schema) {
-    const el = document.getElementById('sp_' + p.key);
-    if (el && el.value !== '') params[p.key] = p.type === 'int' ? parseInt(el.value) : parseFloat(el.value);
+    const v = readParamField('sp_', p);
+    if (v !== undefined) params[p.key] = v;
   }
   return params;
 }
@@ -975,6 +1016,22 @@ const TREND_BADGE = {
   neutral: 'bg-gold/10 text-gold border-gold/25',
   unknown: 'bg-surface-variant text-on-surface-variant border-outline-variant/40',
 };
+// وضعیت تأییدکننده‌های «استراتژی‌ساز» روی کارت نماد: بدون این، کاربر
+// نمی‌فهمد چرا با وجود ماشه‌ی پیشرو سیگنالی صادر نشده — همان درسی که از
+// حد ضرر دنبال‌کننده گرفتیم: سکوت شبیه خرابی به‌نظر می‌رسد.
+function builderChecks(sig) {
+  const c = sig && sig.checks;
+  if (!c || !Object.keys(c).length) return '';
+  const lead = sig.leading ? `<span class="px-1.5 py-0.5 rounded bg-primary/10 text-primary">${esc(t('indicator.' + sig.leading))}</span>` : '';
+  const items = Object.entries(c).map(([k, v]) => {
+    const cls = v > 0 ? 'text-buy' : (v < 0 ? 'text-sell' : 'text-on-surface-variant');
+    const mark = v > 0 ? '▲' : (v < 0 ? '▼' : '—');
+    return `<span class="${cls}">${mark} ${esc(t('indicator.' + k))}</span>`;
+  }).join('');
+  return `<div class="mb-2 text-[9px] leading-5 flex flex-wrap gap-x-2 gap-y-0.5 justify-center"
+      title="${t('dash.builder_checks')}">${lead}${items}</div>`;
+}
+
 function trendBadge(sig) {
   if (!sig || !sig.trend) return '';
   const d = sig.trend.direction || 'unknown';
@@ -1014,6 +1071,7 @@ function renderSymbolCard(acc, sym, sig, uid) {
     <div class="p-4 flex-grow">
       <p class="text-[10px] text-center text-primary/60 mb-3 leading-tight">${stLabel}${regimeBadge(sig)}</p>
       ${trendBadge(sig)}
+      ${builderChecks(sig)}
       <div class="space-y-1.5">${rowsHtml || `<div class="text-center text-[11px] text-on-surface-variant py-3">${t('dash.start_bot_for_data')}</div>`}</div>
       <div class="mt-3">${sparklineSvg(sig ? sig.spark : null, sig ? sig.signal : null, uid)}</div>
     </div>
@@ -1340,8 +1398,7 @@ function renderBulkStrategyParams() {
   const st = strategiesCache.find(s => s.key === key);
   const box = document.getElementById('bulkParamsBox');
   if (!st) { box.innerHTML = ''; return; }
-  box.innerHTML = st.params_schema.map(p =>
-    `<div><label class="lbl">${p.label}</label><input id="bp_${p.key}" class="field mono-num" dir="ltr" type="number" step="${p.step || (p.type === 'int' ? 1 : 'any')}" value="${p.default}"></div>`).join('');
+  box.innerHTML = st.params_schema.map(p => paramField('bp_', p, p.default)).join('');
 }
 
 async function applyBulk() {
@@ -1355,8 +1412,8 @@ async function applyBulk() {
     const st = strategiesCache.find(s => s.key === payload.strategy);
     const params = {};
     if (st) for (const p of st.params_schema) {
-      const el = document.getElementById('bp_' + p.key);
-      if (el && el.value !== '') params[p.key] = p.type === 'int' ? parseInt(el.value) : parseFloat(el.value);
+      const v = readParamField('bp_', p);
+      if (v !== undefined) params[p.key] = v;
     }
     payload.strategy_params = params;
   }

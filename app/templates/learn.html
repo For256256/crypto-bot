@@ -118,6 +118,7 @@ const STRAT_ICON = {
   rsi_contrarian: 'swap_vert', volatility_shock: 'bolt', hybrid_trend_breakout: 'hub',
   fib786_reversal: 'timeline', kijun_flat_reversion: 'horizontal_rule',
   tsmom_vol_filter: 'show_chart', short_term_reversal: 'sync_alt',
+  custom_builder: 'tune', choch_failure: 'call_split', biterdo: 'layers',
 };
 // برچسب نوع بازار مناسب هر استراتژی — برای اینکه کاربر سریع بفهمد کدام
 // استراتژی در کدام شرایط کار می‌کند.
@@ -128,6 +129,7 @@ const STRAT_REGIME = {
   volatility_shock: 'volatile', hybrid_trend_breakout: 'trend',
   fib786_reversal: 'range', kijun_flat_reversion: 'range',
   tsmom_vol_filter: 'trend', short_term_reversal: 'range',
+  custom_builder: 'auto', choch_failure: 'trend', biterdo: 'trend',
 };
 const REGIME_STYLE = {
   trend: 'bg-buy/10 text-buy border-buy/20',
@@ -216,6 +218,11 @@ const BT_ROWS = [
   // نه ثبات؛ ستون میانگین و تعداد معاملات را با هم بخوانید.
   ['kijun_flat_reversion',   0.00, -0.19, 16.7,  1.3, 33.3,  -1.69],
   ['adaptive_regime',       +0.04, -0.41, 50.0, 12.2, 52.6, -11.71],
+  // میانگین ۱٫۹ معامله در هر مجموعه یعنی نمونه‌ی کوچک: میانگین متحرک ۱۵۰ روی
+  // تایم‌فریم بالاتر ۶۰۰ کندل از ۹۹۹ کندل را صرف گرم‌کردن می‌کند. روی داده‌ی
+  // عمیق‌تر (۳۵۰۰ کندل، ۲۰۵ معامله) نرخ برد ۵۲٫۷٪ درآمد — بالای خط تصادفِ
+  // ۵۰٪ در نسبت ۱:۱، ولی نه به‌اندازه‌ی ادعای «بالای ۷۰٪» منبع.
+  ['biterdo',               -0.16, -0.42, 22.2,  1.9, 45.7,  -2.70],
   // با پیش‌فرض‌های خودِ Specification (حداقل R:R = ۳) عملاً معامله نمی‌کند:
   // در کل ۱۸ مجموعه فقط ۲ ورود. عدد میانه‌ی صفر یعنی «هیچ معامله‌ای»، نه ثبات.
   ['fib786_reversal',        0.00, -0.12,  0.0,  0.1,  0.0,  -1.08],
@@ -224,6 +231,9 @@ const BT_ROWS = [
   ['hybrid_trend_breakout', -2.06, -2.40,  5.6,  9.0, 40.6,  -7.41],
   ['ma_kijun_psar',         -2.13, -1.46, 33.3, 15.4, 49.2,  -8.31],
   ['donchian_breakout',     -2.44, -2.76, 16.7, 14.2, 44.5, -10.04],
+  // ادعای منبع اصلی: نرخ برد ~۷۰٪ در نسبت ۱:۱. اندازه‌گیری ما ۴۵٫۴٪ داد —
+  // یعنی حتی کمی زیر خط تصادف (۵۰٪ در نسبت ۱:۱).
+  ['choch_failure',         -3.48, -3.93, 11.1,  9.7, 45.4, -10.59],
   ['macd_trend',            -4.81, -4.80, 16.7, 22.4, 36.6, -11.91],
 ];
 
