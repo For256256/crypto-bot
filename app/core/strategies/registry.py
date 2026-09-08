@@ -1170,6 +1170,74 @@ def biterdo(df: pd.DataFrame, p: dict) -> dict:
     return out
 
 
+# ---------- ۱۷) SSL Hybrid (کانال SSL + فیلتر سمتِ خط پایه) ----------
+def ssl_hybrid(df: pd.DataFrame, p: dict) -> dict:
+    """برچسب Buy/Sell کانال SSL، به‌اضافه‌ی شرطِ سمتِ خط پایه.
+
+    منطق پایه از خودِ اندیکاتور می‌آید: میانگین وزنیِ سقف‌ها و کف‌ها یک کانال
+    می‌سازند و `hlv` وقتی close از سقفِ کانال بالاتر برود ۱ و وقتی از کفِ
+    کانال پایین‌تر برود ‎−۱ می‌شود؛ وسطِ کانال مقدار قبلی حفظ می‌شود. برچسبِ
+    Buy/Sell دقیقاً روی *تغییرِ* همین مقدار چاپ می‌شود، نه روی هر کندلی که
+    جهت برقرار است.
+
+    شرط دوم چیزی است که در توضیح ویدئو روی آن تأکید شده و بدون آن سیستم
+    کامل نیست: خط پایه (همان خط ضخیمِ روی چارت) باید سمتِ درست کندل باشد —
+    برای فروش *بالای* کندل و برای خرید *زیر* کندل. کارِ این شرط حذفِ
+    برچسب‌هایی است که وسط یک حرکتِ خلافِ جهت چاپ می‌شوند؛ در ویدئو هم دقیقاً
+    همان نمونه‌ها به‌عنوان «اگر این قانون نبود استاپ می‌خوردیم» نشان داده شده.
+
+    حد ضرر و حد سود عمداً برگردانده نمی‌شود: منبع هیچ قاعده‌ای برای استاپ
+    نمی‌دهد، پس همان فرمول ATR خودِ موتور اعمال می‌شود — مثل استراتژی‌های
+    قدیمی‌تر این پروژه.
+    """
+    ssl_len = max(1, int(p.get("ssl_length", 8)))
+    base_len = max(2, int(p.get("baseline_length", 55)))
+    keltner_mult = float(p.get("keltner_mult", 0.2))
+    require_side = bool(int(p.get("require_baseline_side", 1)))
+    buffer_pct = float(p.get("baseline_buffer_pct", 0.0))
+    atr_len = int(p.get("atr_length", 14))
+
+    atr_v = ind.atr(df, atr_len).iat[-1]
+    extra = {"atr": atr_v}
+    if len(df) < base_len + ssl_len + atr_len + 20 or not pd.notna(atr_v) or atr_v <= 0:
+        return _signal("none", df, extra, atr_v)
+
+    h = ind.ssl_hybrid(df, ssl_len, base_len, keltner_mult)
+    hlv = h["hlv"].to_numpy()
+    baseline = h["baseline"].to_numpy()
+    last = len(df) - 1
+    if not pd.notna(baseline[last]):
+        return _signal("none", df, extra, atr_v)
+
+    extra["ssl_dir"] = float(hlv[last])
+    extra["baseline"] = float(baseline[last])
+    extra["baseline_color"] = float(h["bar_color"].iat[-1])
+
+    def stop(reason: str) -> dict:
+        out = _signal("none", df, extra, atr_v)
+        out["reject"] = reason
+        return out
+
+    # فقط لبه: کندلی که جهت کانال تازه عوض شده
+    if hlv[last] == 0 or hlv[last] == hlv[last - 1]:
+        return stop("no_flip")
+    side = "buy" if hlv[last] > 0 else "sell"
+
+    high_v = float(df["high"].iat[-1])
+    low_v = float(df["low"].iat[-1])
+    base_v = float(baseline[last])
+    tol = base_v * buffer_pct / 100
+    if side == "sell":
+        ok_side = base_v >= high_v - tol
+    else:
+        ok_side = base_v <= low_v + tol
+    extra["baseline_side"] = 1.0 if ok_side else 0.0
+    if require_side and not ok_side:
+        return stop("baseline_wrong_side")
+
+    return _signal(side, df, extra, atr_v)
+
+
 STRATEGIES = {
     "supertrend_ema_rsi": {
         "label": "SuperTrend + EMA + RSI",
@@ -1373,6 +1441,18 @@ STRATEGIES = {
             {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
         ],
         "fn": biterdo,
+    },
+    "ssl_hybrid": {
+        "label": "SSL Hybrid (کانال SSL + فیلتر خط پایه)",
+        "params_schema": [
+            {"key": "ssl_length", "label": "دوره کانال SSL", "type": "int", "default": 8},
+            {"key": "baseline_length", "label": "دوره خط پایه (HMA)", "type": "int", "default": 55},
+            {"key": "require_baseline_side", "label": "خط پایه باید سمت درست کندل باشد (۱ = بله)", "type": "int", "default": 1},
+            {"key": "baseline_buffer_pct", "label": "تلورانس سمت خط پایه (٪)", "type": "float", "default": 0.0, "step": 0.01},
+            {"key": "keltner_mult", "label": "ضریب کانال کلتنر (رنگ خط پایه)", "type": "float", "default": 0.2, "step": 0.05},
+            {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
+        ],
+        "fn": ssl_hybrid,
     },
     "adaptive_regime": {
         "label": "خودکار: انتخاب استراتژی بر اساس وضعیت بازار",
