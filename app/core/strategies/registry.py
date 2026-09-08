@@ -1186,15 +1186,19 @@ def ssl_hybrid(df: pd.DataFrame, p: dict) -> dict:
     برچسب‌هایی است که وسط یک حرکتِ خلافِ جهت چاپ می‌شوند؛ در ویدئو هم دقیقاً
     همان نمونه‌ها به‌عنوان «اگر این قانون نبود استاپ می‌خوردیم» نشان داده شده.
 
-    حد ضرر و حد سود عمداً برگردانده نمی‌شود: منبع هیچ قاعده‌ای برای استاپ
-    نمی‌دهد، پس همان فرمول ATR خودِ موتور اعمال می‌شود — مثل استراتژی‌های
-    قدیمی‌تر این پروژه.
+    منبع هیچ قاعده‌ای برای حد ضرر نمی‌دهد، پس نسبت پاداش به ریسک این‌جا یک
+    پارامتر آزاد است و نه یک انتخابِ تحمیلی. پیش‌فرض‌ها (‎۳×ATR و نسبت ۱) دقیقاً
+    همان چیزی است که موتور خودش اعمال می‌کرد، پس رفتار پیش‌فرض عوض نشده؛ ولی
+    حالا قابل تنظیم است. این مهم است چون با نرخ بردِ حدود ۴۳٪، نسبت ۱:۱ از
+    نظر ریاضی زیان‌ده است و بدون این پارامتر هیچ تنظیمی نمی‌توانست نجاتش دهد.
     """
     ssl_len = max(1, int(p.get("ssl_length", 8)))
     base_len = max(2, int(p.get("baseline_length", 55)))
     keltner_mult = float(p.get("keltner_mult", 0.2))
     require_side = bool(int(p.get("require_baseline_side", 1)))
     buffer_pct = float(p.get("baseline_buffer_pct", 0.0))
+    atr_mult_sl = float(p.get("atr_mult_sl", 3.0))
+    rr = float(p.get("risk_reward", 1.0))
     atr_len = int(p.get("atr_length", 14))
 
     atr_v = ind.atr(df, atr_len).iat[-1]
@@ -1235,7 +1239,16 @@ def ssl_hybrid(df: pd.DataFrame, p: dict) -> dict:
     if require_side and not ok_side:
         return stop("baseline_wrong_side")
 
-    return _signal(side, df, extra, atr_v)
+    entry = float(df["close"].iat[-1])
+    dist = atr_mult_sl * float(atr_v)
+    sl = entry - dist if side == "buy" else entry + dist
+    tp = entry + rr * dist if side == "buy" else entry - rr * dist
+    if sl <= 0 or tp <= 0:
+        return stop("bad_stop")
+    out = _signal(side, df, extra, atr_v)
+    out["stop_loss"] = sl
+    out["take_profit"] = tp
+    return out
 
 
 STRATEGIES = {
@@ -1450,6 +1463,8 @@ STRATEGIES = {
             {"key": "require_baseline_side", "label": "خط پایه باید سمت درست کندل باشد (۱ = بله)", "type": "int", "default": 1},
             {"key": "baseline_buffer_pct", "label": "تلورانس سمت خط پایه (٪)", "type": "float", "default": 0.0, "step": 0.01},
             {"key": "keltner_mult", "label": "ضریب کانال کلتنر (رنگ خط پایه)", "type": "float", "default": 0.2, "step": 0.05},
+            {"key": "atr_mult_sl", "label": "ضریب ATR حد ضرر", "type": "float", "default": 3.0, "step": 0.1},
+            {"key": "risk_reward", "label": "نسبت پاداش به ریسک", "type": "float", "default": 1.0, "step": 0.1},
             {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
         ],
         "fn": ssl_hybrid,
