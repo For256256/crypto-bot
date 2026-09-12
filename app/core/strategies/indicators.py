@@ -452,3 +452,66 @@ def ichimoku_cloud(df: pd.DataFrame, tenkan_length: int = 9, kijun_length: int =
     return pd.DataFrame({"tenkan": lines["tenkan"], "kijun": lines["kijun"],
                          "span_a": span_a, "span_b": mid.shift(kijun_length)},
                         index=df.index)
+
+def range_filter(close: pd.Series, period: int = 100, mult: float = 3.0) -> pd.DataFrame:
+    """فیلتر بازه (Range Filter) به سبک Donovan Wall.
+
+    یک خط پلکانی که فقط وقتی حرکت می‌کند که قیمت بیش از «بازه‌ی هموارشده» از
+    آن فاصله بگیرد؛ در نوسان‌های کوچک‌تر از آن بازه ثابت می‌ماند. همین ثابت
+    ماندن است که نویز را حذف می‌کند.
+
+    خروجی: `filt` (خود خط)، `smrng` (نصف پهنای بازه)، و شمارنده‌های `upward` و
+    `downward` که می‌گویند خط چند کندل است پشت‌سرهم بالا/پایین می‌رود.
+    """
+    n = max(1, int(period))
+    avg_range = close.diff().abs().ewm(span=n, adjust=False).mean()
+    smrng = avg_range.ewm(span=max(1, n * 2 - 1), adjust=False).mean() * float(mult)
+
+    x = close.to_numpy(dtype=float)
+    r = smrng.to_numpy(dtype=float)
+    filt = np.empty(len(x)); filt[:] = np.nan
+    prev = x[0] if len(x) else np.nan
+    for i in range(len(x)):
+        ri = r[i]
+        if not np.isfinite(ri):
+            filt[i] = prev
+            continue
+        if x[i] > prev:
+            prev = prev if x[i] - ri < prev else x[i] - ri
+        else:
+            prev = prev if x[i] + ri > prev else x[i] + ri
+        filt[i] = prev
+
+    up = np.zeros(len(x)); dn = np.zeros(len(x))
+    for i in range(1, len(x)):
+        if filt[i] > filt[i - 1]:
+            up[i] = up[i - 1] + 1; dn[i] = 0
+        elif filt[i] < filt[i - 1]:
+            dn[i] = dn[i - 1] + 1; up[i] = 0
+        else:
+            up[i] = up[i - 1]; dn[i] = dn[i - 1]
+    return pd.DataFrame({"filt": filt, "smrng": smrng.to_numpy(),
+                         "upward": up, "downward": dn}, index=close.index)
+
+
+def rqk(close: pd.Series, lookback: int = 8, relative_weight: float = 8.0) -> pd.Series:
+    """برآورد هسته‌ی درجه‌دوم گویا (Rational Quadratic Kernel).
+
+    میانگین وزنیِ `lookback` کندل آخر است که وزن هر کندل با فاصله‌اش افت
+    می‌کند: w(i) = (1 + i²/(2·α·L²))^(−α). نسبت به میانگین متحرک نرم‌تر است
+    و دیرتر هم عوض نمی‌شود.
+
+    فقط از کندل جاری و گذشته استفاده می‌کند، پس بازترسیم (repaint) ندارد.
+    """
+    L = max(2, int(lookback))
+    a = float(relative_weight)
+    i = np.arange(L, dtype=float)
+    w = np.power(1.0 + (i * i) / (2.0 * a * L * L), -a)
+    w = w / w.sum()
+    arr = close.to_numpy(dtype=float)
+    out = np.full(len(arr), np.nan)
+    if len(arr) >= L:
+        # w[0] وزن کندل جاری است، پس برای کانولوشن معکوس نمی‌شود.
+        out[L - 1:] = np.convolve(arr, w, mode="valid")
+    return pd.Series(out, index=close.index)
+
