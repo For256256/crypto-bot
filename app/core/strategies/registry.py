@@ -1170,6 +1170,196 @@ def biterdo(df: pd.DataFrame, p: dict) -> dict:
     return out
 
 
+# ---------- ۱۷) SSL Hybrid (کانال SSL + فیلتر سمتِ خط پایه) ----------
+def ssl_hybrid(df: pd.DataFrame, p: dict) -> dict:
+    """برچسب Buy/Sell کانال SSL، به‌اضافه‌ی شرطِ سمتِ خط پایه.
+
+    منطق پایه از خودِ اندیکاتور می‌آید: میانگین وزنیِ سقف‌ها و کف‌ها یک کانال
+    می‌سازند و `hlv` وقتی close از سقفِ کانال بالاتر برود ۱ و وقتی از کفِ
+    کانال پایین‌تر برود ‎−۱ می‌شود؛ وسطِ کانال مقدار قبلی حفظ می‌شود. برچسبِ
+    Buy/Sell دقیقاً روی *تغییرِ* همین مقدار چاپ می‌شود، نه روی هر کندلی که
+    جهت برقرار است.
+
+    شرط دوم چیزی است که در توضیح ویدئو روی آن تأکید شده و بدون آن سیستم
+    کامل نیست: خط پایه (همان خط ضخیمِ روی چارت) باید سمتِ درست کندل باشد —
+    برای فروش *بالای* کندل و برای خرید *زیر* کندل. کارِ این شرط حذفِ
+    برچسب‌هایی است که وسط یک حرکتِ خلافِ جهت چاپ می‌شوند؛ در ویدئو هم دقیقاً
+    همان نمونه‌ها به‌عنوان «اگر این قانون نبود استاپ می‌خوردیم» نشان داده شده.
+
+    منبع هیچ قاعده‌ای برای حد ضرر نمی‌دهد، پس نسبت پاداش به ریسک این‌جا یک
+    پارامتر آزاد است و نه یک انتخابِ تحمیلی. پیش‌فرض‌ها (‎۳×ATR و نسبت ۱) دقیقاً
+    همان چیزی است که موتور خودش اعمال می‌کرد، پس رفتار پیش‌فرض عوض نشده؛ ولی
+    حالا قابل تنظیم است. این مهم است چون با نرخ بردِ حدود ۴۳٪، نسبت ۱:۱ از
+    نظر ریاضی زیان‌ده است و بدون این پارامتر هیچ تنظیمی نمی‌توانست نجاتش دهد.
+    """
+    ssl_len = max(1, int(p.get("ssl_length", 8)))
+    base_len = max(2, int(p.get("baseline_length", 55)))
+    keltner_mult = float(p.get("keltner_mult", 0.2))
+    require_side = bool(int(p.get("require_baseline_side", 1)))
+    buffer_pct = float(p.get("baseline_buffer_pct", 0.0))
+    atr_mult_sl = float(p.get("atr_mult_sl", 3.0))
+    rr = float(p.get("risk_reward", 1.0))
+    atr_len = int(p.get("atr_length", 14))
+
+    atr_v = ind.atr(df, atr_len).iat[-1]
+    extra = {"atr": atr_v}
+    if len(df) < base_len + ssl_len + atr_len + 20 or not pd.notna(atr_v) or atr_v <= 0:
+        return _signal("none", df, extra, atr_v)
+
+    h = ind.ssl_hybrid(df, ssl_len, base_len, keltner_mult)
+    hlv = h["hlv"].to_numpy()
+    baseline = h["baseline"].to_numpy()
+    last = len(df) - 1
+    if not pd.notna(baseline[last]):
+        return _signal("none", df, extra, atr_v)
+
+    extra["ssl_dir"] = float(hlv[last])
+    extra["baseline"] = float(baseline[last])
+    extra["baseline_color"] = float(h["bar_color"].iat[-1])
+
+    def stop(reason: str) -> dict:
+        out = _signal("none", df, extra, atr_v)
+        out["reject"] = reason
+        return out
+
+    # فقط لبه: کندلی که جهت کانال تازه عوض شده
+    if hlv[last] == 0 or hlv[last] == hlv[last - 1]:
+        return stop("no_flip")
+    side = "buy" if hlv[last] > 0 else "sell"
+
+    high_v = float(df["high"].iat[-1])
+    low_v = float(df["low"].iat[-1])
+    base_v = float(baseline[last])
+    tol = base_v * buffer_pct / 100
+    if side == "sell":
+        ok_side = base_v >= high_v - tol
+    else:
+        ok_side = base_v <= low_v + tol
+    extra["baseline_side"] = 1.0 if ok_side else 0.0
+    if require_side and not ok_side:
+        return stop("baseline_wrong_side")
+
+    entry = float(df["close"].iat[-1])
+    dist = atr_mult_sl * float(atr_v)
+    sl = entry - dist if side == "buy" else entry + dist
+    tp = entry + rr * dist if side == "buy" else entry - rr * dist
+    if sl <= 0 or tp <= 0:
+        return stop("bad_stop")
+    out = _signal(side, df, extra, atr_v)
+    out["stop_loss"] = sl
+    out["take_profit"] = tp
+    return out
+
+
+# ---------- ۱۸) 👑 KING (فیلتر بازه + تأیید RQK) ----------
+def king(df: pd.DataFrame, p: dict) -> dict:
+    """ترجمه‌ی مستقیم اسکریپت پاین «KING - Range Filter + RQK».
+
+    دو نقش جدا دارد و ترتیبشان مهم است:
+    - **پیشرو: فیلتر بازه.** خطی پلکانی که فقط با حرکت‌های بزرگ‌تر از بازه‌ی
+      هموارشده جابه‌جا می‌شود. *لحظه‌ی روشن شدنِ* جهت آن ماشه را می‌کشد، نه هر
+      کندلی که جهت برقرار است.
+    - **تأییدکننده: RQK.** میانگین وزنیِ هسته‌ی درجه‌دوم گویا؛ فقط باید در همان
+      لحظه هم‌جهت باشد.
+
+    «مهلت سیگنال» همان چیزی است که این دو را به هم می‌رساند: ماشه‌ی پیشرو تا
+    چند کندل معتبر می‌ماند تا تأییدکننده‌ی کندتر برسد. بدون آن، عملاً هیچ‌وقت
+    هر دو در یک کندل هم‌زمان نمی‌شدند.
+
+    «سیگنال متناوب» هم از خود اسکریپت می‌آید: دو سیگنال هم‌جهتِ پشت‌سرهم صادر
+    نمی‌شود، تا در یک روند ممتد بارها روی یک پوزیشن اضافه نشود.
+    """
+    rf_period = max(1, int(p.get("rf_period", 100)))
+    rf_mult = float(p.get("rf_mult", 3.0))
+    rqk_lookback = max(2, int(p.get("rqk_lookback", 8)))
+    rqk_weight = float(p.get("rqk_weight", 8.0))
+    rqk_smooth = max(1, int(p.get("rqk_smooth", 1)))
+    expiry = max(0, int(p.get("signal_expiry", 3)))
+    alternate = bool(int(p.get("alternate_signal", 1)))
+    use_rqk = bool(int(p.get("use_rqk", 1)))
+    use_ema = bool(int(p.get("ema_filter", 0)))
+    ema_len = max(1, int(p.get("ema_length", 200)))
+    atr_mult_sl = float(p.get("atr_mult_sl", 1.5))
+    rr = float(p.get("risk_reward", 2.0))
+    atr_len = int(p.get("atr_length", 14))
+
+    atr_v = ind.atr(df, atr_len).iat[-1]
+    extra = {"atr": atr_v}
+    need = max(rf_period * 2, rqk_lookback, ema_len if use_ema else 0, atr_len) + 30
+    if len(df) < need or not pd.notna(atr_v) or atr_v <= 0:
+        return _signal("none", df, extra, atr_v)
+
+    close = df["close"]
+    rf = ind.range_filter(close, rf_period, rf_mult)
+    filt = rf["filt"].to_numpy()
+    up = rf["upward"].to_numpy(); dn = rf["downward"].to_numpy()
+    c = close.to_numpy()
+
+    prev_c = np.concatenate(([np.nan], c[:-1]))
+    rf_long = (c > filt) & (c > prev_c) & (up > 0)
+    rf_short = (c < filt) & (c < prev_c) & (dn > 0)
+
+    rq = ind.rqk(close, rqk_lookback, rqk_weight)
+    d = rq.diff()
+    dir_base = pd.Series(np.where(d > 0, 1.0, np.where(d < 0, -1.0, 0.0)), index=df.index)
+    rqk_dir = (dir_base.ewm(span=rqk_smooth, adjust=False).mean().to_numpy()
+               if rqk_smooth > 1 else dir_base.to_numpy())
+
+    ema_v = ind.ema(close, ema_len).to_numpy() if use_ema else None
+
+    last = len(df) - 1
+    extra["range_filter"] = float(filt[last])
+    extra["rqk"] = float(rq.iat[-1]) if pd.notna(rq.iat[-1]) else None
+    extra["rqk_dir"] = float(rqk_dir[last])
+
+    # حالت «در انتظار» دقیقاً مثل اسکریپت اصلی از ابتدای پنجره بازسازی می‌شود:
+    # ماشه، مهلت، و جهتِ آخرین سیگنالِ صادرشده.
+    pending_dir = 0
+    pending_bar = -1
+    last_signal_dir = 0
+    fired = 0
+    for i in range(1, len(df)):
+        if rf_long[i] and not rf_long[i - 1]:
+            pending_dir, pending_bar = 1, i
+        elif rf_short[i] and not rf_short[i - 1]:
+            pending_dir, pending_bar = -1, i
+        if pending_dir != 0 and i - pending_bar > expiry:
+            pending_dir, pending_bar = 0, -1
+        if pending_dir == 0:
+            fired = 0
+            continue
+        ok_rqk = (not use_rqk) or (rqk_dir[i] > 0 if pending_dir > 0 else rqk_dir[i] < 0)
+        ok_ema = True
+        if use_ema and pd.notna(ema_v[i]):
+            ok_ema = c[i] > ema_v[i] if pending_dir > 0 else c[i] < ema_v[i]
+        allow = (not alternate) or last_signal_dir != pending_dir
+        fired = pending_dir if (ok_rqk and ok_ema and allow) else 0
+        if fired:
+            last_signal_dir = pending_dir
+            pending_dir, pending_bar = 0, -1
+
+    extra["pending"] = float(pending_dir)
+    extra["rf_dir"] = 1.0 if rf_long[last] else (-1.0 if rf_short[last] else 0.0)
+    if fired == 0:
+        out = _signal("none", df, extra, atr_v)
+        out["reject"] = "no_signal"
+        return out
+
+    side = "buy" if fired > 0 else "sell"
+    entry = float(c[last])
+    dist = atr_mult_sl * float(atr_v)
+    sl = entry - dist if side == "buy" else entry + dist
+    tp = entry + rr * dist if side == "buy" else entry - rr * dist
+    if sl <= 0 or tp <= 0:
+        out = _signal("none", df, extra, atr_v)
+        out["reject"] = "bad_stop"
+        return out
+    out = _signal(side, df, extra, atr_v)
+    out["stop_loss"] = sl
+    out["take_profit"] = tp
+    return out
+
+
 STRATEGIES = {
     "supertrend_ema_rsi": {
         "label": "SuperTrend + EMA + RSI",
@@ -1373,6 +1563,45 @@ STRATEGIES = {
             {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
         ],
         "fn": biterdo,
+    },
+    "ssl_hybrid": {
+        "label": "SSL Hybrid (کانال SSL + فیلتر خط پایه)",
+        "params_schema": [
+            {"key": "ssl_length", "label": "دوره کانال SSL", "type": "int", "default": 8},
+            {"key": "baseline_length", "label": "دوره خط پایه (HMA)", "type": "int", "default": 55},
+            {"key": "require_baseline_side", "label": "خط پایه باید سمت درست کندل باشد (۱ = بله)", "type": "int", "default": 1},
+            {"key": "baseline_buffer_pct", "label": "تلورانس سمت خط پایه (٪)", "type": "float", "default": 0.0, "step": 0.01},
+            {"key": "keltner_mult", "label": "ضریب کانال کلتنر (رنگ خط پایه)", "type": "float", "default": 0.2, "step": 0.05},
+            {"key": "atr_mult_sl", "label": "ضریب ATR حد ضرر", "type": "float", "default": 3.0, "step": 0.1},
+            {"key": "risk_reward", "label": "نسبت پاداش به ریسک", "type": "float", "default": 1.0, "step": 0.1},
+            {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
+        ],
+        "fn": ssl_hybrid,
+    },
+    "king": {
+        # پیش‌فرض‌ها عمداً همان تنظیماتی است که در اندازه‌گیری خارج از نمونه
+        # بهترین نتیجه را داد، نه پیش‌فرض خام اسکریپت پاین. تفاوت‌ها نسبت به
+        # اسکریپت: دوره‌ی فیلتر بازه ۱۰۰ → ۲۰۰، نسبت پاداش به ریسک ۲ → ۳،
+        # سیگنال متناوب روشن → خاموش، و فیلتر EMA خاموش → روشن.
+        # جزئیات و محدودیت‌های این انتخاب در متن آموزشی همین استراتژی آمده.
+        # این اعداد روی تایم‌فریم ۴ ساعته سنجیده شده‌اند.
+        "label": "👑 KING (فیلتر بازه + تأیید RQK)",
+        "params_schema": [
+            {"key": "rf_period", "label": "دوره فیلتر بازه", "type": "int", "default": 200},
+            {"key": "rf_mult", "label": "ضریب بازه", "type": "float", "default": 3.0, "step": 0.1},
+            {"key": "rqk_lookback", "label": "دوره RQK", "type": "int", "default": 8},
+            {"key": "rqk_weight", "label": "وزن نسبی RQK", "type": "float", "default": 8.0, "step": 0.5},
+            {"key": "rqk_smooth", "label": "هموارسازی جهت RQK", "type": "int", "default": 1},
+            {"key": "use_rqk", "label": "تأیید RQK لازم باشد (۱ = بله)", "type": "int", "default": 1},
+            {"key": "signal_expiry", "label": "مهلت سیگنال (کندل)", "type": "int", "default": 3},
+            {"key": "alternate_signal", "label": "سیگنال متناوب (۱ = بله)", "type": "int", "default": 0},
+            {"key": "ema_filter", "label": "فیلتر EMA (۱ = روشن)", "type": "int", "default": 1},
+            {"key": "ema_length", "label": "دوره EMA فیلتر", "type": "int", "default": 200},
+            {"key": "atr_mult_sl", "label": "ضریب ATR حد ضرر", "type": "float", "default": 1.5, "step": 0.1},
+            {"key": "risk_reward", "label": "نسبت پاداش به ریسک", "type": "float", "default": 3.0, "step": 0.1},
+            {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
+        ],
+        "fn": king,
     },
     "adaptive_regime": {
         "label": "خودکار: انتخاب استراتژی بر اساس وضعیت بازار",

@@ -25,15 +25,18 @@ def rsi(close: pd.Series, length: int = 14) -> pd.Series:
     return out.fillna(50.0)
 
 
-def atr(df: pd.DataFrame, length: int = 14) -> pd.Series:
+def true_range(df: pd.DataFrame) -> pd.Series:
     high, low, close = df["high"], df["low"], df["close"]
     prev_close = close.shift(1)
-    tr = pd.concat([
+    return pd.concat([
         high - low,
         (high - prev_close).abs(),
         (low - prev_close).abs(),
     ], axis=1).max(axis=1)
-    return tr.ewm(alpha=1 / length, adjust=False).mean()
+
+
+def atr(df: pd.DataFrame, length: int = 14) -> pd.Series:
+    return true_range(df).ewm(alpha=1 / length, adjust=False).mean()
 
 
 def supertrend(df: pd.DataFrame, length: int = 10, multiplier: float = 3.0) -> pd.DataFrame:
@@ -309,14 +312,68 @@ def vortex(df: pd.DataFrame, length: int = 14) -> pd.DataFrame:
                         index=df.index)
 
 
+def wma(series: pd.Series, length: int) -> pd.Series:
+    """میانگین متحرک وزنی خطی: وزن جدیدترین کندل بیشترین است.
+
+    با کانولوشن حساب می‌شود نه با `rolling().apply()`. دلیلش کارایی است: این
+    تابع در بک‌تست روی پنجره‌ی بزرگ‌شونده برای هر کندل صدا زده می‌شود، پس
+    هزینه‌اش مربعی جمع می‌شود و نسخه‌ی حلقه‌ای عملاً بک‌تست را قفل می‌کند.
+    """
+    n = max(1, int(length))
+    arr = series.to_numpy(dtype=float)
+    out = np.full(len(arr), np.nan)
+    if len(arr) >= n:
+        w = np.arange(1, n + 1, dtype=float)
+        w /= w.sum()
+        # وزن‌ها برعکس داده می‌شوند تا در خروجیِ کانولوشن، بزرگ‌ترین وزن روی
+        # جدیدترین کندلِ هر پنجره بیفتد.
+        out[n - 1:] = np.convolve(arr, w[::-1], mode="valid")
+    return pd.Series(out, index=series.index)
+
+
 def hull_ma(series: pd.Series, length: int = 55) -> pd.Series:
     """میانگین متحرک هال: کم‌تأخیرتر از میانگین‌های معمول."""
-    def wma(s: pd.Series, n: int) -> pd.Series:
-        w = np.arange(1, n + 1)
-        return s.rolling(n).apply(lambda x: np.dot(x, w) / w.sum(), raw=True)
     half = max(1, int(length / 2))
     sqrt_len = max(1, int(math.sqrt(length)))
     return wma(2 * wma(series, half) - wma(series, length), sqrt_len)
+
+
+def ssl_hybrid(df: pd.DataFrame, ssl_length: int = 8, baseline_length: int = 55,
+               keltner_mult: float = 0.2) -> pd.DataFrame:
+    """هسته‌ی اندیکاتور SSL Hybrid.
+
+    سه خروجی می‌دهد:
+    - `hlv`: جهت کانال SSL. وقتی بسته‌شدن از میانگین وزنیِ سقف‌ها بالاتر برود
+      ۱ می‌شود و وقتی از میانگین وزنیِ کف‌ها پایین‌تر برود ‎−۱؛ بین این دو،
+      مقدار قبلی را نگه می‌دارد. برچسب‌های Buy/Sell دقیقاً روی *تغییر* همین
+      مقدار چاپ می‌شوند.
+    - `baseline`: همان خطِ ضخیم روی چارت — میانگین متحرک هال روی close.
+    - `bar_color`: رنگ خط، از کانال کلتنر دور خط پایه: ۱ (آبی) وقتی قیمت بالای
+      باند بالاست، ‎−۱ (قرمز) وقتی زیر باند پایین است، و ۰ (خاکستری) وسط.
+    """
+    ssl_high = wma(df["high"], ssl_length)
+    ssl_low = wma(df["low"], ssl_length)
+    close = df["close"].to_numpy(dtype=float)
+    hi, lo = ssl_high.to_numpy(), ssl_low.to_numpy()
+    hlv = np.zeros(len(df))
+    for i in range(len(df)):
+        prev = hlv[i - 1] if i else 0.0
+        if not (np.isfinite(hi[i]) and np.isfinite(lo[i])):
+            hlv[i] = prev
+            continue
+        hlv[i] = 1.0 if close[i] > hi[i] else (-1.0 if close[i] < lo[i] else prev)
+
+    baseline = hull_ma(df["close"], baseline_length)
+    keltma = baseline
+    rangema = true_range(df).ewm(span=max(1, int(baseline_length)), adjust=False).mean()
+    upper = keltma + rangema * keltner_mult
+    lower = keltma - rangema * keltner_mult
+    bar_color = np.where(df["close"] > upper, 1.0,
+                         np.where(df["close"] < lower, -1.0, 0.0))
+    return pd.DataFrame({"hlv": hlv, "baseline": baseline,
+                         "bar_color": bar_color,
+                         "ssl_high": ssl_high, "ssl_low": ssl_low},
+                        index=df.index)
 
 
 def chandelier_exit(df: pd.DataFrame, length: int = 22, mult: float = 3.0) -> pd.Series:
@@ -395,3 +452,66 @@ def ichimoku_cloud(df: pd.DataFrame, tenkan_length: int = 9, kijun_length: int =
     return pd.DataFrame({"tenkan": lines["tenkan"], "kijun": lines["kijun"],
                          "span_a": span_a, "span_b": mid.shift(kijun_length)},
                         index=df.index)
+
+def range_filter(close: pd.Series, period: int = 100, mult: float = 3.0) -> pd.DataFrame:
+    """فیلتر بازه (Range Filter) به سبک Donovan Wall.
+
+    یک خط پلکانی که فقط وقتی حرکت می‌کند که قیمت بیش از «بازه‌ی هموارشده» از
+    آن فاصله بگیرد؛ در نوسان‌های کوچک‌تر از آن بازه ثابت می‌ماند. همین ثابت
+    ماندن است که نویز را حذف می‌کند.
+
+    خروجی: `filt` (خود خط)، `smrng` (نصف پهنای بازه)، و شمارنده‌های `upward` و
+    `downward` که می‌گویند خط چند کندل است پشت‌سرهم بالا/پایین می‌رود.
+    """
+    n = max(1, int(period))
+    avg_range = close.diff().abs().ewm(span=n, adjust=False).mean()
+    smrng = avg_range.ewm(span=max(1, n * 2 - 1), adjust=False).mean() * float(mult)
+
+    x = close.to_numpy(dtype=float)
+    r = smrng.to_numpy(dtype=float)
+    filt = np.empty(len(x)); filt[:] = np.nan
+    prev = x[0] if len(x) else np.nan
+    for i in range(len(x)):
+        ri = r[i]
+        if not np.isfinite(ri):
+            filt[i] = prev
+            continue
+        if x[i] > prev:
+            prev = prev if x[i] - ri < prev else x[i] - ri
+        else:
+            prev = prev if x[i] + ri > prev else x[i] + ri
+        filt[i] = prev
+
+    up = np.zeros(len(x)); dn = np.zeros(len(x))
+    for i in range(1, len(x)):
+        if filt[i] > filt[i - 1]:
+            up[i] = up[i - 1] + 1; dn[i] = 0
+        elif filt[i] < filt[i - 1]:
+            dn[i] = dn[i - 1] + 1; up[i] = 0
+        else:
+            up[i] = up[i - 1]; dn[i] = dn[i - 1]
+    return pd.DataFrame({"filt": filt, "smrng": smrng.to_numpy(),
+                         "upward": up, "downward": dn}, index=close.index)
+
+
+def rqk(close: pd.Series, lookback: int = 8, relative_weight: float = 8.0) -> pd.Series:
+    """برآورد هسته‌ی درجه‌دوم گویا (Rational Quadratic Kernel).
+
+    میانگین وزنیِ `lookback` کندل آخر است که وزن هر کندل با فاصله‌اش افت
+    می‌کند: w(i) = (1 + i²/(2·α·L²))^(−α). نسبت به میانگین متحرک نرم‌تر است
+    و دیرتر هم عوض نمی‌شود.
+
+    فقط از کندل جاری و گذشته استفاده می‌کند، پس بازترسیم (repaint) ندارد.
+    """
+    L = max(2, int(lookback))
+    a = float(relative_weight)
+    i = np.arange(L, dtype=float)
+    w = np.power(1.0 + (i * i) / (2.0 * a * L * L), -a)
+    w = w / w.sum()
+    arr = close.to_numpy(dtype=float)
+    out = np.full(len(arr), np.nan)
+    if len(arr) >= L:
+        # w[0] وزن کندل جاری است، پس برای کانولوشن معکوس نمی‌شود.
+        out[L - 1:] = np.convolve(arr, w, mode="valid")
+    return pd.Series(out, index=close.index)
+
