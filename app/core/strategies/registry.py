@@ -1579,20 +1579,26 @@ STRATEGIES = {
         "fn": ssl_hybrid,
     },
     "king": {
+        # پیش‌فرض‌ها عمداً همان تنظیماتی است که در اندازه‌گیری خارج از نمونه
+        # بهترین نتیجه را داد، نه پیش‌فرض خام اسکریپت پاین. تفاوت‌ها نسبت به
+        # اسکریپت: دوره‌ی فیلتر بازه ۱۰۰ → ۲۰۰، نسبت پاداش به ریسک ۲ → ۳،
+        # سیگنال متناوب روشن → خاموش، و فیلتر EMA خاموش → روشن.
+        # جزئیات و محدودیت‌های این انتخاب در متن آموزشی همین استراتژی آمده.
+        # این اعداد روی تایم‌فریم ۴ ساعته سنجیده شده‌اند.
         "label": "👑 KING (فیلتر بازه + تأیید RQK)",
         "params_schema": [
-            {"key": "rf_period", "label": "دوره فیلتر بازه", "type": "int", "default": 100},
+            {"key": "rf_period", "label": "دوره فیلتر بازه", "type": "int", "default": 200},
             {"key": "rf_mult", "label": "ضریب بازه", "type": "float", "default": 3.0, "step": 0.1},
             {"key": "rqk_lookback", "label": "دوره RQK", "type": "int", "default": 8},
             {"key": "rqk_weight", "label": "وزن نسبی RQK", "type": "float", "default": 8.0, "step": 0.5},
             {"key": "rqk_smooth", "label": "هموارسازی جهت RQK", "type": "int", "default": 1},
             {"key": "use_rqk", "label": "تأیید RQK لازم باشد (۱ = بله)", "type": "int", "default": 1},
             {"key": "signal_expiry", "label": "مهلت سیگنال (کندل)", "type": "int", "default": 3},
-            {"key": "alternate_signal", "label": "سیگنال متناوب (۱ = بله)", "type": "int", "default": 1},
-            {"key": "ema_filter", "label": "فیلتر EMA (۱ = روشن)", "type": "int", "default": 0},
+            {"key": "alternate_signal", "label": "سیگنال متناوب (۱ = بله)", "type": "int", "default": 0},
+            {"key": "ema_filter", "label": "فیلتر EMA (۱ = روشن)", "type": "int", "default": 1},
             {"key": "ema_length", "label": "دوره EMA فیلتر", "type": "int", "default": 200},
             {"key": "atr_mult_sl", "label": "ضریب ATR حد ضرر", "type": "float", "default": 1.5, "step": 0.1},
-            {"key": "risk_reward", "label": "نسبت پاداش به ریسک", "type": "float", "default": 2.0, "step": 0.1},
+            {"key": "risk_reward", "label": "نسبت پاداش به ریسک", "type": "float", "default": 3.0, "step": 0.1},
             {"key": "atr_length", "label": "دوره ATR", "type": "int", "default": 14},
         ],
         "fn": king,
